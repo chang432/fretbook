@@ -1,0 +1,1134 @@
+/*
+ * Layout note: the staff is built on a fixed 36px column pitch. The vertical
+ * guides are painted as a repeating gradient on .staff-body using that same
+ * pitch, so the guides and the input cells stay locked together without any
+ * per-column DOM for the lines.
+ */
+:root {
+  --cell-w: 36px;
+  --row-h: 34px;
+  --bar-w: calc(var(--cell-w) * 4);
+
+  /* Space above and below a staff inside its section. Has to clear the symbols
+     that sit over the top string, which the row's scroll container would
+     otherwise cut off. */
+  --staff-air: 14px;
+
+  /* One strip of per-position controls above a staff — the shift anchors, or
+     copy mode's circles and paste buttons. Each one standing pushes the
+     strings down by exactly this much. */
+  --strip-h: 22px;
+
+  --paper: #fbf8f1;
+  --page: #ece7dc;
+  --ink: #16202b;
+  --string: #2f3a45;
+  --bar: #b9c2cc;
+  --grid: #dde3e9;
+  --barline: #a3aeb9;
+  --muted: #7d8894;
+  --accent: #a8492f;
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 16px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+.app {
+  /* Wide enough for a long staff; rows narrower than this sit flush left, and
+     rows wider than it scroll within themselves. */
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 32px 10px 64px;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+h1 {
+  margin: 0;
+  font: 600 26px/1.2 Georgia, 'Times New Roman', serif;
+  letter-spacing: 0.01em;
+}
+
+.title-input {
+  width: 220px;
+  padding: 8px 10px;
+  border: 1px solid var(--bar);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 600 16px Georgia, 'Times New Roman', serif;
+}
+
+.title-input:focus-visible,
+.cell:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Toolbar ------------------------------------------------------------- */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 24px 0 12px;
+}
+
+.toolbar-group {
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  padding: 7px 12px;
+  border: 1px solid var(--bar);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button.danger,
+button.is-on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+/* A drawn symbol standing in for a word. One box and one weight for all of
+   them, so a button holding a symbol sits level with one holding words. */
+.icon {
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The shapes that read better solid than outlined at this size: the speaker's
+   cone, the play triangle, the rewind arrows. */
+.icon .solid {
+  fill: currentColor;
+}
+
+/* Square, so a row of them is a row of equal buttons whatever they hold. */
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+}
+
+button.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: underline;
+}
+
+.status {
+  min-height: 20px;
+  color: var(--accent);
+  font-size: 13px;
+}
+
+/* Edit mode ------------------------------------------------------------ */
+
+/* Says what the two presses do, and stays up for as long as the mode does —
+   the status line beside the buttons clears itself after a few seconds, which
+   is right for something that has just happened and wrong for a mode. */
+.edit-hint {
+  margin: 0 0 4px;
+  color: var(--accent);
+  font-size: 13px;
+}
+
+/* The transparent sheet laid over a staff while the order is being edited, so
+   a row is one thing to press rather than a grid of cells. It is inset by a
+   couple of pixels so its outline reads as around the row rather than as a
+   change to the rule between rows. */
+.row-select {
+  position: absolute;
+  inset: 2px;
+  z-index: 5;
+  padding: 0;
+  border: 1px dashed transparent;
+  border-radius: 10px;
+  background: none;
+}
+
+.row-select:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: rgb(168 73 47 / 6%);
+}
+
+/* Held, and waiting for the row it swaps with. Solid rather than dashed: the
+   dashes are the offer, the line is the thing actually picked up. */
+.row-select.is-selected,
+.row-select.is-selected:hover {
+  border-style: solid;
+  border-color: var(--accent);
+  background: rgb(168 73 47 / 12%);
+}
+
+/* Popovers ------------------------------------------------------------- */
+
+/* The shell every anchored panel shares: fixed, so no scroll container can
+   clip it. Placement is set inline — see utils/popover.js, which keeps it
+   inside the window rather than centred half off the edge on a narrow screen.
+   The max-width is the last resort for a window narrower than the panel. */
+.popover {
+  position: fixed;
+  z-index: 20;
+  max-width: calc(100vw - 16px);
+  border: 1px solid var(--bar);
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 2px 8px rgb(22 32 43 / 14%);
+}
+
+.export-menu {
+  display: flex;
+  flex-direction: column;
+  width: 200px;
+  max-width: 100%;
+  padding: 5px;
+}
+
+.export-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  text-align: left;
+}
+
+.export-option:hover:not(:disabled) {
+  background: var(--page);
+}
+
+.export-name {
+  font-size: 14px;
+}
+
+.export-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Sheet ---------------------------------------------------------------- */
+
+/* No panel: the staves sit straight on the page, the way ruled lines sit on a
+   sheet of paper. Which is why the chip punched behind a written fret below
+   takes the page colour, not a panel colour. */
+.sheet {
+  margin-top: 16px;
+}
+
+/* Rows sit flush against each other: each one's rule doubles as the previous
+   one's, so the whole sheet reads as a stack of sections. */
+.editor {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Group section ------------------------------------------------------- */
+
+/* The running order, in the same ruled-off shape as a row so it reads as part
+   of the same sheet — just a shallower one. */
+.group-section {
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--bar);
+}
+
+/* Sized to the row number plus the string labels, so the slots start where the
+   bars below them do. */
+.group-title {
+  flex: none;
+  width: 66px;
+  margin-left: 10px;
+  color: var(--muted);
+  font: 600 10px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.group-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* One position in the song. Empty ones are quiet dashed outlines — somewhere
+   to write rather than something written. */
+.group-slot {
+  /* Wide enough for a bare group number; a repeat count grows it rather than
+     being squeezed in beside one. */
+  min-width: 32px;
+  height: 28px;
+  padding: 0 5px;
+  border-style: dashed;
+  border-radius: 7px;
+  background: none;
+  color: var(--muted);
+  font: 600 13px/1 ui-monospace, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* How many times over the slot plays its group. Quieter than the number it
+   follows: the group is what is played, the count only how often. */
+.group-repeat {
+  margin-left: 1px;
+  font-weight: 500;
+  opacity: 0.5;
+}
+
+.group-slot.is-filled {
+  border-style: solid;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.group-slot:hover:not(:disabled),
+.group-slot.is-open {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Picked up in edit mode, waiting for the slot it swaps with. A slot is
+   already a small outlined box, so it only needs filling in — the staff rows
+   get the same accent as an outline, since filling one would hide the tab. */
+.group-slot.is-selected,
+.group-slot.is-selected:hover {
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+/* The list of groups a slot can take, over how many times it plays one. */
+.group-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 240px;
+  padding: 5px;
+}
+
+.group-picker-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.group-picker-title {
+  color: var(--muted);
+  font: 600 9px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.group-picker-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.group-option {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 7px;
+  font: 600 13px/1 ui-monospace, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.group-option.is-active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.group-option--clear {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+/* Staff --------------------------------------------------------------- */
+
+/* A row is its own section: a rule across the top, the number on the left,
+   then the strings. Items are top-aligned rather than centred so the string
+   labels stay level with the strings even when a scrollbar takes up room
+   below them. */
+.staff {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  border-top: 1px solid var(--bar);
+}
+
+/* Which row this is, in a circle at the far left of its section. */
+.row-number {
+  display: flex;
+  flex: none;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin: 0 10px;
+  border: 1px solid var(--bar);
+  border-radius: 50%;
+  color: var(--muted);
+  font: 600 13px/1 ui-monospace, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/**
+ * Each row scrolls by itself, so reading the end of a long row leaves every
+ * other row where it was.
+ *
+ * `flex: 0 1 auto` is what keeps that from looking odd: the scroller is as
+ * wide as its staff and no wider, so the +/- buttons stay against the end of a
+ * short row, and only a row too long for the sheet gets shrunk and scrolls.
+ * `min-width: 0` is what allows that shrinking at all.
+ */
+.staff-scroll {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: var(--staff-air) 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* Reaching the end of a row must not start scrolling the page behind it. */
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+/* One column of controls past the end of the staff — shift left, shift right,
+   then add and remove a bar. Sitting after the scroller means a row that has
+   been widened pushes them right rather than moving any other row. */
+/* `display: flex` would otherwise outrank the browser's own rule for the
+   hidden attribute, which is how edit mode stands these down. */
+.row-bars[hidden] {
+  display: none;
+}
+
+.row-bars {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  align-self: center;
+  gap: 6px;
+  margin-left: 10px;
+}
+
+.bar-button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  font: 400 20px/1 ui-monospace, Menlo, monospace;
+}
+
+.bar-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Puts the shift arrows away. Ringed in the accent so the way out of the
+   errand is obvious among the arrows it sits beside, rather than reading as a
+   third thing to press inside it. */
+.bar-button--close {
+  font-size: 15px;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.bar-button--close:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Armed: the next press deletes written notes, so it says so in the toolbar's
+   status line and looks like the Clear button while it waits. */
+.bar-button.is-armed,
+.bar-button.is-armed:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.staff-labels {
+  display: flex;
+  flex-direction: column;
+  /* Matches the scroller's padding so labels line up with their strings, plus
+     one strip's worth for every strip standing inside the scroller — the shift
+     anchors, and copy mode's two. TabEditor counts them onto `--strips`. */
+  margin-top: calc(var(--staff-air) + var(--strip-h) * var(--strips, 0));
+}
+
+/* One control per position, on the same column pitch as the staff below it, so
+   each sits over the position it acts on. Shared by the shift anchors and by
+   copy mode's range circles and paste buttons. */
+.position-strip {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  height: var(--strip-h);
+}
+
+.position-cell {
+  position: relative;
+  width: var(--cell-w);
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+/* The circle glyph, drawn on the cells that mark a position rather than act on
+   it — the shift anchors, and copy mode's two range ends. */
+.position-dot::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 11px;
+  height: 11px;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--barline);
+  border-radius: 50%;
+  background: var(--paper);
+}
+
+.position-dot:hover::before {
+  border-color: var(--accent);
+}
+
+/* The one chosen: a shift's anchor, or either end of a copied stretch. */
+.position-dot.is-selected::before {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+/* The positions carried along with it — everything right of a shift anchor, or
+   everything between the two ends of a stretch. The same colour, weaker, so
+   the chosen ones still read as the ones that were pressed. */
+.position-dot.is-span::before {
+  border-color: var(--accent);
+  background: rgb(168 73 47 / 28%);
+}
+
+/* One paste button per position, under the circles. Quiet until the stretch it
+   would write is ready, so the strip does not read as a row of live buttons
+   before there is anything to paste. */
+.paste-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  border-radius: 4px;
+}
+
+.paste-button:disabled {
+  opacity: 0.25;
+}
+
+.paste-button:not(:disabled):hover {
+  color: var(--accent);
+  background: rgb(168 73 47 / 12%);
+}
+
+/* Armed: the stretch would write over notes, and the next press goes through. */
+.paste-button.is-armed {
+  color: var(--paper);
+  background: var(--accent);
+}
+
+.string-label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 30px;
+  height: var(--row-h);
+  padding-right: 10px;
+  color: var(--muted);
+  font: 600 13px ui-monospace, Menlo, monospace;
+}
+
+.staff-body {
+  position: relative;
+  /* Never shrink to the scroller: the staff keeps its full width and scrolls. */
+  width: max-content;
+}
+
+/* Two guide layers: a faint tick on every column, a firmer barline every 4.
+   Both are inset by half a row so they stop at the outer strings. Shared with
+   live mode's strip, so a bar is ruled the same wherever it is drawn.
+
+   Each layer draws its line at the start of a column, so the run of them stops
+   one column short of the end — the line closing the last bar would fall just
+   past the edge of the box and be clipped. The staff draws that one itself. */
+.staff-body,
+.live-run {
+  background-image:
+    repeating-linear-gradient(to right, var(--barline) 0 1px, transparent 1px var(--bar-w)),
+    repeating-linear-gradient(to right, var(--grid) 0 1px, transparent 1px var(--cell-w));
+  background-size: 100% calc(100% - var(--row-h));
+  background-position: 0 calc(var(--row-h) / 2);
+  background-repeat: no-repeat;
+}
+
+/* The barline closing the end of the row, kept to the same height as the ones
+   the gradient draws. The PNG export has always drawn it. */
+.staff-body::after {
+  content: '';
+  position: absolute;
+  top: calc(var(--row-h) / 2);
+  right: 0;
+  bottom: calc(var(--row-h) / 2);
+  width: 1px;
+  background: var(--barline);
+}
+
+.string-row {
+  position: relative;
+  display: flex;
+  height: var(--row-h);
+}
+
+/* The string itself: one crisp line running the width of the staff. */
+.string-row::before {
+  content: '';
+  position: absolute;
+  inset: calc(50% - 1px) 0 auto;
+  height: 2px;
+  background: var(--string);
+}
+
+/* Arcs and symbols draw over the whole staff, including the chip behind
+   a number — otherwise that chip washes out a symbol sitting above the digit.
+   They never swallow a pointer: the cells underneath stay hittable mid-drag. */
+.staff-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.tie {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.tie--preview {
+  stroke-dasharray: 4 4;
+  opacity: 0.75;
+}
+
+.mark {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Symbol buttons floating over the note being edited. Fixed, so the sheet's
+   scroll container cannot clip them. */
+.mark-bar {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--bar);
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 2px 8px rgb(22 32 43 / 14%);
+}
+
+.mark-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  border-radius: 6px;
+  line-height: 0;
+}
+
+.mark-button svg {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mark-button.is-active {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.mark-button.is-active svg {
+  stroke: var(--paper);
+}
+
+/* The tie button starts a different kind of edit from the symbol beside it,
+   so it is fenced off with a hairline. */
+.mark-button--tie {
+  position: relative;
+  margin-right: 4px;
+}
+
+.mark-button--tie::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: -4px;
+  bottom: 4px;
+  width: 1px;
+  background: var(--bar);
+}
+
+.cell {
+  position: relative;
+  z-index: 2;
+  width: var(--cell-w);
+  height: var(--row-h);
+  /* Every gesture here is a tap, so skip the double-tap-zoom delay on touch. */
+  touch-action: manipulation;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 600 17px/1 ui-monospace, Menlo, monospace;
+  text-align: center;
+  caret-color: var(--accent);
+}
+
+/* A written fret punches a hole in the string, the way a number replaces the
+   dashes in written tab. Page-coloured, since there is no panel behind it. */
+.cell--filled {
+  background: radial-gradient(closest-side, var(--page) 74%, transparent 100%);
+}
+
+.cell:hover {
+  background: radial-gradient(closest-side, rgb(168 73 47 / 10%) 74%, transparent 100%);
+}
+
+.cell:focus {
+  background: radial-gradient(closest-side, var(--page) 78%, transparent 100%);
+  outline: none;
+}
+
+.cell::selection {
+  background: rgb(168 73 47 / 20%);
+}
+
+/* While a tie is armed: the note it runs from stays marked, and every position
+   it could reach is highlighted, with the one being aimed at picked out. */
+.cell--tie-source {
+  background: radial-gradient(closest-side, var(--page) 78%, transparent 100%);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  border-radius: 8px;
+}
+
+.cell--tie-target {
+  background: radial-gradient(closest-side, rgb(168 73 47 / 16%) 78%, transparent 100%);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.cell--tie-cursor,
+.cell--tie-target:hover {
+  background: radial-gradient(closest-side, rgb(168 73 47 / 32%) 78%, transparent 100%);
+}
+
+/* Sheet actions -------------------------------------------------------- */
+
+.sheet-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+/* Output -------------------------------------------------------------- */
+
+.output {
+  margin-top: 20px;
+}
+
+.output-pre {
+  margin: 10px 0 0;
+  padding: 16px;
+  border: 1px solid var(--bar);
+  border-radius: 10px;
+  background: var(--paper);
+  font: 13px/1.45 ui-monospace, Menlo, monospace;
+  overflow-x: auto;
+}
+
+/* Live mode ------------------------------------------------------------ */
+
+/* The tempo prompt behind the Live button. */
+.live-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 210px;
+  padding: 12px;
+}
+
+.live-menu-label {
+  color: var(--muted);
+  font: 600 10px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.live-menu-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.live-menu-input {
+  width: 90px;
+  padding: 6px 8px;
+  border: 1px solid var(--bar);
+  border-radius: 8px;
+  background: var(--page);
+  color: var(--ink);
+  font: 600 18px ui-monospace, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.live-menu-unit,
+.live-menu-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.live-menu-hint {
+  margin: 0;
+  line-height: 1.35;
+}
+
+.live-menu-toggle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.live-menu-toggle input {
+  accent-color: var(--accent);
+}
+
+.live-menu-start {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+/*
+ * The full-screen player. Everything inside is drawn by the same staff rules
+ * the editor uses, and takes its colours from the same place — so the song
+ * plays on the page it was written on, at the size the window allows. Only the
+ * geometry below is the player's own.
+ */
+.live {
+  /* Where the playhead stands, as a share of the width: enough tab behind it
+     to see what was just played, most of it ahead. */
+  --live-head: 28%;
+  /* Seed only: LiveMode measures the space the staff has and sets this
+     inline, so the staff is never cut off by a window too short for it. */
+  --live-scale: 2;
+  /* The group label hangs above the top string, so what is centred is the
+     staff plus that label — otherwise the label is the first thing off the
+     top of a short window. Half its height, nudged down. */
+  --live-lift: calc(12px * var(--live-scale));
+
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: var(--page);
+  color: var(--ink);
+}
+
+/* It is focused on open so the keys reach it; the ring around the whole
+   screen that would otherwise draw says nothing. */
+.live:focus {
+  outline: none;
+}
+
+.live-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--bar);
+}
+
+/* Simple mode keeps Exit available without reserving room above the tab. */
+.live--simple .live-bar {
+  position: absolute;
+  z-index: 10;
+  top: 0;
+  right: 0;
+  padding: 12px 18px;
+  border: 0;
+}
+
+.live-title {
+  font: 600 17px Georgia, 'Times New Roman', serif;
+}
+
+.live-transport {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.live-play {
+  min-width: 96px;
+}
+
+.live-tempo {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-left: 8px;
+}
+
+.live-tempo button {
+  width: 30px;
+  padding: 6px 0;
+  font: 400 16px/1 ui-monospace, Menlo, monospace;
+}
+
+.live-bpm {
+  min-width: 74px;
+  text-align: center;
+  font: 600 14px ui-monospace, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pushed to the right-hand end, ahead of Exit. */
+.live-readout {
+  margin-left: auto;
+  color: var(--muted);
+  font: 13px ui-monospace, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The window the song scrolls through. */
+.live-viewport {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* The tab slides out of sight behind the string labels rather than stopping
+   dead at their edge. */
+.live-viewport::before {
+  content: '';
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 120px;
+  background: linear-gradient(to right, var(--page) 45%, transparent);
+  pointer-events: none;
+}
+
+/*
+ * Two nested transforms, so the moving one stays in plain staff pixels: the
+ * stage holds the zoom and pins the staff's left edge to the playhead, and the
+ * track — the only thing touched frame to frame — is offset by the position in
+ * cell widths.
+ */
+.live-stage {
+  position: absolute;
+  top: 50%;
+  left: var(--live-head);
+  width: max-content;
+  transform: translateY(calc(-50% + var(--live-lift))) scale(var(--live-scale));
+  transform-origin: left center;
+}
+
+.live-track {
+  position: relative;
+  width: max-content;
+  will-change: transform;
+}
+
+.live-strip {
+  display: flex;
+}
+
+/* One run of the running order: a row of the sheet, drawn where the song
+   reaches it. A row played three times is three of these. */
+.live-run {
+  position: relative;
+  flex: none;
+}
+
+/* Where one run gives way to the next. */
+.live-run + .live-run::before {
+  content: '';
+  position: absolute;
+  top: calc(var(--row-h) / 2);
+  bottom: calc(var(--row-h) / 2);
+  left: 0;
+  width: 2px;
+  background: var(--muted);
+}
+
+.live-run-label {
+  position: absolute;
+  top: -20px;
+  left: 3px;
+  color: var(--muted);
+  font: 600 9px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* The written frets. Not inputs here — nothing is editable mid-song — but the
+   same size and the same chip punched out of the string behind them. */
+.live-cell {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--cell-w);
+  height: var(--row-h);
+  color: var(--ink);
+  font: 600 17px/1 ui-monospace, Menlo, monospace;
+}
+
+/* The position being played, travelling with the tab under the playhead. */
+.live-now {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  border-radius: 6px;
+  background: rgb(168 73 47 / 16%);
+}
+
+/* The playhead itself: fixed on screen, the tab moving past it. */
+.live-playhead {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  bottom: 0;
+  left: var(--live-head);
+  width: 2px;
+  background: var(--accent);
+}
+
+.live-playhead::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -6px;
+  border-top: 8px solid var(--accent);
+  border-right: 7px solid transparent;
+  border-left: 7px solid transparent;
+}
+
+/* Which string is which, pinned over the left edge at the staff's own scale. */
+.live-labels {
+  position: absolute;
+  z-index: 6;
+  top: 50%;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  /* Lifted with the staff, so the letters stay level with their strings. */
+  transform: translateY(calc(-50% + var(--live-lift))) scale(var(--live-scale));
+  transform-origin: left center;
+}
+
+.live-progress {
+  height: 3px;
+  background: var(--paper);
+}
+
+.live-progress-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+/* A narrow window has less room behind the playhead to spare. */
+@media (max-width: 600px) {
+  .live {
+    --live-head: 22%;
+  }
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  overflow: hidden;
+}
