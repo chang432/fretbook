@@ -1,0 +1,10 @@
+.git
+.gitignore
+node_modules
+dist
+.agents
+.claude
+.DS_Store
+*.local
+*.zip
+README.md

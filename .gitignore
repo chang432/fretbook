@@ -5,3 +5,6 @@ dist
 *.local
 .DS_Store
 *.zip
+__pycache__/
+*.py[cod]
+.venv/

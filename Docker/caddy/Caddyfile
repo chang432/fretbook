@@ -1,0 +1,29 @@
+# Single site on :80 — TLS is expected to be terminated upstream (or added here
+# by swapping the address for a real hostname, which turns auto_https back on).
+{
+	admin off
+	auto_https off
+}
+
+:80 {
+	encode gzip zstd
+
+	# Everything under /api goes to the gunicorn/Flask container. `backend` is
+	# the compose service name, resolved on the shared network.
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	# Static build output. try_files sends unknown paths to index.html so the
+	# SPA keeps working on a deep link / refresh.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

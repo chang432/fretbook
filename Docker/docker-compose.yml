@@ -1,0 +1,39 @@
+# Two containers: caddy serves the built Vite app and reverse-proxies /api to
+# gunicorn/Flask. Run from this directory: `docker compose up --build`.
+
+services:
+  backend:
+    build:
+      context: ./backend
+    image: fretbook-backend
+    restart: unless-stopped
+    environment:
+      PORT: "8000"
+      WEB_CONCURRENCY: "2"
+      LOG_LEVEL: info
+    # Not published on the host — only caddy needs to reach it.
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health').read()"
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  web:
+    build:
+      # Repo root, so the frontend build stage can see package.json and src/.
+      context: ..
+      dockerfile: Docker/caddy/Dockerfile
+    image: fretbook-web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
