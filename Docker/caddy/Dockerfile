@@ -14,7 +14,7 @@ RUN npm run build
 
 # --- serve stage: caddy over the static output ------------------------------
 FROM caddy:2-alpine
-COPY Docker/caddy/Caddyfile /etc/caddy/Caddyfile
+COPY docker/caddy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/dist /srv
 
 EXPOSE 80

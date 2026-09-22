@@ -29,7 +29,7 @@ services:
     build:
       # Repo root, so the frontend build stage can see package.json and src/.
       context: ..
-      dockerfile: Docker/caddy/Dockerfile
+      dockerfile: docker/caddy/dockerfile
     image: fretbook-web
     restart: unless-stopped
     ports:

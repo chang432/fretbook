@@ -1,4 +1,4 @@
-# Docker
+# docker
 
 Two containers:
 
@@ -10,25 +10,25 @@ Two containers:
 ## Run
 
 ```bash
-cd Docker
+cd docker
 docker compose up --build        # http://localhost:8080
 WEB_PORT=3000 docker compose up  # different host port
 ```
 
 The frontend is built inside the image (`node:22-alpine` stage runs `npm ci &&
 npm run build`), so no local `npm run build` is needed first. The build context
-for `web` is the repo root; `backend` builds from `Docker/backend`.
+for `web` is the repo root; `backend` builds from `docker/backend`.
 
 ## Layout
 
 ```
-Docker/
+docker/
   docker-compose.yml
   caddy/
-    Dockerfile        # multi-stage: node build -> caddy
+    dockerfile        # multi-stage: node build -> caddy
     Caddyfile         # static file server + /api reverse proxy
   backend/
-    Dockerfile
+    dockerfile
     requirements.txt
     gunicorn.conf.py  # bind/workers/timeout from env
     wsgi.py           # gunicorn entrypoint
@@ -43,10 +43,10 @@ The app is static today, so the backend ships only `GET /api/health` (used by
 the compose healthcheck) and `GET /api/version`. Add routes to
 `backend/app/api.py`, or register further blueprints in `create_app()`.
 
-Run it outside Docker:
+Run it outside docker:
 
 ```bash
-cd Docker/backend
+cd docker/backend
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 gunicorn --config gunicorn.conf.py wsgi:app   # http://localhost:8000/api/health
