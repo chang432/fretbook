@@ -51,10 +51,15 @@ name: Build, verify and deploy to the VPS
 #                      password auth, and the user must keep passwordless
 #                      sudo — the non-interactive script below cannot answer
 #                      a sudo prompt.
-#   GH_PAT_REPO_READ   Optional. GitHub PAT with read access, embedded in the
-#                      HTTPS clone URL. Only needed while the repo is private;
-#                      leave unset for a public repo and the clone goes
-#                      anonymous.
+#
+# Nothing is needed to read the code: the repo is public, so the VPS clones it
+# anonymously.
+#
+# Because the repo is public, the callers must stay on `push` triggers. A
+# `pull_request` trigger would let anyone's fork PR run this, and while GitHub
+# withholds secrets from fork PRs — so SSH_PASSWORD would be empty and the
+# deploy would simply fail — the safe way to get PR feedback is to trigger the
+# `verify` job on pull_request and leave `deploy` on push only.
 #
 # These are read straight from the `vars`/`secrets` contexts rather than passed
 # in as inputs, because they describe the host and are identical for every
@@ -199,7 +204,6 @@ jobs:
           ACME_EMAIL: ${{ vars.ACME_EMAIL }}
           PROD_PORT: ${{ env.PROD_PORT }}
           DEV_PORT: ${{ env.DEV_PORT }}
-          GH_PAT_REPO_READ: ${{ secrets.GH_PAT_REPO_READ }}
         with:
           host: ${{ vars.VPS_IP }}
           username: ${{ inputs.ssh_user }}
@@ -210,7 +214,7 @@ jobs:
           # Give the remote shell a generous budget: a cold box installs Docker
           # and builds both images from scratch on the first run.
           command_timeout: 30m
-          envs: REPO_FULL,ENV_NAME,BRANCH,SITE_DOMAIN,PROD_DOMAIN,DEV_DOMAIN,ACME_EMAIL,PROD_PORT,DEV_PORT,GH_PAT_REPO_READ
+          envs: REPO_FULL,ENV_NAME,BRANCH,SITE_DOMAIN,PROD_DOMAIN,DEV_DOMAIN,ACME_EMAIL,PROD_PORT,DEV_PORT
           script: |
             set -euo pipefail
 
@@ -266,13 +270,9 @@ jobs:
             APP_DIR="/opt/fretbook-${ENV_NAME}"
             sudo install -d -o "$(id -un)" -g "$(id -gn)" "${APP_DIR}"
 
-            # The PAT is only needed while the repo is private; without one the
-            # clone is anonymous, which is all a public repo requires.
-            if [ -n "${GH_PAT_REPO_READ:-}" ]; then
-              CLONE_URL="https://${GH_PAT_REPO_READ}@github.com/${REPO_FULL}.git"
-            else
-              CLONE_URL="https://github.com/${REPO_FULL}.git"
-            fi
+            # Anonymous HTTPS clone; the repo is public, so no credential is
+            # involved on the box at any point.
+            CLONE_URL="https://github.com/${REPO_FULL}.git"
 
             if [ -d "${APP_DIR}/.git" ]; then
               # Already cloned: hard-reset to the tip of the branch so the merge
