@@ -1,0 +1,44 @@
+# The VPS's edge proxy: one Caddy owning :80 and :443 in front of every
+# environment's stack. Deployed and refreshed by .github/workflows/deploy.yml,
+# which copies this directory to /opt/fretbook-edge and runs it from there — a
+# fixed location, so the container does not get recreated depending on which
+# environment's checkout happened to deploy last.
+#
+# Not part of the app stack (docker/docker-compose.yml) on purpose: that one is
+# instantiated once per environment, and there must be exactly one thing
+# holding the host's public ports.
+
+services:
+  edge:
+    image: caddy:2-alpine
+    container_name: fretbook-edge
+    restart: unless-stopped
+
+    # Host networking, so 127.0.0.1 inside this container is the host's
+    # loopback — which is where the app stacks publish. The alternative, a
+    # bridge network, cannot reach a loopback-bound port at all: the app stacks
+    # would have to bind 0.0.0.0 to be proxyable, and would then be directly
+    # reachable on their port, bypassing the TLS this proxy exists to provide.
+    network_mode: host
+
+    environment:
+      # No defaults: a typo'd or missing domain would otherwise bring Caddy up
+      # serving the wrong hostname and silently fail to route.
+      PROD_DOMAIN: ${PROD_DOMAIN:?set PROD_DOMAIN in the edge env file}
+      DEV_DOMAIN: ${DEV_DOMAIN:?set DEV_DOMAIN in the edge env file}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in the edge env file}
+      # Loopback ports the two app stacks publish on. Kept in step with the
+      # values in .github/workflows/deploy.yml.
+      PROD_PORT: ${PROD_PORT:-8081}
+      DEV_PORT: ${DEV_PORT:-8082}
+
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Issued certificates and ACME account keys. Named volumes rather than
+      # bind mounts so `compose down` on an app stack cannot touch them.
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

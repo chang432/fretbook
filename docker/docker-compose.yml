@@ -38,7 +38,11 @@ services:
     image: fretbook-web:${IMAGE_TAG:-local}
     restart: unless-stopped
     ports:
-      - "${WEB_PORT:-8080}:80"
+      # Loopback only. On the VPS the edge proxy (docker/edge/) is the one
+      # thing holding a public port and reaches this over 127.0.0.1; binding
+      # 0.0.0.0 here would publish the stack alongside it, unencrypted and
+      # on a port number. Locally this is still http://localhost:8080.
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
     depends_on:
       backend:
         condition: service_healthy

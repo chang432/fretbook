@@ -1,16 +1,12 @@
 name: Deploy production
 
 # Owns merges to main. Identical in shape to on_merge_dev.yml — same reusable
-# workflow, same phases — pointed at the production box instead.
+# workflow, same phases, same box — pointed at the production hostname and
+# checkout instead.
 #
-# Repository variables — Settings > Secrets and variables > Actions > Variables:
-#   PROD_VPS_IP     Public IPv4 of the production VPS. Required.
-#   PROD_WEB_PORT   Host port Caddy is published on. Optional; defaults to 80.
-#
-# Repository secrets — same page, Secrets tab:
-#   PROD_SSH_PASSWORD   Password of the production VPS's "ubuntu" user.
-#   GH_PAT_REPO_READ    Read-access PAT for the clone on the VPS. Only needed
-#                       while this repo is private.
+# The host itself (VPS_IP, both domains, ACME_EMAIL, SSH_PASSWORD) is shared
+# with dev and read straight from the repository variables and secrets by
+# deploy.yml — see that file's header for the full list.
 #
 # To gate production behind a manual approval, create an Environment named
 # "production" under Settings > Environments with a required reviewer, then add
@@ -24,8 +20,9 @@ on:
 permissions:
   contents: read
 
+# Shared with on_merge_dev.yml on purpose; see the note there.
 concurrency:
-  group: deploy-prod
+  group: deploy-vps
   cancel-in-progress: false
 
 jobs:
@@ -34,8 +31,5 @@ jobs:
     with:
       env_name: prod
       branch: main
-      vps_ip: ${{ vars.PROD_VPS_IP }}
-      web_port: ${{ vars.PROD_WEB_PORT || '80' }}
-    secrets:
-      ssh_password: ${{ secrets.PROD_SSH_PASSWORD }}
-      gh_pat_repo_read: ${{ secrets.GH_PAT_REPO_READ }}
+      site_domain: ${{ vars.PROD_DOMAIN }}
+    secrets: inherit

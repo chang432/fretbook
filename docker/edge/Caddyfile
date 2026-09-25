@@ -1,0 +1,45 @@
+# Public entrypoint for the whole VPS. Both environments' stacks run on this one
+# box bound to loopback only, so nothing but this proxy is reachable from the
+# internet; it terminates TLS and routes to them by hostname.
+#
+# Certificates are issued over HTTP-01, which needs nothing but port 80 open and
+# an A record pointing here — no DNS provider credentials. They live in the
+# caddy_data volume so a redeploy does not re-issue and burn Let's Encrypt rate
+# limits.
+#
+# {$VAR} is substituted when this file is parsed; the values come from the
+# environment set on the service in docker-compose.yml.
+{
+	email {$ACME_EMAIL}
+	admin off
+}
+
+# Production — served from the stack deployed by on_merge_main.yml.
+{$PROD_DOMAIN} {
+	reverse_proxy 127.0.0.1:{$PROD_PORT}
+
+	log {
+		output stdout
+		format console
+	}
+}
+
+# Development — served from the stack deployed by on_merge_dev.yml.
+{$DEV_DOMAIN} {
+	reverse_proxy 127.0.0.1:{$DEV_PORT}
+
+	log {
+		output stdout
+		format console
+	}
+}
+
+# Anything else: a bare IP, a stale DNS record, a scanner probing by address.
+# Without this, an unmatched Host falls through to Caddy's default "no route"
+# handler, which answers an empty 200 — indistinguishable from a real response
+# to anything checking by status code, including the deploy's own Host-header
+# probe. Port 80 only: an unknown hostname over TLS is already refused at
+# certificate selection, before any site block is consulted.
+http:// {
+	respond "Not found" 404
+}

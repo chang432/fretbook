@@ -1,16 +1,11 @@
 name: Deploy dev
 
 # Owns merges to the dev branch. All of the work lives in deploy.yml; this file
-# exists to bind the dev branch to the dev environment's variables and secrets.
+# exists to bind the dev branch to the dev environment's identity.
 #
-# Repository variables — Settings > Secrets and variables > Actions > Variables:
-#   DEV_VPS_IP     Public IPv4 of the dev VPS. Required.
-#   DEV_WEB_PORT   Host port Caddy is published on. Optional; defaults to 80.
-#
-# Repository secrets — same page, Secrets tab:
-#   DEV_SSH_PASSWORD   Password of the dev VPS's "ubuntu" user. Required.
-#   GH_PAT_REPO_READ   Read-access PAT for the clone on the VPS. Only needed
-#                      while this repo is private.
+# The host itself (VPS_IP, both domains, ACME_EMAIL, SSH_PASSWORD) is shared
+# with production and read straight from the repository variables and secrets
+# by deploy.yml — see that file's header for the full list.
 
 on:
   push:
@@ -20,11 +15,12 @@ on:
 permissions:
   contents: read
 
-# Deploys stop the running stack before rebuilding it, so two overlapping runs
-# would leave the box in whichever state finished last. Queue them instead; an
-# in-flight deploy is allowed to finish rather than being cancelled halfway.
+# Deliberately the same group as on_merge_main.yml: dev and prod share one VPS,
+# and every deploy re-applies the shared edge proxy, so two runs at once would
+# race on the same container. Queueing them costs a few minutes; an in-flight
+# deploy is allowed to finish rather than being cancelled halfway.
 concurrency:
-  group: deploy-dev
+  group: deploy-vps
   cancel-in-progress: false
 
 jobs:
@@ -33,8 +29,6 @@ jobs:
     with:
       env_name: dev
       branch: dev
-      vps_ip: ${{ vars.DEV_VPS_IP }}
-      web_port: ${{ vars.DEV_WEB_PORT || '80' }}
-    secrets:
-      ssh_password: ${{ secrets.DEV_SSH_PASSWORD }}
-      gh_pat_repo_read: ${{ secrets.GH_PAT_REPO_READ }}
+      site_domain: ${{ vars.DEV_DOMAIN }}
+    # A reusable workflow receives no secrets unless they are handed to it.
+    secrets: inherit

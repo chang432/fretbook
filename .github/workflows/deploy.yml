@@ -1,9 +1,9 @@
-name: Build, verify and deploy to a VPS
+name: Build, verify and deploy to the VPS
 
 # Reusable workflow behind on_merge_dev.yml and on_merge_main.yml. Both
 # environments run exactly the same two phases — verify, then deploy — and
-# differ only in the values the caller passes in, so the script lives here once
-# rather than being copy-pasted per branch.
+# differ only in the branch, the environment tag and the hostname, so the
+# script lives here once rather than being copy-pasted per branch.
 #
 # Phase 1 (verify) runs on the GitHub runner: lint, build the Vite app, and
 # import the Flask app. A merge that cannot build is caught before anything
@@ -16,73 +16,88 @@ name: Build, verify and deploy to a VPS
 # stage, so the box needs nothing installed but Docker itself.
 #
 # ---------------------------------------------------------------------------
+# Single-host architecture
+# ---------------------------------------------------------------------------
+# dev and prod share one VPS. Everything that could collide is namespaced by
+# environment — the checkout directory, the compose project, the built image
+# tags, the deploy env file — and each stack publishes on its own *loopback*
+# port, so neither is reachable from the internet directly:
+#
+#   VPS
+#   └─ edge caddy :80/:443            docker/edge/, deployed from /opt/fretbook-edge
+#      ├─ PROD_DOMAIN → 127.0.0.1:8081   project fretbook-prod, /opt/fretbook-prod
+#      └─ DEV_DOMAIN  → 127.0.0.1:8082   project fretbook-dev,  /opt/fretbook-dev
+#
+# The edge proxy is the single public entrypoint and the only thing that holds
+# a public port or terminates TLS. Every deploy re-applies it (idempotently),
+# which is why both callers must share one concurrency group: two runs bringing
+# the edge up at once would race on the same container.
+#
+# ---------------------------------------------------------------------------
 # Dependencies
 # ---------------------------------------------------------------------------
-# Secrets (passed in by the caller):
-#   ssh_password       Password of the VPS's SSH user. sshd must permit
+# Repository variables — Settings > Secrets and variables > Actions > Variables:
+#   VPS_IP        Public IPv4 of the one VPS. Required.
+#   PROD_DOMAIN   Hostname the edge serves production on. Required.
+#   DEV_DOMAIN    Hostname the edge serves dev on. Required.
+#   ACME_EMAIL    Contact address Let's Encrypt uses for expiry notices.
+#
+# Both domains are needed on every run, including a dev-only deploy, because
+# the edge Caddyfile describes the whole box: writing it with one hostname
+# missing would take the other environment offline.
+#
+# Repository secrets — same page, Secrets tab:
+#   SSH_PASSWORD       Password of the VPS's SSH user. sshd must permit
 #                      password auth, and the user must keep passwordless
 #                      sudo — the non-interactive script below cannot answer
 #                      a sudo prompt.
-#   gh_pat_repo_read   Optional. GitHub PAT with read access, embedded in the
+#   GH_PAT_REPO_READ   Optional. GitHub PAT with read access, embedded in the
 #                      HTTPS clone URL. Only needed while the repo is private;
 #                      leave unset for a public repo and the clone goes
 #                      anonymous.
 #
-# Inputs (see the callers for which repository variable feeds each one):
-#   env_name   Short environment tag. Namespaces everything that could collide
-#              when dev and prod share a host: the checkout directory, the
-#              compose project, the built image tags, the env file.
-#   branch     Branch to deploy. The VPS is hard-reset to origin/<branch>, so
-#              the merge that triggered the run is what actually ships.
-#   vps_ip     Public IPv4 of the target machine.
-#   web_port   Host port Caddy is published on. 80 for a real deployment;
-#              overridable so two environments can share one box.
-#   ssh_user   Login user. Ubuntu cloud images ship "ubuntu" with passwordless
-#              sudo and root login disabled, so every privileged command here
-#              goes through sudo.
+# These are read straight from the `vars`/`secrets` contexts rather than passed
+# in as inputs, because they describe the host and are identical for every
+# caller. The callers pass only what actually differs per environment, and
+# `secrets: inherit` — a reusable workflow gets no secrets otherwise.
 #
 # Preexisting infrastructure — assumed, not created here:
-#   - A VPS at vps_ip running Ubuntu, reachable on port 22 with password auth,
-#     and with web_port open to the internet.
+#   - A VPS at VPS_IP running Ubuntu, reachable on port 22 with password auth,
+#     with ports 80 and 443 open to the internet.
+#   - A records for PROD_DOMAIN and DEV_DOMAIN pointing at VPS_IP. These are
+#     not created here, and certificate issuance (HTTP-01) fails without them.
 #   - Docker is installed by the deploy step when missing; nothing else is.
-#
-# TLS is *not* handled here. docker/caddy/Caddyfile serves plain :80 with
-# auto_https off, on the assumption that TLS terminates upstream. Pointing a
-# real hostname at this box means changing that file first (see docker/README).
 
 on:
   workflow_call:
     inputs:
       env_name:
-        description: Short environment tag, e.g. dev or prod.
+        description: Short environment tag; must be dev or prod.
         required: true
         type: string
       branch:
         description: Branch to deploy.
         required: true
         type: string
-      vps_ip:
-        description: Public IPv4 of the target VPS.
+      site_domain:
+        description: Hostname this environment is served on.
         required: true
         type: string
-      web_port:
-        description: Host port Caddy is published on.
-        required: false
-        type: string
-        default: "80"
       ssh_user:
         description: SSH login user; must have passwordless sudo.
         required: false
         type: string
         default: ubuntu
-    secrets:
-      ssh_password:
-        required: true
-      gh_pat_repo_read:
-        required: false
 
 permissions:
   contents: read
+
+env:
+  # The loopback ports the two stacks publish on, and the single place they are
+  # defined: the deploy picks its own out of this pair and writes both into the
+  # edge proxy's env file, so the proxy and the stacks cannot drift apart.
+  PROD_PORT: "8081"
+  DEV_PORT: "8082"
 
 jobs:
   # Cheap gate in front of the deploy. Everything here is also done inside the
@@ -138,20 +153,39 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     steps:
-      # The SSH action fails opaquely on an empty host, so check the value up
-      # front with a message that says where to set it.
-      - name: Require the VPS IP
+      # The SSH action fails opaquely on an empty host, and a missing domain
+      # would write an edge config that silently drops an environment, so check
+      # the whole set up front with messages that say where to set them.
+      - name: Require the host configuration
         env:
-          VPS_IP: ${{ inputs.vps_ip }}
+          VPS_IP: ${{ vars.VPS_IP }}
+          PROD_DOMAIN: ${{ vars.PROD_DOMAIN }}
+          DEV_DOMAIN: ${{ vars.DEV_DOMAIN }}
+          ACME_EMAIL: ${{ vars.ACME_EMAIL }}
+          SITE_DOMAIN: ${{ inputs.site_domain }}
           ENV_NAME: ${{ inputs.env_name }}
         run: |
           set -euo pipefail
 
-          if [ -z "${VPS_IP}" ]; then
-            echo "::error::No VPS IP for the ${ENV_NAME} environment. Set the repository variable named in the calling workflow, under Settings > Secrets and variables > Actions > Variables."
+          missing=""
+          [ -n "${VPS_IP}" ]      || missing="${missing} VPS_IP"
+          [ -n "${PROD_DOMAIN}" ] || missing="${missing} PROD_DOMAIN"
+          [ -n "${DEV_DOMAIN}" ]  || missing="${missing} DEV_DOMAIN"
+          [ -n "${ACME_EMAIL}" ]  || missing="${missing} ACME_EMAIL"
+          if [ -n "${missing}" ]; then
+            echo "::error::Missing repository variables:${missing}. Set them under Settings > Secrets and variables > Actions > Variables."
             exit 1
           fi
-          echo "${ENV_NAME} VPS: ${VPS_IP}"
+
+          # The caller passes this environment's hostname, and the edge config
+          # below is written from the two variables above; if they disagree,
+          # the deploy would route to a hostname the proxy does not serve.
+          if [ "${SITE_DOMAIN}" != "${PROD_DOMAIN}" ] && [ "${SITE_DOMAIN}" != "${DEV_DOMAIN}" ]; then
+            echo "::error::site_domain (${SITE_DOMAIN}) matches neither PROD_DOMAIN nor DEV_DOMAIN."
+            exit 1
+          fi
+
+          echo "Deploying ${ENV_NAME} to ${VPS_IP} as ${SITE_DOMAIN}."
 
       - name: SSH in, clone if needed, rebuild and run
         uses: appleboy/ssh-action@v1.0.3
@@ -159,21 +193,37 @@ jobs:
           REPO_FULL: ${{ github.repository }}
           ENV_NAME: ${{ inputs.env_name }}
           BRANCH: ${{ inputs.branch }}
-          WEB_PORT: ${{ inputs.web_port }}
-          GH_PAT_REPO_READ: ${{ secrets.gh_pat_repo_read }}
+          SITE_DOMAIN: ${{ inputs.site_domain }}
+          PROD_DOMAIN: ${{ vars.PROD_DOMAIN }}
+          DEV_DOMAIN: ${{ vars.DEV_DOMAIN }}
+          ACME_EMAIL: ${{ vars.ACME_EMAIL }}
+          PROD_PORT: ${{ env.PROD_PORT }}
+          DEV_PORT: ${{ env.DEV_PORT }}
+          GH_PAT_REPO_READ: ${{ secrets.GH_PAT_REPO_READ }}
         with:
-          host: ${{ inputs.vps_ip }}
+          host: ${{ vars.VPS_IP }}
           username: ${{ inputs.ssh_user }}
           # Password auth rather than a key: Ubuntu cloud images disable root
           # login, and this box is reached as an unprivileged user.
-          password: ${{ secrets.ssh_password }}
+          password: ${{ secrets.SSH_PASSWORD }}
           port: 22
           # Give the remote shell a generous budget: a cold box installs Docker
           # and builds both images from scratch on the first run.
           command_timeout: 30m
-          envs: REPO_FULL,ENV_NAME,BRANCH,WEB_PORT,GH_PAT_REPO_READ
+          envs: REPO_FULL,ENV_NAME,BRANCH,SITE_DOMAIN,PROD_DOMAIN,DEV_DOMAIN,ACME_EMAIL,PROD_PORT,DEV_PORT,GH_PAT_REPO_READ
           script: |
             set -euo pipefail
+
+            # This environment's loopback port. Both are known here because the
+            # edge config written further down describes the whole box.
+            case "${ENV_NAME}" in
+              prod) WEB_PORT="${PROD_PORT}" ;;
+              dev)  WEB_PORT="${DEV_PORT}" ;;
+              *)
+                echo "Unknown environment '${ENV_NAME}'; expected dev or prod." >&2
+                exit 1
+                ;;
+            esac
 
             # --- Confirm sudo works without a password ----------------------
             # This session has no TTY, so a sudo that wants a password would
@@ -208,10 +258,10 @@ jobs:
             sudo docker compose version
 
             # --- Clone the repo if it isn't already on the VPS --------------
-            # Suffixed with the environment so dev and prod can share one box
-            # without fighting over a checkout. /opt is root-owned, so create
-            # the directory owned by the login user: git then runs
-            # unprivileged, and mixed-ownership repos also trip git's
+            # Suffixed with the environment: dev and prod share this box, and
+            # each needs its own checkout at its own commit. /opt is
+            # root-owned, so create the directory owned by the login user — git
+            # then runs unprivileged, and mixed-ownership repos also trip git's
             # safe.directory check.
             APP_DIR="/opt/fretbook-${ENV_NAME}"
             sudo install -d -o "$(id -un)" -g "$(id -gn)" "${APP_DIR}"
@@ -246,8 +296,10 @@ jobs:
             # environment compose itself runs in. Compose runs under sudo here,
             # and sudo's env_reset scrubs the variables this script was given,
             # so they would never reach it — compose would silently fall back
-            # to the file's defaults (port 8080, tag "local"). Write them to an
-            # env file compose reads directly, which sudo cannot strip.
+            # to the file's defaults (port 8080, tag "local"), and both
+            # environments would then fight over the same port on this shared
+            # box. Write them to an env file compose reads directly, which sudo
+            # cannot strip.
             #
             # Kept outside APP_DIR so the checkout never holds deploy config,
             # and root-owned 600 to match the file this would hold secrets in
@@ -259,12 +311,12 @@ jobs:
             IMAGE_TAG=${ENV_NAME}
             EOF
 
-            # --- Rebuild and run the stack ----------------------------------
+            # --- Rebuild and run this environment's stack -------------------
             # The compose file's build contexts are relative to its own
             # directory, so passing it by absolute path works unchanged.
             #
             # --project-name namespaces containers, networks and volumes, which
-            # is what lets two environments coexist on one host.
+            # is what lets both environments coexist on this host.
             COMPOSE_FILE="${APP_DIR}/docker/docker-compose.yml"
             PROJECT="fretbook-${ENV_NAME}"
             compose() {
@@ -273,7 +325,9 @@ jobs:
 
             # Clean rebuild + restart on every deploy: tear the old stack down
             # first, then rebuild the images from the freshly pulled source and
-            # force-recreate the containers so nothing stale survives.
+            # force-recreate the containers so nothing stale survives. Only
+            # this environment's project is touched; the other one keeps
+            # serving throughout.
             compose down --remove-orphans || true
             compose up --build -d --force-recreate
 
@@ -305,24 +359,80 @@ jobs:
               exit 1
             fi
 
-            # Caddy is the only published entrypoint, so a healthy backend alone
-            # does not mean the site is reachable. Probe the published port over
-            # loopback: this goes through Caddy's /api reverse proxy, so it
-            # covers both the routing and the backend behind it.
-            code="$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${WEB_PORT}/api/health" || echo 000)"
+            # Probe this stack's own Caddy directly on its loopback port, before
+            # the edge is involved, so a routing failure below is unambiguously
+            # the proxy's rather than the app's.
+            code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${WEB_PORT}/api/health" || echo 000)"
             if [ "${code}" != "200" ]; then
-              echo "Backend is healthy but Caddy did not serve /api/health (HTTP ${code}). Caddy logs:"
+              echo "Backend is healthy but its Caddy did not serve /api/health (HTTP ${code}). Caddy logs:"
               compose logs --tail 60 web || true
               exit 1
             fi
-
             # The SPA itself is served from the same site block; a 200 here
             # means the node build stage actually produced dist/.
-            root_code="$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${WEB_PORT}/" || echo 000)"
+            root_code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${WEB_PORT}/" || echo 000)"
             if [ "${root_code}" != "200" ]; then
               echo "API is up but the site root returned HTTP ${root_code}; the frontend build may be empty. Caddy logs:"
               compose logs --tail 60 web || true
               exit 1
             fi
+            echo "${ENV_NAME} stack is serving on 127.0.0.1:${WEB_PORT}."
 
-            echo "Deploy succeeded; the ${ENV_NAME} stack is running on port ${WEB_PORT}."
+            # --- Apply the edge proxy ---------------------------------------
+            # Run from a fixed directory rather than from this environment's
+            # checkout: the Caddyfile is bind-mounted by path, so alternating
+            # deploys would otherwise recreate the container on every run and
+            # drop connections. Copying from the checkout means the edge config
+            # is still versioned with the app and updates when it changes.
+            EDGE_DIR="/opt/fretbook-edge"
+            sudo install -d -o "$(id -un)" -g "$(id -gn)" "${EDGE_DIR}"
+            cp "${APP_DIR}/docker/edge/docker-compose.yml" "${APP_DIR}/docker/edge/Caddyfile" "${EDGE_DIR}/"
+
+            EDGE_ENV="/opt/fretbook-edge.env"
+            sudo install -m 600 /dev/null "${EDGE_ENV}"
+            sudo tee "${EDGE_ENV}" >/dev/null <<EOF
+            PROD_DOMAIN=${PROD_DOMAIN}
+            DEV_DOMAIN=${DEV_DOMAIN}
+            ACME_EMAIL=${ACME_EMAIL}
+            PROD_PORT=${PROD_PORT}
+            DEV_PORT=${DEV_PORT}
+            EOF
+
+            edge() {
+              sudo docker compose --env-file "${EDGE_ENV}" -f "${EDGE_DIR}/docker-compose.yml" -p fretbook-edge "$@"
+            }
+            # No --force-recreate: this runs on every deploy of either
+            # environment, and the proxy should only restart when its config
+            # actually changed. Compose is already idempotent about that, and a
+            # needless restart here would interrupt the *other* environment too.
+            edge up -d
+
+            # --- Confirm the edge routes this environment -------------------
+            # Loopback with the real Host header: matching the site block is
+            # what is being tested, so Caddy's redirect to HTTPS (308) is a
+            # pass. Following it would mean waiting on certificate issuance,
+            # which is asynchronous on a first deploy and would make this check
+            # flaky rather than useful.
+            echo "Waiting for the edge to route ${SITE_DOMAIN}…"
+            edge_ok=0
+            for _ in $(seq 1 30); do
+              edge_code="$(curl -s -o /dev/null -w '%{http_code}' -H "Host: ${SITE_DOMAIN}" http://127.0.0.1/api/health || echo 000)"
+              case "${edge_code}" in
+                2*|3*) edge_ok=1; break ;;
+              esac
+              sleep 2
+            done
+
+            if [ "${edge_ok}" -ne 1 ]; then
+              echo "The stack is up but the edge did not route ${SITE_DOMAIN} (HTTP ${edge_code}). Edge logs:"
+              edge logs --tail 60 || true
+              exit 1
+            fi
+
+            # --- Reclaim disk -----------------------------------------------
+            # Two environments rebuilding both images on one box fills a small
+            # VPS disk quickly. Dangling images only — the layer cache and the
+            # images either stack is actually running are left alone.
+            sudo docker image prune -f >/dev/null || true
+
+            echo "Deploy succeeded; ${SITE_DOMAIN} is served from the ${ENV_NAME} stack."
