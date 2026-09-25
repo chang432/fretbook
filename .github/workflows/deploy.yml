@@ -1,0 +1,328 @@
+name: Build, verify and deploy to a VPS
+
+# Reusable workflow behind on_merge_dev.yml and on_merge_main.yml. Both
+# environments run exactly the same two phases — verify, then deploy — and
+# differ only in the values the caller passes in, so the script lives here once
+# rather than being copy-pasted per branch.
+#
+# Phase 1 (verify) runs on the GitHub runner: lint, build the Vite app, and
+# import the Flask app. A merge that cannot build is caught before anything
+# touches the VPS, which matters because the deploy tears the running stack
+# down before it rebuilds.
+#
+# Phase 2 (deploy) SSHes to the box, fast-forwards the checkout, and rebuilds
+# the compose stack. The images are built *on the VPS* rather than pushed from
+# CI: docker/caddy/Dockerfile already runs `npm ci && npm run build` in a node
+# stage, so the box needs nothing installed but Docker itself.
+#
+# ---------------------------------------------------------------------------
+# Dependencies
+# ---------------------------------------------------------------------------
+# Secrets (passed in by the caller):
+#   ssh_password       Password of the VPS's SSH user. sshd must permit
+#                      password auth, and the user must keep passwordless
+#                      sudo — the non-interactive script below cannot answer
+#                      a sudo prompt.
+#   gh_pat_repo_read   Optional. GitHub PAT with read access, embedded in the
+#                      HTTPS clone URL. Only needed while the repo is private;
+#                      leave unset for a public repo and the clone goes
+#                      anonymous.
+#
+# Inputs (see the callers for which repository variable feeds each one):
+#   env_name   Short environment tag. Namespaces everything that could collide
+#              when dev and prod share a host: the checkout directory, the
+#              compose project, the built image tags, the env file.
+#   branch     Branch to deploy. The VPS is hard-reset to origin/<branch>, so
+#              the merge that triggered the run is what actually ships.
+#   vps_ip     Public IPv4 of the target machine.
+#   web_port   Host port Caddy is published on. 80 for a real deployment;
+#              overridable so two environments can share one box.
+#   ssh_user   Login user. Ubuntu cloud images ship "ubuntu" with passwordless
+#              sudo and root login disabled, so every privileged command here
+#              goes through sudo.
+#
+# Preexisting infrastructure — assumed, not created here:
+#   - A VPS at vps_ip running Ubuntu, reachable on port 22 with password auth,
+#     and with web_port open to the internet.
+#   - Docker is installed by the deploy step when missing; nothing else is.
+#
+# TLS is *not* handled here. docker/caddy/Caddyfile serves plain :80 with
+# auto_https off, on the assumption that TLS terminates upstream. Pointing a
+# real hostname at this box means changing that file first (see docker/README).
+
+on:
+  workflow_call:
+    inputs:
+      env_name:
+        description: Short environment tag, e.g. dev or prod.
+        required: true
+        type: string
+      branch:
+        description: Branch to deploy.
+        required: true
+        type: string
+      vps_ip:
+        description: Public IPv4 of the target VPS.
+        required: true
+        type: string
+      web_port:
+        description: Host port Caddy is published on.
+        required: false
+        type: string
+        default: "80"
+      ssh_user:
+        description: SSH login user; must have passwordless sudo.
+        required: false
+        type: string
+        default: ubuntu
+    secrets:
+      ssh_password:
+        required: true
+      gh_pat_repo_read:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Cheap gate in front of the deploy. Everything here is also done inside the
+  # Docker build, but doing it on the runner first means a broken commit fails
+  # in ~1 min without having stopped the running stack on the VPS.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # Matches the build stage in docker/caddy/Dockerfile, so a version
+          # difference cannot let CI pass while the image build fails.
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        # ci, not install: the lockfile is the input, and a silent dependency
+        # bump is not something a deploy should discover on its own.
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build the frontend
+        run: npm run build
+
+      - name: Confirm the build produced an entrypoint
+        # Caddy serves dist/ as the site root; an empty dist is a 404 on the
+        # apex rather than a build failure, so check for the file explicitly.
+        run: test -f dist/index.html
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          # Matches the backend image (python:3.12-slim).
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        run: pip install -r docker/backend/requirements.txt
+
+      - name: Import the Flask app
+        # gunicorn only imports wsgi:app at startup, so a broken import or a
+        # blueprint clash would otherwise surface as a crash-looping container
+        # on the VPS instead of a failed check here.
+        working-directory: docker/backend
+        run: python -c "from wsgi import app; print(sorted(r.rule for r in app.url_map.iter_rules()))"
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      # The SSH action fails opaquely on an empty host, so check the value up
+      # front with a message that says where to set it.
+      - name: Require the VPS IP
+        env:
+          VPS_IP: ${{ inputs.vps_ip }}
+          ENV_NAME: ${{ inputs.env_name }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${VPS_IP}" ]; then
+            echo "::error::No VPS IP for the ${ENV_NAME} environment. Set the repository variable named in the calling workflow, under Settings > Secrets and variables > Actions > Variables."
+            exit 1
+          fi
+          echo "${ENV_NAME} VPS: ${VPS_IP}"
+
+      - name: SSH in, clone if needed, rebuild and run
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          REPO_FULL: ${{ github.repository }}
+          ENV_NAME: ${{ inputs.env_name }}
+          BRANCH: ${{ inputs.branch }}
+          WEB_PORT: ${{ inputs.web_port }}
+          GH_PAT_REPO_READ: ${{ secrets.gh_pat_repo_read }}
+        with:
+          host: ${{ inputs.vps_ip }}
+          username: ${{ inputs.ssh_user }}
+          # Password auth rather than a key: Ubuntu cloud images disable root
+          # login, and this box is reached as an unprivileged user.
+          password: ${{ secrets.ssh_password }}
+          port: 22
+          # Give the remote shell a generous budget: a cold box installs Docker
+          # and builds both images from scratch on the first run.
+          command_timeout: 30m
+          envs: REPO_FULL,ENV_NAME,BRANCH,WEB_PORT,GH_PAT_REPO_READ
+          script: |
+            set -euo pipefail
+
+            # --- Confirm sudo works without a password ----------------------
+            # This session has no TTY, so a sudo that wants a password would
+            # hang until the job times out rather than fail. -n turns that into
+            # an immediate error with an actionable message.
+            if ! sudo -n true 2>/dev/null; then
+              echo "sudo requires a password for $(id -un); the deploy cannot escalate." >&2
+              echo "Restore passwordless sudo for this user (see /etc/sudoers.d/)." >&2
+              exit 1
+            fi
+
+            # --- Ensure Docker is installed ---------------------------------
+            # The VPS may be a bare box; install Docker + the compose plugin
+            # from Docker's apt repo if they aren't already present. Running
+            # unprivileged, so every step here goes through sudo.
+            if ! command -v docker >/dev/null 2>&1; then
+              echo "Docker not found; installing…"
+              export DEBIAN_FRONTEND=noninteractive
+              sudo -E apt-get update -y
+              sudo -E apt-get install -y ca-certificates curl gnupg
+              sudo install -m 0755 -d /etc/apt/keyrings
+              curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+                | sudo gpg --batch --yes --dearmor -o /etc/apt/keyrings/docker.gpg
+              sudo chmod a+r /etc/apt/keyrings/docker.gpg
+              echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+                | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+              sudo -E apt-get update -y
+              sudo -E apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+              sudo systemctl enable --now docker
+            fi
+            sudo docker --version
+            sudo docker compose version
+
+            # --- Clone the repo if it isn't already on the VPS --------------
+            # Suffixed with the environment so dev and prod can share one box
+            # without fighting over a checkout. /opt is root-owned, so create
+            # the directory owned by the login user: git then runs
+            # unprivileged, and mixed-ownership repos also trip git's
+            # safe.directory check.
+            APP_DIR="/opt/fretbook-${ENV_NAME}"
+            sudo install -d -o "$(id -un)" -g "$(id -gn)" "${APP_DIR}"
+
+            # The PAT is only needed while the repo is private; without one the
+            # clone is anonymous, which is all a public repo requires.
+            if [ -n "${GH_PAT_REPO_READ:-}" ]; then
+              CLONE_URL="https://${GH_PAT_REPO_READ}@github.com/${REPO_FULL}.git"
+            else
+              CLONE_URL="https://github.com/${REPO_FULL}.git"
+            fi
+
+            if [ -d "${APP_DIR}/.git" ]; then
+              # Already cloned: hard-reset to the tip of the branch so the merge
+              # that triggered this run is what actually gets deployed, and any
+              # hand-editing done on the box is discarded rather than merged.
+              echo "Repo already present at ${APP_DIR}; updating to origin/${BRANCH}."
+              cd "${APP_DIR}"
+              git remote set-url origin "${CLONE_URL}"
+              git fetch --no-tags origin "${BRANCH}"
+              git reset --hard "origin/${BRANCH}"
+              git clean -fd
+            else
+              echo "Cloning ${REPO_FULL} (${BRANCH}) into ${APP_DIR}."
+              git clone --branch "${BRANCH}" "${CLONE_URL}" "${APP_DIR}"
+              cd "${APP_DIR}"
+            fi
+            echo "Deploying $(git rev-parse --short HEAD)."
+
+            # --- Compose's environment --------------------------------------
+            # docker-compose.yml interpolates WEB_PORT and IMAGE_TAG out of the
+            # environment compose itself runs in. Compose runs under sudo here,
+            # and sudo's env_reset scrubs the variables this script was given,
+            # so they would never reach it — compose would silently fall back
+            # to the file's defaults (port 8080, tag "local"). Write them to an
+            # env file compose reads directly, which sudo cannot strip.
+            #
+            # Kept outside APP_DIR so the checkout never holds deploy config,
+            # and root-owned 600 to match the file this would hold secrets in
+            # once the backend grows any.
+            ENV_FILE="/opt/fretbook-${ENV_NAME}-deploy.env"
+            sudo install -m 600 /dev/null "${ENV_FILE}"
+            sudo tee "${ENV_FILE}" >/dev/null <<EOF
+            WEB_PORT=${WEB_PORT}
+            IMAGE_TAG=${ENV_NAME}
+            EOF
+
+            # --- Rebuild and run the stack ----------------------------------
+            # The compose file's build contexts are relative to its own
+            # directory, so passing it by absolute path works unchanged.
+            #
+            # --project-name namespaces containers, networks and volumes, which
+            # is what lets two environments coexist on one host.
+            COMPOSE_FILE="${APP_DIR}/docker/docker-compose.yml"
+            PROJECT="fretbook-${ENV_NAME}"
+            compose() {
+              sudo docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -p "${PROJECT}" "$@"
+            }
+
+            # Clean rebuild + restart on every deploy: tear the old stack down
+            # first, then rebuild the images from the freshly pulled source and
+            # force-recreate the containers so nothing stale survives.
+            compose down --remove-orphans || true
+            compose up --build -d --force-recreate
+
+            # --- Confirm the stack actually came up -------------------------
+            # The backend deliberately publishes no host port, so there is
+            # nothing to curl from the VPS. Read the healthcheck compose already
+            # defines instead — it runs inside the container, against the port
+            # gunicorn actually listens on.
+            echo "Waiting for backend health (up to ~4 min)…"
+            backend_cid="$(compose ps -q backend)"
+            ok=0
+            for _ in $(seq 1 120); do
+              status="$(sudo docker inspect -f '{{.State.Health.Status}}' "${backend_cid}" 2>/dev/null || echo missing)"
+              if [ "${status}" = "healthy" ]; then
+                ok=1
+                break
+              fi
+              # A container that exited will never become healthy; stop early
+              # rather than burning the full four minutes on a crash loop.
+              if [ "${status}" = "missing" ]; then
+                break
+              fi
+              sleep 2
+            done
+
+            if [ "${ok}" -ne 1 ]; then
+              echo "Backend did not become healthy. Recent container logs:"
+              compose logs --tail 60 || true
+              exit 1
+            fi
+
+            # Caddy is the only published entrypoint, so a healthy backend alone
+            # does not mean the site is reachable. Probe the published port over
+            # loopback: this goes through Caddy's /api reverse proxy, so it
+            # covers both the routing and the backend behind it.
+            code="$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${WEB_PORT}/api/health" || echo 000)"
+            if [ "${code}" != "200" ]; then
+              echo "Backend is healthy but Caddy did not serve /api/health (HTTP ${code}). Caddy logs:"
+              compose logs --tail 60 web || true
+              exit 1
+            fi
+
+            # The SPA itself is served from the same site block; a 200 here
+            # means the node build stage actually produced dist/.
+            root_code="$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${WEB_PORT}/" || echo 000)"
+            if [ "${root_code}" != "200" ]; then
+              echo "API is up but the site root returned HTTP ${root_code}; the frontend build may be empty. Caddy logs:"
+              compose logs --tail 60 web || true
+              exit 1
+            fi
+
+            echo "Deploy succeeded; the ${ENV_NAME} stack is running on port ${WEB_PORT}."

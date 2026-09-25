@@ -1,11 +1,16 @@
 # Two containers: caddy serves the built Vite app and reverse-proxies /api to
 # gunicorn/Flask. Run from this directory: `docker compose up --build`.
+#
+# IMAGE_TAG namespaces the images this builds. It defaults to "local" so a
+# laptop is unaffected; CI sets it per environment (see
+# .github/workflows/deploy.yml) so a dev and a prod stack sharing one host
+# cannot overwrite each other's images.
 
 services:
   backend:
     build:
       context: ./backend
-    image: fretbook-backend
+    image: fretbook-backend:${IMAGE_TAG:-local}
     restart: unless-stopped
     environment:
       PORT: "8000"
@@ -29,8 +34,8 @@ services:
     build:
       # Repo root, so the frontend build stage can see package.json and src/.
       context: ..
-      dockerfile: docker/caddy/dockerfile
-    image: fretbook-web
+      dockerfile: docker/caddy/Dockerfile
+    image: fretbook-web:${IMAGE_TAG:-local}
     restart: unless-stopped
     ports:
       - "${WEB_PORT:-8080}:80"

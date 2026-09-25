@@ -1,0 +1,41 @@
+name: Deploy production
+
+# Owns merges to main. Identical in shape to on_merge_dev.yml — same reusable
+# workflow, same phases — pointed at the production box instead.
+#
+# Repository variables — Settings > Secrets and variables > Actions > Variables:
+#   PROD_VPS_IP     Public IPv4 of the production VPS. Required.
+#   PROD_WEB_PORT   Host port Caddy is published on. Optional; defaults to 80.
+#
+# Repository secrets — same page, Secrets tab:
+#   PROD_SSH_PASSWORD   Password of the production VPS's "ubuntu" user.
+#   GH_PAT_REPO_READ    Read-access PAT for the clone on the VPS. Only needed
+#                       while this repo is private.
+#
+# To gate production behind a manual approval, create an Environment named
+# "production" under Settings > Environments with a required reviewer, then add
+# `environment: production` to the job below. Nothing else has to change.
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/deploy.yml
+    with:
+      env_name: prod
+      branch: main
+      vps_ip: ${{ vars.PROD_VPS_IP }}
+      web_port: ${{ vars.PROD_WEB_PORT || '80' }}
+    secrets:
+      ssh_password: ${{ secrets.PROD_SSH_PASSWORD }}
+      gh_pat_repo_read: ${{ secrets.GH_PAT_REPO_READ }}

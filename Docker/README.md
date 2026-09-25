@@ -25,7 +25,7 @@ for `web` is the repo root; `backend` builds from `docker/backend`.
 docker/
   docker-compose.yml
   caddy/
-    dockerfile        # multi-stage: node build -> caddy
+    Dockerfile        # multi-stage: node build -> caddy
     Caddyfile         # static file server + /api reverse proxy
   backend/
     dockerfile
