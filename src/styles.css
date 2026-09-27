@@ -179,43 +179,6 @@ button.link {
 
 /* Published notes ------------------------------------------------------ */
 
-/* Sits above the header on a note read from the server, and says the one
-   thing a reader needs to know: this is not their sheet, and nothing they do
-   to it will stick. */
-.note-banner {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-  padding: 10px 14px;
-  border: 1px solid var(--bar);
-  border-left: 3px solid var(--accent);
-  border-radius: 10px;
-  background: var(--paper);
-}
-
-.note-banner-said {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  align-items: baseline;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.note-banner-said strong {
-  color: var(--ink);
-  font-size: 14px;
-}
-
-.note-banner-actions {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
 /* The pages either side of the editor — the list of notes, and the two states
    a note has before it opens. They borrow .app's width and padding. */
 .note-shell-text {
