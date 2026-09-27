@@ -45,7 +45,7 @@ import {
   toJson,
   totalColumns,
 } from './utils/tab.js'
-import { NOTES_PATH, navigate } from './utils/route.js'
+import { NOTES_PATH } from './utils/route.js'
 import { renderTabToPngBlob } from './utils/renderPng.js'
 import { cellFrequency, createAudioEngine } from './utils/audio.js'
 
@@ -71,15 +71,6 @@ function loadSaved() {
     return raw ? fromJson(raw) : null
   } catch {
     return null
-  }
-}
-
-/** Whether this browser is holding a sheet of the reader's own. */
-function hasSaved() {
-  try {
-    return !!localStorage.getItem(STORAGE_KEY)
-  } catch {
-    return false
   }
 }
 
@@ -119,9 +110,6 @@ export default function App({ published = null }) {
   // session — it is an errand, not a property of the song.
   const [copying, setCopying] = useState(false)
   const [confirmingClear, setConfirmingClear] = useState(false)
-  // Armed by the first press of the published note banner's keep button,
-  // which is about to write over the sheet this browser already holds.
-  const [confirmingAdopt, setConfirmingAdopt] = useState(false)
   // Row whose minus button is armed, waiting for a second press.
   const [pendingRemove, setPendingRemove] = useState(null)
   const [confirmingRemoveRow, setConfirmingRemoveRow] = useState(false)
@@ -305,7 +293,7 @@ export default function App({ published = null }) {
   useEffect(() => {
     // A published note is the server's, and the reader has a sheet of their
     // own that this one is only being read in front of. Saving here would
-    // write over it, so the way to keep a note is the button in the banner.
+    // write over it, so a note is read and nothing more.
     if (published) return
     try {
       localStorage.setItem(STORAGE_KEY, toJson({ ...sheet, bpm }, STANDARD_TUNING, title))
@@ -603,26 +591,6 @@ export default function App({ published = null }) {
     setStatus(`Opened ${file.name}`)
   }
 
-  /**
-   * Take a published note on as this browser's own sheet: write it to storage
-   * and leave for the editor, where it saves from then on like anything else.
-   * It replaces whatever was there, so it asks twice when there is something
-   * to replace — the bargain the Clear button makes.
-   */
-  const adoptNote = () => {
-    if (hasSaved() && !confirmingAdopt) {
-      setConfirmingAdopt(true)
-      return
-    }
-    try {
-      localStorage.setItem(STORAGE_KEY, toJson({ ...sheet, bpm }, STANDARD_TUNING, title))
-    } catch {
-      setStatus('This browser would not save the sheet')
-      return
-    }
-    navigate('/')
-  }
-
   const clearAll = () => {
     const fresh = createRows()
     setRows(fresh)
@@ -639,28 +607,6 @@ export default function App({ published = null }) {
 
   return (
     <div className="app">
-      {published && (
-        <div className="note-banner">
-          <div className="note-banner-said">
-            <strong>Published note</strong>
-            <span>
-              Play with it all you like — nothing here is saved, and the copy on the
-              server is unchanged.
-            </span>
-          </div>
-          <div className="note-banner-actions">
-            <button
-              type="button"
-              className={confirmingAdopt ? 'danger' : ''}
-              onClick={adoptNote}
-              onBlur={() => setConfirmingAdopt(false)}
-            >
-              {confirmingAdopt ? 'Replace my own sheet?' : 'Keep a copy'}
-            </button>
-          </div>
-        </div>
-      )}
-
       <header className="header">
         <h1>Fretboard Notebook</h1>
         <input
