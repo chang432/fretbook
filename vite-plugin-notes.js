@@ -57,7 +57,13 @@ function readNotes(dir) {
 
     const slug = file.slice(0, -'.json'.length)
     if (!NOTE_NAME.test(slug)) {
-      errors.push(`${file}: a note's name is its URL, so it must match ${NOTE_NAME}`)
+      // Said in words as well as in the pattern: this is read by whoever
+      // dropped the file in, and the rule is about word separators rather
+      // than about a character set.
+      errors.push(
+        `${file}: a note's name is its URL — lowercase letters and digits, ` +
+          `joined by single dashes or underscores (${NOTE_NAME.source})`,
+      )
       continue
     }
 

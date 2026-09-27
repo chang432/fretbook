@@ -941,11 +941,19 @@ function readRows(raw, columns) {
 }
 
 /**
- * What a published note may be called. A note's file name is its URL, so the
- * name is held to the shape `slugify` produces — which is also what stops a
+ * What a published note may be called: runs of lowercase letters and digits,
+ * joined by single dashes or underscores. A note's file name is its URL, so
+ * the name is held to a shape that reads as one — which is also what stops a
  * slug read off the address bar from being bent into a path of its own.
+ *
+ * A separator has to separate, which is the whole of why this is not the
+ * simpler `[a-z0-9][a-z0-9-_]*`: that spelling calls a name a separator sits
+ * at the end of, or two sit together in, a word boundary, and `warm--up-`
+ * would pass. Either mark does the joining, so both `e-minor-pentatonic` and
+ * `tie_that_binds` are names; mixing them in one name is allowed too, since
+ * nothing about a URL is harmed by it.
  */
-export const NOTE_NAME = /^[a-z0-9][a-z0-9-]*$/
+export const NOTE_NAME = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/
 
 /** Filesystem-safe file stem derived from the user's title. */
 export const slugify = (title) =>
