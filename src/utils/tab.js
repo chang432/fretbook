@@ -955,13 +955,20 @@ function readRows(raw, columns) {
  */
 export const NOTE_NAME = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/
 
-/** Filesystem-safe file stem derived from the user's title. */
+/**
+ * Filesystem-safe file stem derived from the user's title. Underscores join
+ * the words, which is the shape the published notes are named in — so a JSON
+ * export is publishable as it comes out, with no renaming in between.
+ *
+ * A run of anything else collapses to one underscore and the ends are trimmed,
+ * so what comes back always satisfies `NOTE_NAME`.
+ */
 export const slugify = (title) =>
   title
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '') || 'fretboard-notebook'
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '') || 'fretboard_notebook'
 
 /** Trigger a browser download for generated text or a rendered blob. */
 export function downloadFile(filename, data, mime = 'text/plain') {

@@ -304,16 +304,17 @@ Anything in `public/notes/` is served as a read-only note with a URL of its
 own, and `/notes` lists them all:
 
 ```
-public/notes/e-minor-pentatonic.json   →   /notes/e-minor-pentatonic
+public/notes/tie_that_binds_by_drake.json   →   /notes/tie_that_binds_by_drake
 ```
 
-To publish one: write it in the editor, **Export → JSON file**, rename the file
-to whatever you want the URL to read — lowercase letters and digits, joined by
-single dashes or underscores — drop it in `public/notes/`, and merge. The
-deploy rebuilds the site with the file baked in, and the file itself is the
-only source of truth: a reader can open a note and play with it, but nothing
-they do is saved anywhere, and the next deploy is the only thing that can
-change what everyone sees.
+To publish one: write it in the editor, **Export → JSON file**, drop the file in
+`public/notes/`, and merge. An export is named after its title with underscores
+between the words, which is already a publishable name — rename it only if you
+want the URL to read differently, keeping to lowercase letters and digits joined
+by single dashes or underscores. The deploy rebuilds the site with the file baked
+in, and the file itself is the only source of truth: a reader can open a note and
+play with it, but nothing they do is saved anywhere, and the next deploy is the
+only thing that can change what everyone sees.
 
 The raw file stays readable at `/notes/<name>.json`, which is also where the
 app reads it from.
