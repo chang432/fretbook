@@ -649,9 +649,6 @@ export default function App({ published = null }) {
             </span>
           </div>
           <div className="note-banner-actions">
-            <NoteLink to={NOTES_PATH} className="link-inline">
-              All notes
-            </NoteLink>
             <button
               type="button"
               className={confirmingAdopt ? 'danger' : ''}
@@ -676,6 +673,14 @@ export default function App({ published = null }) {
       </header>
 
       <div className="toolbar">
+        <div className="toolbar-group">
+          {/* Leaves the editor, so it sits on its own at the head of the
+              toolbar rather than among the buttons that act on the sheet. */}
+          <NoteLink to={NOTES_PATH} className="button-link">
+            Browse
+          </NoteLink>
+        </div>
+
         <div className="toolbar-group">
           <button
             type="button"

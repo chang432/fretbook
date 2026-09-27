@@ -97,7 +97,11 @@ button:focus-visible {
   gap: 8px;
 }
 
-button {
+/* `.button-link` shares this so the toolbar's one navigation control can be a
+   real <a href> — middle-clickable, copyable — while reading as a button and
+   sitting level with the ones beside it. */
+button,
+.button-link {
   padding: 7px 12px;
   border: 1px solid var(--bar);
   border-radius: 8px;
@@ -107,7 +111,15 @@ button {
   cursor: pointer;
 }
 
-button:hover:not(:disabled) {
+/* An anchor is inline and underlined by default; a button is neither. */
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+button:hover:not(:disabled),
+.button-link:hover {
   border-color: var(--muted);
 }
 
