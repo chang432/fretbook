@@ -97,6 +97,14 @@ button:focus-visible {
   gap: 8px;
 }
 
+/* Pushed to the far side: the sheet comes out here, which is the end of the
+   toolbar's story and wants the distance from the controls that write it.
+   The auto margin eats the free space, so on a narrow window the group wraps
+   to its own line and stays right rather than crowding what precedes it. */
+.toolbar-group--end {
+  margin-left: auto;
+}
+
 /* `.button-link` shares this so the toolbar's one navigation control can be a
    real <a href> — middle-clickable, copyable — while reading as a button and
    sitting level with the ones beside it. */
