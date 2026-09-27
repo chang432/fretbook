@@ -16,8 +16,19 @@
 		reverse_proxy backend:8000
 	}
 
+	# The published notes, served as the files they are. This sits in front of
+	# the catch-all below because try_files would answer a name with no file
+	# behind it with index.html and a 200 — which the app would then have to
+	# tell apart from a real note. Here a missing one is a plain 404, the same
+	# as it is under `vite dev`.
+	handle /notes/*.json {
+		root * /srv
+		file_server
+	}
+
 	# Static build output. try_files sends unknown paths to index.html so the
-	# SPA keeps working on a deep link / refresh.
+	# SPA keeps working on a deep link / refresh — including /notes and
+	# /notes/<name>, which are addresses in the app rather than files.
 	handle {
 		root * /srv
 		try_files {path} /index.html

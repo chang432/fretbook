@@ -138,6 +138,12 @@ jobs:
         # apex rather than a build failure, so check for the file explicitly.
         run: test -f dist/index.html
 
+      - name: Confirm the published notes were collected
+        # vite-plugin-notes.js writes this from public/notes/ and fails the
+        # build on a note the editor could not open; its absence would mean the
+        # plugin never ran and the notes index would come up empty.
+        run: test -f dist/notes.json
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:

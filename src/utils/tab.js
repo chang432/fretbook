@@ -940,6 +940,13 @@ function readRows(raw, columns) {
     : null
 }
 
+/**
+ * What a published note may be called. A note's file name is its URL, so the
+ * name is held to the shape `slugify` produces — which is also what stops a
+ * slug read off the address bar from being bent into a path of its own.
+ */
+export const NOTE_NAME = /^[a-z0-9][a-z0-9-]*$/
+
 /** Filesystem-safe file stem derived from the user's title. */
 export const slugify = (title) =>
   title

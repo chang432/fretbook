@@ -165,6 +165,91 @@ button.link {
   font-size: 13px;
 }
 
+/* Published notes ------------------------------------------------------ */
+
+/* Sits above the header on a note read from the server, and says the one
+   thing a reader needs to know: this is not their sheet, and nothing they do
+   to it will stick. */
+.note-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding: 10px 14px;
+  border: 1px solid var(--bar);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  background: var(--paper);
+}
+
+.note-banner-said {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.note-banner-said strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.note-banner-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* The pages either side of the editor — the list of notes, and the two states
+   a note has before it opens. They borrow .app's width and padding. */
+.note-shell-text {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.note-list {
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--bar);
+}
+
+.note-list-link {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 14px 4px;
+  border-bottom: 1px solid var(--bar);
+  color: inherit;
+  text-decoration: none;
+}
+
+.note-list-link:hover {
+  background: var(--paper);
+}
+
+.note-list-title {
+  font: 600 17px Georgia, 'Times New Roman', serif;
+}
+
+.note-list-slug {
+  color: var(--muted);
+  font: 12px ui-monospace, Menlo, monospace;
+}
+
+/* A link that reads as a link, for the places outside the toolbar where there
+   is no button beside it to match. */
+.link-inline {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 /* Edit mode ------------------------------------------------------------ */
 
 /* Says what the two presses do, and stays up for as long as the mode does —

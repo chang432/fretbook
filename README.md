@@ -9,7 +9,8 @@ a run of fingerings.
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm run build    # static output in dist/ (relative paths, host it anywhere)
+npm run build    # static output in dist/
+npm run preview  # serve dist/ the way the server does
 npm run lint
 ```
 
@@ -296,6 +297,32 @@ that symbol above the number, and the button keeps the note selected.
 Text and image exports stop at the last row you wrote in, so trailing blank
 staves are never included. A JSON export keeps every row, blank ones and all —
 rows are yours to add, so a file records the sheet exactly as you left it.
+
+## Publishing notes
+
+Anything in `public/notes/` is served as a read-only note with a URL of its
+own, and `/notes` lists them all:
+
+```
+public/notes/e-minor-pentatonic.json   →   /notes/e-minor-pentatonic
+```
+
+To publish one: write it in the editor, **Export → JSON file**, rename the file
+to whatever you want the URL to read — lowercase letters, digits and dashes —
+drop it in `public/notes/`, and merge. The deploy rebuilds the site with the
+file baked in, and the file itself is the only source of truth: a reader can
+open a note and play with it, but nothing they do is saved anywhere, and the
+next deploy is the only thing that can change what everyone sees. The banner
+above the sheet says as much, and its **Keep a copy** button takes the note on
+as the reader's own sheet, which then saves in their browser like any other.
+
+The raw file stays readable at `/notes/<name>.json`, which is also where the
+app reads it from.
+
+`vite-plugin-notes.js` collects the folder at build time: it refuses to build a
+note the editor could not open — so a broken file fails CI rather than a
+reader's page — and writes `notes.json`, the manifest `/notes` lists. Adding
+the file is the whole of publishing; there is no list to keep in step.
 
 ## Layout
 
