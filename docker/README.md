@@ -1,5 +1,17 @@
 # docker
 
+Two subfolders, split by how many of each the host runs:
+
+| | | |
+|---|---|---|
+| `app/` | the application stack | **one per environment** — instantiated twice on the VPS, as dev and prod |
+| `edge/` | the public reverse proxy | **one per host** — owns `:80`/`:443`, routes to the stacks by hostname |
+
+`app/` is the whole application; `edge/` only exists because both environments
+share one machine. Locally you run `app/` alone.
+
+## app/
+
 Two containers:
 
 | Service   | Image base       | Role                                                            |
@@ -10,7 +22,7 @@ Two containers:
 ## Run
 
 ```bash
-cd docker
+cd docker/app
 docker compose up --build        # http://localhost:8080
 WEB_PORT=3000 docker compose up  # different host port
 ```
@@ -20,28 +32,35 @@ stack is reachable from the machine running it and nowhere else.
 
 The frontend is built inside the image (`node:22-alpine` stage runs `npm ci &&
 npm run build`), so no local `npm run build` is needed first. The build context
-for `web` is the repo root; `backend` builds from `docker/backend`.
+for `web` is the repo root; `backend` builds from `docker/app/backend`.
 
 ## Layout
 
 ```
 docker/
-  docker-compose.yml  # one app stack; instantiated once per environment
-  caddy/
-    Dockerfile        # multi-stage: node build -> caddy
-    Caddyfile         # static file server + /api reverse proxy
-  edge/
-    docker-compose.yml  # the VPS's public proxy; one per host, not per env
-    Caddyfile           # TLS + hostname routing to each environment
-  backend/
-    Dockerfile
-    requirements.txt
-    gunicorn.conf.py  # bind/workers/timeout from env
-    wsgi.py           # gunicorn entrypoint
-    app/
-      __init__.py     # application factory
-      api.py          # /api blueprint
+  README.md
+  app/                    # one stack per environment
+    docker-compose.yml    # the template; -p and an env file make it dev or prod
+    caddy/
+      Dockerfile          # multi-stage: node build -> caddy
+      Caddyfile           # static file server + /api reverse proxy
+    backend/
+      Dockerfile
+      requirements.txt
+      gunicorn.conf.py    # bind/workers/timeout from env
+      wsgi.py             # gunicorn entrypoint
+      app/
+        __init__.py       # application factory
+        api.py            # /api blueprint
+  edge/                   # one proxy per host
+    docker-compose.yml
+    Caddyfile             # TLS + hostname routing to each environment
 ```
+
+`app/caddy/Dockerfile` builds from the **repo root** (`context: ../..`), so the
+Vite source is in scope for its node stage; paths inside it are therefore
+written from the root, as `docker/app/caddy/...`. `app/backend` builds from its
+own directory.
 
 ## Backend
 
@@ -52,7 +71,7 @@ the compose healthcheck) and `GET /api/version`. Add routes to
 Run it outside docker:
 
 ```bash
-cd docker/backend
+cd docker/app/backend
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 gunicorn --config gunicorn.conf.py wsgi:app   # http://localhost:8000/api/health
