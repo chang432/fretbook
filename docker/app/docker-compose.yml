@@ -33,8 +33,10 @@ services:
   web:
     build:
       # Repo root, so the frontend build stage can see package.json and src/.
-      context: ..
-      dockerfile: docker/caddy/Dockerfile
+      # Two levels up from docker/app/, and the Dockerfile is named relative to
+      # that root rather than to this file.
+      context: ../..
+      dockerfile: docker/app/caddy/Dockerfile
     image: fretbook-web:${IMAGE_TAG:-local}
     restart: unless-stopped
     ports:

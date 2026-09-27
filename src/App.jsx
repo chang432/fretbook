@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import LiveMode from './components/LiveMode.jsx'
+import NoteLink from './components/NoteLink.jsx'
 import Popover from './components/Popover.jsx'
 import TabEditor from './components/TabEditor.jsx'
 import { CopyIcon, PresentIcon, SoundIcon, SwapIcon } from './components/icons.jsx'
@@ -44,6 +45,7 @@ import {
   toJson,
   totalColumns,
 } from './utils/tab.js'
+import { NOTES_PATH, navigate } from './utils/route.js'
 import { renderTabToPngBlob } from './utils/renderPng.js'
 import { cellFrequency, createAudioEngine } from './utils/audio.js'
 
@@ -72,9 +74,29 @@ function loadSaved() {
   }
 }
 
-export default function App() {
-  // Read localStorage once, lazily, and seed both pieces of state from it.
-  const [saved] = useState(loadSaved)
+/** Whether this browser is holding a sheet of the reader's own. */
+function hasSaved() {
+  try {
+    return !!localStorage.getItem(STORAGE_KEY)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The editor. Normally it holds the one sheet this browser keeps, read from
+ * and written back to localStorage as it is worked on.
+ *
+ * `published` puts it over a note that came from the server instead — the
+ * file in public/notes/ is the note, and nothing here can change it. Two
+ * things follow from that: the sheet is seeded from the note rather than from
+ * storage, and the autosave below is off, so reading a published note leaves
+ * the reader's own sheet exactly where it was.
+ */
+export default function App({ published = null }) {
+  // Read the note, or localStorage, once and lazily, and seed the state below
+  // from whichever it was.
+  const [saved] = useState(() => published?.sheet ?? loadSaved())
   const [title, setTitle] = useState(saved?.title ?? '')
   // Rows carry their own length in bars, so they lead and the grid follows.
   const [rows, setRows] = useState(() => saved?.rows ?? createRows())
@@ -97,6 +119,9 @@ export default function App() {
   // session — it is an errand, not a property of the song.
   const [copying, setCopying] = useState(false)
   const [confirmingClear, setConfirmingClear] = useState(false)
+  // Armed by the first press of the published note banner's keep button,
+  // which is about to write over the sheet this browser already holds.
+  const [confirmingAdopt, setConfirmingAdopt] = useState(false)
   // Row whose minus button is armed, waiting for a second press.
   const [pendingRemove, setPendingRemove] = useState(null)
   const [confirmingRemoveRow, setConfirmingRemoveRow] = useState(false)
@@ -278,12 +303,16 @@ export default function App() {
   }
 
   useEffect(() => {
+    // A published note is the server's, and the reader has a sheet of their
+    // own that this one is only being read in front of. Saving here would
+    // write over it, so the way to keep a note is the button in the banner.
+    if (published) return
     try {
       localStorage.setItem(STORAGE_KEY, toJson({ ...sheet, bpm }, STANDARD_TUNING, title))
     } catch {
       // Private-mode / quota failures are not worth interrupting the user for.
     }
-  }, [sheet, bpm, title])
+  }, [published, sheet, bpm, title])
 
   useEffect(() => {
     if (!status) return undefined
@@ -574,6 +603,26 @@ export default function App() {
     setStatus(`Opened ${file.name}`)
   }
 
+  /**
+   * Take a published note on as this browser's own sheet: write it to storage
+   * and leave for the editor, where it saves from then on like anything else.
+   * It replaces whatever was there, so it asks twice when there is something
+   * to replace — the bargain the Clear button makes.
+   */
+  const adoptNote = () => {
+    if (hasSaved() && !confirmingAdopt) {
+      setConfirmingAdopt(true)
+      return
+    }
+    try {
+      localStorage.setItem(STORAGE_KEY, toJson({ ...sheet, bpm }, STANDARD_TUNING, title))
+    } catch {
+      setStatus('This browser would not save the sheet')
+      return
+    }
+    navigate('/')
+  }
+
   const clearAll = () => {
     const fresh = createRows()
     setRows(fresh)
@@ -590,6 +639,28 @@ export default function App() {
 
   return (
     <div className="app">
+      {published && (
+        <div className="note-banner">
+          <div className="note-banner-said">
+            <strong>Published note</strong>
+            <span>
+              Play with it all you like — nothing here is saved, and the copy on the
+              server is unchanged.
+            </span>
+          </div>
+          <div className="note-banner-actions">
+            <button
+              type="button"
+              className={confirmingAdopt ? 'danger' : ''}
+              onClick={adoptNote}
+              onBlur={() => setConfirmingAdopt(false)}
+            >
+              {confirmingAdopt ? 'Replace my own sheet?' : 'Keep a copy'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <header className="header">
         <h1>Fretboard Notebook</h1>
         <input
@@ -602,6 +673,14 @@ export default function App() {
       </header>
 
       <div className="toolbar">
+        <div className="toolbar-group">
+          {/* Leaves the editor, so it sits on its own at the head of the
+              toolbar rather than among the buttons that act on the sheet. */}
+          <NoteLink to={NOTES_PATH} className="button-link">
+            Browse
+          </NoteLink>
+        </div>
+
         <div className="toolbar-group">
           <button
             type="button"

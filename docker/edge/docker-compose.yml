@@ -4,7 +4,7 @@
 # fixed location, so the container does not get recreated depending on which
 # environment's checkout happened to deploy last.
 #
-# Not part of the app stack (docker/docker-compose.yml) on purpose: that one is
+# Not part of the app stack (docker/app/) on purpose: that one is
 # instantiated once per environment, and there must be exactly one thing
 # holding the host's public ports.
 

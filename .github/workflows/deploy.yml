@@ -12,7 +12,7 @@ name: Build, verify and deploy to the VPS
 #
 # Phase 2 (deploy) SSHes to the box, fast-forwards the checkout, and rebuilds
 # the compose stack. The images are built *on the VPS* rather than pushed from
-# CI: docker/caddy/Dockerfile already runs `npm ci && npm run build` in a node
+# CI: docker/app/caddy/Dockerfile already runs `npm ci && npm run build` in a node
 # stage, so the box needs nothing installed but Docker itself.
 #
 # ---------------------------------------------------------------------------
@@ -117,7 +117,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          # Matches the build stage in docker/caddy/Dockerfile, so a version
+          # Matches the build stage in docker/app/caddy/Dockerfile, so a version
           # difference cannot let CI pass while the image build fails.
           node-version: "22"
           cache: npm
@@ -138,6 +138,12 @@ jobs:
         # apex rather than a build failure, so check for the file explicitly.
         run: test -f dist/index.html
 
+      - name: Confirm the published notes were collected
+        # vite-plugin-notes.js writes this from public/notes/ and fails the
+        # build on a note the editor could not open; its absence would mean the
+        # plugin never ran and the notes index would come up empty.
+        run: test -f dist/notes.json
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -145,13 +151,13 @@ jobs:
           python-version: "3.12"
 
       - name: Install backend dependencies
-        run: pip install -r docker/backend/requirements.txt
+        run: pip install -r docker/app/backend/requirements.txt
 
       - name: Import the Flask app
         # gunicorn only imports wsgi:app at startup, so a broken import or a
         # blueprint clash would otherwise surface as a crash-looping container
         # on the VPS instead of a failed check here.
-        working-directory: docker/backend
+        working-directory: docker/app/backend
         run: python -c "from wsgi import app; print(sorted(r.rule for r in app.url_map.iter_rules()))"
 
   deploy:
@@ -317,7 +323,7 @@ jobs:
             #
             # --project-name namespaces containers, networks and volumes, which
             # is what lets both environments coexist on this host.
-            COMPOSE_FILE="${APP_DIR}/docker/docker-compose.yml"
+            COMPOSE_FILE="${APP_DIR}/docker/app/docker-compose.yml"
             PROJECT="fretbook-${ENV_NAME}"
             compose() {
               sudo docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -p "${PROJECT}" "$@"
