@@ -620,11 +620,15 @@ export default function App({ published = null }) {
 
       <div className="toolbar">
         <div className="toolbar-group">
-          {/* Leaves the editor, so it sits on its own at the head of the
-              toolbar rather than among the buttons that act on the sheet. */}
-          <NoteLink to={NOTES_PATH} className="button-link">
-            Browse
-          </NoteLink>
+          <button
+            type="button"
+            onClick={(event) => setExportMenu(exportMenu ? null : event.currentTarget)}
+            disabled={empty}
+            aria-haspopup="dialog"
+            aria-expanded={!!exportMenu}
+          >
+            Export
+          </button>
         </div>
 
         <div className="toolbar-group">
@@ -710,15 +714,11 @@ export default function App({ published = null }) {
         </span>
 
         <div className="toolbar-group toolbar-group--end">
-          <button
-            type="button"
-            onClick={(event) => setExportMenu(exportMenu ? null : event.currentTarget)}
-            disabled={empty}
-            aria-haspopup="dialog"
-            aria-expanded={!!exportMenu}
-          >
-            Export
-          </button>
+          {/* Leaves the editor, so it sits at the far end, clear of every
+              button that acts on the sheet. */}
+          <NoteLink to={NOTES_PATH} className="button-link">
+            Browse
+          </NoteLink>
         </div>
       </div>
 
