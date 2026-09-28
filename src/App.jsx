@@ -628,18 +628,6 @@ export default function App({ published = null }) {
         </div>
 
         <div className="toolbar-group">
-          <button
-            type="button"
-            onClick={(event) => setExportMenu(exportMenu ? null : event.currentTarget)}
-            disabled={empty}
-            aria-haspopup="dialog"
-            aria-expanded={!!exportMenu}
-          >
-            Export
-          </button>
-        </div>
-
-        <div className="toolbar-group">
           <button type="button" onClick={() => fileInputRef.current?.click()}>
             Import JSON
           </button>
@@ -720,6 +708,18 @@ export default function App({ published = null }) {
         <span className="status" role="status">
           {status}
         </span>
+
+        <div className="toolbar-group toolbar-group--end">
+          <button
+            type="button"
+            onClick={(event) => setExportMenu(exportMenu ? null : event.currentTarget)}
+            disabled={empty}
+            aria-haspopup="dialog"
+            aria-expanded={!!exportMenu}
+          >
+            Export
+          </button>
+        </div>
       </div>
 
       {/* The status line beside the buttons clears itself after a few seconds,
