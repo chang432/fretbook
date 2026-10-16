@@ -14,7 +14,7 @@ npm run preview  # serve dist/ the way the server does
 npm run lint
 ```
 
-The published notes come from an S3 bucket rather than from the repo, so
+The published notes come from an R2 bucket rather than from the repo, so
 `/notes` is empty until the build is told which one: `cp .env.example .env.local`
 and point it at the dev bucket. Everything else works without it.
 
@@ -305,12 +305,14 @@ rows are yours to add, so a file records the sheet exactly as you left it.
 ## Publishing notes
 
 A published note is a read-only note with a URL of its own, and `/notes` lists
-them all. They live in a **public S3 bucket, one per environment** — dev and
-prod read different buckets — and the browser reads them straight out of it, so
-publishing is a command rather than a deploy:
+them all. They live in a **public Cloudflare R2 bucket, one per environment** —
+dev and prod read different buckets — and the browser reads them straight out
+of it, so publishing is a command rather than a deploy:
 
 ```bash
+export FRETBOOK_R2_ENDPOINT=https://<account id>.r2.cloudflarestorage.com
 export FRETBOOK_NOTES_BUCKET=fretbook-notes-dev     # or pass --bucket
+export AWS_PROFILE=r2                                # the R2 token's credentials
 
 npm run notes:publish   -- notes/tie_that_binds_by_drake.json
 npm run notes:unpublish -- tie_that_binds_by_drake
@@ -332,7 +334,8 @@ The bucket is the only source of truth: a reader can open a note and play with
 it, but nothing they do is saved anywhere, and `notes:publish` is the only
 thing that can change what everyone sees. The repo's `notes/` folder is just
 local copies of what you have published — deleting a file there changes
-nothing.
+nothing, but keep them: R2 has no object versioning, so republishing over a
+note or unpublishing one is final.
 
 `scripts/notes.mjs` is the whole of publishing. It refuses a file the editor
 could not open, so a broken note never reaches a reader, and afterwards it
@@ -345,8 +348,12 @@ CI sets it per environment from the `DEV_NOTES_BASE_URL` /
 copy. A build without it runs fine — `/notes` says it was not told where the
 notes are.
 
-**The buckets themselves are not created by this repo.** Their policy, CORS
-rule, IAM and costs are in [docs/notes-s3-storage.md](docs/notes-s3-storage.md).
+R2 speaks the S3 API, so publishing is the ordinary `aws` CLI pointed at the
+account's R2 endpoint — no new dependency.
+
+**The buckets themselves are not created by this repo.** Making them public,
+their CORS rule, the API token and the costs are in
+[docs/notes-r2-storage.md](docs/notes-r2-storage.md).
 
 ## Layout
 

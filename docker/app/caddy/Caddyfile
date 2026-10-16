@@ -20,7 +20,7 @@
 	# SPA keeps working on a deep link / refresh — including /notes and
 	# /notes/<name>, which are addresses in the app rather than files. The
 	# notes themselves are not here at all: the browser reads them straight
-	# out of this environment's S3 bucket.
+	# out of this environment's R2 bucket.
 	handle {
 		root * /srv
 		try_files {path} /index.html

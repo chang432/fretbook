@@ -1,10 +1,10 @@
 /**
  * Where the published notes come from.
  *
- * They live in a public S3 bucket — one per environment — and the browser
- * reads them straight out of it, so nothing about a note passes through the
- * site's own server. The bucket holds the same two things the built site used
- * to:
+ * They live in a public Cloudflare R2 bucket — one per environment — and the
+ * browser reads them straight out of it, so nothing about a note passes
+ * through the site's own server. The bucket holds the same two things the
+ * built site used to:
  *
  *   notes.json            the manifest /notes lists
  *   notes/<name>.json     one note, the editor's own JSON export
@@ -14,9 +14,9 @@
  *
  * The bucket's URL is baked in at build time (`VITE_NOTES_BASE_URL`), which is
  * what makes dev and prod read different buckets from the same source: each
- * environment's image is built with its own value. See docs/notes-s3-storage.md
- * for the bucket's policy and CORS rule, and README's *Publishing notes* for
- * how a note gets into it.
+ * environment's image is built with its own value. See docs/notes-r2-storage.md
+ * for how the bucket is made public and its CORS rule, and README's
+ * *Publishing notes* for how a note gets into it.
  */
 import { fromJson } from './tab.js'
 

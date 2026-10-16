@@ -2,10 +2,10 @@
 /**
  * Publishing, as a command.
  *
- * The published notes live in a public S3 bucket — one per environment — and
- * that bucket is the source of truth: publishing is this script, not a commit,
- * and a deploy neither carries notes nor can lose them. The layout it writes
- * is the one src/utils/notes.js reads:
+ * The published notes live in a public Cloudflare R2 bucket — one per
+ * environment — and that bucket is the source of truth: publishing is this
+ * script, not a commit, and a deploy neither carries notes nor can lose them.
+ * The layout it writes is the one src/utils/notes.js reads:
  *
  *   notes.json            the manifest /notes lists
  *   notes/<name>.json     one note, the editor's own JSON export
@@ -14,10 +14,12 @@
  *   npm run notes:unpublish -- --bucket fretbook-notes-dev passionfruit_by_drake
  *   npm run notes:manifest  -- --bucket fretbook-notes-dev
  *
- * The bucket can also come from FRETBOOK_NOTES_BUCKET, which is the easier way
- * to avoid publishing to the wrong environment by muscle memory. Credentials
- * are the AWS CLI's own (`aws configure`, or the usual environment variables);
- * nothing here reads or stores one.
+ * R2 speaks the S3 API, so this drives the ordinary AWS CLI pointed at the
+ * account's R2 endpoint (`--endpoint`, or FRETBOOK_R2_ENDPOINT — see
+ * docs/notes-r2-storage.md for where the endpoint and its credentials come
+ * from). The bucket can likewise come from FRETBOOK_NOTES_BUCKET, which is the
+ * easier way to avoid publishing to the wrong environment by muscle memory.
+ * Credentials are the CLI's own; nothing here reads or stores one.
  *
  * Two things the build used to do are done here instead, because this is now
  * the only moment a note is looked at:
@@ -42,33 +44,61 @@ const PREFIX = 'notes'
 /** The manifest's key in the bucket. */
 const MANIFEST = 'notes.json'
 
-/** Nothing here takes long enough to want a partial result. */
-const aws = (...args) =>
-  execFileSync('aws', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] })
+/**
+ * Every call is a single small object, so this uses the low-level `s3api`
+ * commands rather than `aws s3 cp`. `cp` goes through the CLI's transfer
+ * manager, which adds checksum headers of its own choosing — a thing R2 and
+ * the CLI have disagreed about before, and a disagreement that surfaces as an
+ * opaque "unsupported header" rather than as anything to do with notes.
+ * `s3api` sends exactly the request written here.
+ *
+ * The endpoint and region go in right after the operation, so a command's own
+ * positional argument — get-object's output file — stays where it reads
+ * naturally, at the end.
+ *
+ * The two checksum variables say the same thing to a CLI new enough to read
+ * them, and are ignored by one that is not.
+ */
+const aws = (group, operation, ...args) =>
+  execFileSync('aws', [group, operation, '--endpoint-url', endpoint, '--region', 'auto', ...args], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'inherit'],
+    env: {
+      ...process.env,
+      AWS_REQUEST_CHECKSUM_CALCULATION: 'when_required',
+      AWS_RESPONSE_CHECKSUM_VALIDATION: 'when_required',
+    },
+  })
 
 const die = (message) => {
   console.error(message)
   process.exit(1)
 }
 
-/** `--bucket x` / `--bucket=x` out of the arguments, leaving the rest. */
+/** `--bucket x` / `--endpoint x` out of the arguments, leaving the rest. */
 function parseArgs(argv) {
   const rest = []
-  let bucket = process.env.FRETBOOK_NOTES_BUCKET ?? ''
+  const flags = {
+    bucket: process.env.FRETBOOK_NOTES_BUCKET ?? '',
+    endpoint: process.env.FRETBOOK_R2_ENDPOINT ?? '',
+  }
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]
-    if (arg === '--bucket') {
-      bucket = argv[i + 1] ?? ''
+    const named = Object.keys(flags).find((name) => arg === `--${name}`)
+    const inline = Object.keys(flags).find((name) => arg.startsWith(`--${name}=`))
+
+    if (named) {
+      flags[named] = argv[i + 1] ?? ''
       i += 1
-    } else if (arg.startsWith('--bucket=')) {
-      bucket = arg.slice('--bucket='.length)
+    } else if (inline) {
+      flags[inline] = arg.slice(`--${inline}=`.length)
     } else {
       rest.push(arg)
     }
   }
 
-  return { bucket: bucket.trim(), rest }
+  return { bucket: flags.bucket.trim(), endpoint: flags.endpoint.trim(), rest }
 }
 
 /**
@@ -93,7 +123,10 @@ function slugOf(file) {
   return { slug }
 }
 
-/** Every note key in the bucket, in whatever order S3 hands them over. */
+/** A scratch directory for the objects this reads back and the file it writes. */
+const scratch = () => mkdtempSync(join(tmpdir(), 'fretbook-notes-'))
+
+/** Every note key in the bucket, in whatever order R2 hands them over. */
 function listNotes(bucket) {
   const output = aws(
     's3api',
@@ -111,12 +144,39 @@ function listNotes(bucket) {
   return Array.isArray(keys) ? keys.filter((key) => key.endsWith('.json')) : []
 }
 
+/** One object's body. get-object writes it to a file, so it lands in `dir`. */
+function readObject(bucket, key, dir) {
+  const file = join(dir, 'object.json')
+  // Its own JSON report goes to stdout and is of no interest; the body is the
+  // file.
+  aws('s3api', 'get-object', '--bucket', bucket, '--key', key, file)
+  return readFileSync(file, 'utf8')
+}
+
+function putObject(bucket, key, file, cacheControl) {
+  aws(
+    's3api',
+    'put-object',
+    '--bucket',
+    bucket,
+    '--key',
+    key,
+    '--body',
+    file,
+    '--content-type',
+    'application/json',
+    '--cache-control',
+    cacheControl,
+  )
+}
+
 /**
  * Rewrite the manifest from the bucket's own contents. Every note is read back
- * for its title, which is a handful of small GETs and means a note uploaded by
- * hand, outside this script, still ends up listed.
+ * for its title, which is a handful of small reads and means a note uploaded
+ * by hand, outside this script, still ends up listed.
  */
 function writeManifest(bucket) {
+  const dir = scratch()
   const notes = []
 
   for (const key of listNotes(bucket)) {
@@ -126,8 +186,7 @@ function writeManifest(bucket) {
       continue
     }
 
-    // `-` is the CLI's stdout, so the object never touches the disk.
-    const sheet = fromJson(aws('s3', 'cp', `s3://${bucket}/${key}`, '-'))
+    const sheet = fromJson(readObject(bucket, key, dir))
     if (!sheet) {
       console.warn(`  skipping ${key}: not an export the editor can open`)
       continue
@@ -139,21 +198,12 @@ function writeManifest(bucket) {
   // Listed the way the index page shows them, so the order is decided once.
   notes.sort((a, b) => a.title.localeCompare(b.title) || a.slug.localeCompare(b.slug))
 
-  const file = join(mkdtempSync(join(tmpdir(), 'fretbook-notes-')), MANIFEST)
+  const file = join(dir, MANIFEST)
   writeFileSync(file, `${JSON.stringify(notes, null, 2)}\n`)
 
   // no-cache, unlike the notes themselves: this is the one object that has to
   // reflect a publish immediately, and it is two lines per note.
-  aws(
-    's3',
-    'cp',
-    file,
-    `s3://${bucket}/${MANIFEST}`,
-    '--content-type',
-    'application/json',
-    '--cache-control',
-    'no-cache',
-  )
+  putObject(bucket, MANIFEST, file, 'no-cache')
 
   console.log(`Manifest: ${notes.length} note${notes.length === 1 ? '' : 's'}.`)
   return notes
@@ -192,18 +242,9 @@ function publish(bucket, files) {
   if (errors.length) die(`Refusing to publish:\n  ${errors.join('\n  ')}`)
 
   for (const { file, slug } of uploads) {
-    aws(
-      's3',
-      'cp',
-      file,
-      `s3://${bucket}/${PREFIX}/${slug}.json`,
-      '--content-type',
-      'application/json',
-      // Short rather than immutable: a note can be republished under the same
-      // name, and a minute of staleness is cheaper than never caching at all.
-      '--cache-control',
-      'public, max-age=60',
-    )
+    // Short rather than immutable: a note can be republished under the same
+    // name, and a minute of staleness is cheaper than never caching at all.
+    putObject(bucket, `${PREFIX}/${slug}.json`, file, 'public, max-age=60')
     console.log(`Published /notes/${slug}`)
   }
 
@@ -220,7 +261,9 @@ function unpublish(bucket, slugs) {
   }
 
   for (const slug of slugs) {
-    aws('s3', 'rm', `s3://${bucket}/${PREFIX}/${slug}.json`)
+    // R2 keeps no versions, so this is final — which is why the repo holds a
+    // local copy of everything that has been published.
+    aws('s3api', 'delete-object', '--bucket', bucket, '--key', `${PREFIX}/${slug}.json`)
     console.log(`Unpublished /notes/${slug}`)
   }
 
@@ -228,10 +271,17 @@ function unpublish(bucket, slugs) {
 }
 
 const [command, ...argv] = process.argv.slice(2)
-const { bucket, rest } = parseArgs(argv)
+const { bucket, endpoint, rest } = parseArgs(argv)
 
 if (!bucket) {
   die('No bucket. Pass --bucket <name>, or set FRETBOOK_NOTES_BUCKET.')
+}
+
+if (!endpoint) {
+  die(
+    'No R2 endpoint. Pass --endpoint https://<account id>.r2.cloudflarestorage.com, ' +
+      'or set FRETBOOK_R2_ENDPOINT.',
+  )
 }
 
 switch (command) {

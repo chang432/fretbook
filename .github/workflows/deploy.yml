@@ -41,10 +41,10 @@ name: Build, verify and deploy to the VPS
 #   PROD_DOMAIN   Hostname the edge serves production on. Required.
 #   DEV_DOMAIN    Hostname the edge serves dev on. Required.
 #   ACME_EMAIL    Contact address Let's Encrypt uses for expiry notices.
-#   PROD_NOTES_BASE_URL  Public S3 bucket production reads its published notes
-#                        from, e.g. https://fretbook-notes-prod.s3.<region>.amazonaws.com
+#   PROD_NOTES_BASE_URL  Public R2 bucket production reads its published notes
+#                        from, e.g. https://pub-<hash>.r2.dev
 #   DEV_NOTES_BASE_URL   The same for dev. Both required — see
-#                        docs/notes-s3-storage.md for the buckets themselves.
+#                        docs/notes-r2-storage.md for the buckets themselves.
 #
 # Both domains are needed on every run, including a dev-only deploy, because
 # the edge Caddyfile describes the whole box: writing it with one hostname
