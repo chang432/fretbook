@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "notes:publish": "node scripts/notes.mjs publish",
+    "notes:unpublish": "node scripts/notes.mjs unpublish",
+    "notes:manifest": "node scripts/notes.mjs manifest"
   },
   "dependencies": {
     "react": "^19.2.0",

@@ -1,25 +1,21 @@
 import { useEffect, useState } from 'react'
 import NoteLink from './NoteLink.jsx'
-import { NOTES_MANIFEST, notePath } from '../utils/route.js'
+import { notePath } from '../utils/route.js'
+import { fetchManifest, notesConfigured } from '../utils/notes.js'
 
 /**
- * The published notes, listed. The list comes from notes.json, which is
- * written at build time from whatever is in public/notes/ — so publishing a
- * note is adding the file and nothing else.
+ * The published notes, listed. The list is notes.json in this environment's
+ * bucket, rewritten whenever a note is published — so the page is current
+ * without the site being rebuilt.
  */
 export default function NoteIndex() {
   const [notes, setNotes] = useState(null)
 
   useEffect(() => {
     let ignore = false
-    fetch(NOTES_MANIFEST)
-      .then((response) => (response.ok ? response.json() : []))
-      .then((list) => {
-        if (!ignore) setNotes(Array.isArray(list) ? list : [])
-      })
-      .catch(() => {
-        if (!ignore) setNotes([])
-      })
+    fetchManifest().then((list) => {
+      if (!ignore) setNotes(list)
+    })
     return () => {
       ignore = true
     }
@@ -34,9 +30,17 @@ export default function NoteIndex() {
         </NoteLink>
       </header>
 
-      {notes === null && <p className="note-shell-text">Loading…</p>}
+      {/* A build with no bucket behind it has nothing to list and no way to
+          find out, which is a different thing from nothing being published. */}
+      {!notesConfigured && (
+        <p className="note-shell-text">
+          This build was not told where the notes are (VITE_NOTES_BASE_URL).
+        </p>
+      )}
 
-      {notes?.length === 0 && (
+      {notesConfigured && notes === null && <p className="note-shell-text">Loading…</p>}
+
+      {notesConfigured && notes?.length === 0 && (
         <p className="note-shell-text">Nothing has been published yet.</p>
       )}
 

@@ -78,11 +78,11 @@ function loadSaved() {
  * The editor. Normally it holds the one sheet this browser keeps, read from
  * and written back to localStorage as it is worked on.
  *
- * `published` puts it over a note that came from the server instead — the
- * file in public/notes/ is the note, and nothing here can change it. Two
- * things follow from that: the sheet is seeded from the note rather than from
- * storage, and the autosave below is off, so reading a published note leaves
- * the reader's own sheet exactly where it was.
+ * `published` puts it over a note that came from the bucket instead — the
+ * object there is the note, and nothing here can change it. Two things follow
+ * from that: the sheet is seeded from the note rather than from storage, and
+ * the autosave below is off, so reading a published note leaves the reader's
+ * own sheet exactly where it was.
  */
 export default function App({ published = null }) {
   // Read the note, or localStorage, once and lazily, and seed the state below

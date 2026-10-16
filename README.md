@@ -14,6 +14,10 @@ npm run preview  # serve dist/ the way the server does
 npm run lint
 ```
 
+The published notes come from an S3 bucket rather than from the repo, so
+`/notes` is empty until the build is told which one: `cp .env.example .env.local`
+and point it at the dev bucket. Everything else works without it.
+
 ## Writing tab
 
 - Click any position on a string and type a fret number (`0`–`24`).
@@ -300,29 +304,49 @@ rows are yours to add, so a file records the sheet exactly as you left it.
 
 ## Publishing notes
 
-Anything in `public/notes/` is served as a read-only note with a URL of its
-own, and `/notes` lists them all:
+A published note is a read-only note with a URL of its own, and `/notes` lists
+them all. They live in a **public S3 bucket, one per environment** — dev and
+prod read different buckets — and the browser reads them straight out of it, so
+publishing is a command rather than a deploy:
+
+```bash
+export FRETBOOK_NOTES_BUCKET=fretbook-notes-dev     # or pass --bucket
+
+npm run notes:publish   -- notes/tie_that_binds_by_drake.json
+npm run notes:unpublish -- tie_that_binds_by_drake
+npm run notes:manifest                               # rebuild the index only
+```
 
 ```
-public/notes/tie_that_binds_by_drake.json   →   /notes/tie_that_binds_by_drake
+notes/tie_that_binds_by_drake.json   →   /notes/tie_that_binds_by_drake
 ```
 
-To publish one: write it in the editor, **Export → JSON file**, drop the file in
-`public/notes/`, and merge. An export is named after its title with underscores
-between the words, which is already a publishable name — rename it only if you
-want the URL to read differently, keeping to lowercase letters and digits joined
-by single dashes or underscores. The deploy rebuilds the site with the file baked
-in, and the file itself is the only source of truth: a reader can open a note and
-play with it, but nothing they do is saved anywhere, and the next deploy is the
-only thing that can change what everyone sees.
+To publish one: write it in the editor, **Export → JSON file**, and publish the
+file. An export is named after its title with underscores between the words,
+which is already a publishable name — rename it only if you want the URL to
+read differently, keeping to lowercase letters and digits joined by single
+dashes or underscores. It is live as soon as the upload finishes; nothing is
+rebuilt and no merge is involved.
 
-The raw file stays readable at `/notes/<name>.json`, which is also where the
-app reads it from.
+The bucket is the only source of truth: a reader can open a note and play with
+it, but nothing they do is saved anywhere, and `notes:publish` is the only
+thing that can change what everyone sees. The repo's `notes/` folder is just
+local copies of what you have published — deleting a file there changes
+nothing.
 
-`vite-plugin-notes.js` collects the folder at build time: it refuses to build a
-note the editor could not open — so a broken file fails CI rather than a
-reader's page — and writes `notes.json`, the manifest `/notes` lists. Adding
-the file is the whole of publishing; there is no list to keep in step.
+`scripts/notes.mjs` is the whole of publishing. It refuses a file the editor
+could not open, so a broken note never reaches a reader, and afterwards it
+rebuilds `notes.json` — the manifest `/notes` lists — from what is actually in
+the bucket, so there is no list to keep in step.
+
+Which bucket a build reads is `VITE_NOTES_BASE_URL`, inlined at build time:
+CI sets it per environment from the `DEV_NOTES_BASE_URL` /
+`PROD_NOTES_BASE_URL` repository variables, and `.env.example` is the local
+copy. A build without it runs fine — `/notes` says it was not told where the
+notes are.
+
+**The buckets themselves are not created by this repo.** Their policy, CORS
+rule, IAM and costs are in [docs/notes-s3-storage.md](docs/notes-s3-storage.md).
 
 ## Layout
 
@@ -338,6 +362,7 @@ src/
   components/Popover.jsx    the anchored panel behind the export, group and tempo menus
   components/icons.jsx      the drawn symbols on the buttons that carry no words
   utils/tab.js              grid, tie and mark model; ASCII/JSON; downloads
+  utils/notes.js            the published notes' bucket: its URLs and reads
   utils/live.js             the running order as a flat run of beats, and its timing
   utils/audio.js            fret-to-pitch both ways, and the plucked-string synthesis
   utils/popover.js          where an anchored panel sits, kept inside the window
