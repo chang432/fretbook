@@ -37,6 +37,12 @@ services:
       # that root rather than to this file.
       context: ../..
       dockerfile: docker/app/caddy/Dockerfile
+      args:
+        # The public R2 bucket this environment's published notes live in,
+        # baked into the bundle by the node stage. Unset locally, where there
+        # is usually no bucket to read; CI writes it into the deploy env file
+        # per environment (see .github/workflows/deploy.yml).
+        NOTES_BASE_URL: ${NOTES_BASE_URL:-}
     image: fretbook-web:${IMAGE_TAG:-local}
     restart: unless-stopped
     ports:

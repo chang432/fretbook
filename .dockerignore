@@ -8,3 +8,5 @@ dist
 *.local
 *.zip
 README.md
+# Local copies of published notes; the bucket serves them, not the image.
+notes

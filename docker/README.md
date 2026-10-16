@@ -34,6 +34,14 @@ The frontend is built inside the image (`node:22-alpine` stage runs `npm ci &&
 npm run build`), so no local `npm run build` is needed first. The build context
 for `web` is the repo root; `backend` builds from `docker/app/backend`.
 
+`web` takes one build arg, `NOTES_BASE_URL` — the public R2 bucket this
+environment reads its published notes from, which Vite inlines into the bundle
+as `VITE_NOTES_BASE_URL`. It is unset locally, where `/notes` then says so; the
+deploy writes it into each environment's env file from the `DEV_NOTES_BASE_URL`
+/ `PROD_NOTES_BASE_URL` repository variables. Because it is baked in at build
+time, changing it means rebuilding the image, not restarting the container. See
+`docs/notes-r2-storage.md`.
+
 ## Layout
 
 ```
@@ -97,6 +105,7 @@ VPS
 | Namespaced by environment | dev | prod |
 |---------------------------|-----|------|
 | Checkout                  | `/opt/fretbook-dev` | `/opt/fretbook-prod` |
+| Notes bucket              | `DEV_NOTES_BASE_URL` | `PROD_NOTES_BASE_URL` |
 | Compose project           | `fretbook-dev` | `fretbook-prod` |
 | Image tags                | `fretbook-*:dev` | `fretbook-*:prod` |
 | Loopback port             | `8082` | `8081` |

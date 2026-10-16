@@ -5,10 +5,12 @@
  *
  *   /                 the editor — one sheet, kept in this browser
  *   /notes            the published notes, listed
- *   /notes/<name>     one published note, read from /notes/<name>.json
+ *   /notes/<name>     one published note, fetched from the bucket
  *
- * The server serves index.html for all three (see docker/app/caddy/Caddyfile),
- * so a deep link and a press inside the app arrive at the same place.
+ * These are addresses in the app, not files: the server serves index.html for
+ * all three (see docker/app/caddy/Caddyfile), so a deep link and a press
+ * inside the app arrive at the same place. Where a note is actually read from
+ * is utils/notes.js's business.
  */
 import { useEffect, useState } from 'react'
 import { NOTE_NAME } from './tab.js'
@@ -16,14 +18,8 @@ import { NOTE_NAME } from './tab.js'
 /** Where the published notes are listed. */
 export const NOTES_PATH = '/notes'
 
-/** The path a note is read at, and the link that opens it. */
+/** The address one note is read at, and the link that opens it. */
 export const notePath = (slug) => `${NOTES_PATH}/${slug}`
-
-/** The JSON behind it — the file as it sits on the server. */
-export const noteFile = (slug) => `${NOTES_PATH}/${slug}.json`
-
-/** The manifest the index page lists. Written by vite-plugin-notes.js. */
-export const NOTES_MANIFEST = '/notes.json'
 
 /**
  * What a path asks for. Anything unrecognised is the editor rather than a

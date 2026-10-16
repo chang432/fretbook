@@ -41,10 +41,17 @@ name: Build, verify and deploy to the VPS
 #   PROD_DOMAIN   Hostname the edge serves production on. Required.
 #   DEV_DOMAIN    Hostname the edge serves dev on. Required.
 #   ACME_EMAIL    Contact address Let's Encrypt uses for expiry notices.
+#   PROD_NOTES_BASE_URL  Public R2 bucket production reads its published notes
+#                        from, e.g. https://pub-<hash>.r2.dev
+#   DEV_NOTES_BASE_URL   The same for dev. Both required — see
+#                        docs/notes-r2-storage.md for the buckets themselves.
 #
 # Both domains are needed on every run, including a dev-only deploy, because
 # the edge Caddyfile describes the whole box: writing it with one hostname
-# missing would take the other environment offline.
+# missing would take the other environment offline. The notes URLs are not
+# like that — only this environment's is used — but they are read here for the
+# same reason the ports are: one place that knows both, so the pair cannot
+# drift.
 #
 # Repository secrets — same page, Secrets tab:
 #   SSH_PASSWORD       Password of the VPS's SSH user. sshd must permit
@@ -138,12 +145,6 @@ jobs:
         # apex rather than a build failure, so check for the file explicitly.
         run: test -f dist/index.html
 
-      - name: Confirm the published notes were collected
-        # vite-plugin-notes.js writes this from public/notes/ and fails the
-        # build on a note the editor could not open; its absence would mean the
-        # plugin never ran and the notes index would come up empty.
-        run: test -f dist/notes.json
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -173,6 +174,8 @@ jobs:
           PROD_DOMAIN: ${{ vars.PROD_DOMAIN }}
           DEV_DOMAIN: ${{ vars.DEV_DOMAIN }}
           ACME_EMAIL: ${{ vars.ACME_EMAIL }}
+          PROD_NOTES_BASE_URL: ${{ vars.PROD_NOTES_BASE_URL }}
+          DEV_NOTES_BASE_URL: ${{ vars.DEV_NOTES_BASE_URL }}
           SITE_DOMAIN: ${{ inputs.site_domain }}
           ENV_NAME: ${{ inputs.env_name }}
         run: |
@@ -183,6 +186,11 @@ jobs:
           [ -n "${PROD_DOMAIN}" ] || missing="${missing} PROD_DOMAIN"
           [ -n "${DEV_DOMAIN}" ]  || missing="${missing} DEV_DOMAIN"
           [ -n "${ACME_EMAIL}" ]  || missing="${missing} ACME_EMAIL"
+          # Baked into the frontend bundle, so a missing one is not a broken
+          # deploy but a site whose /notes page can only say it was not told
+          # where the notes are — worth failing here instead.
+          [ -n "${PROD_NOTES_BASE_URL}" ] || missing="${missing} PROD_NOTES_BASE_URL"
+          [ -n "${DEV_NOTES_BASE_URL}" ]  || missing="${missing} DEV_NOTES_BASE_URL"
           if [ -n "${missing}" ]; then
             echo "::error::Missing repository variables:${missing}. Set them under Settings > Secrets and variables > Actions > Variables."
             exit 1
@@ -210,6 +218,8 @@ jobs:
           ACME_EMAIL: ${{ vars.ACME_EMAIL }}
           PROD_PORT: ${{ env.PROD_PORT }}
           DEV_PORT: ${{ env.DEV_PORT }}
+          PROD_NOTES_BASE_URL: ${{ vars.PROD_NOTES_BASE_URL }}
+          DEV_NOTES_BASE_URL: ${{ vars.DEV_NOTES_BASE_URL }}
         with:
           host: ${{ vars.VPS_IP }}
           username: ${{ inputs.ssh_user }}
@@ -220,15 +230,22 @@ jobs:
           # Give the remote shell a generous budget: a cold box installs Docker
           # and builds both images from scratch on the first run.
           command_timeout: 30m
-          envs: REPO_FULL,ENV_NAME,BRANCH,SITE_DOMAIN,PROD_DOMAIN,DEV_DOMAIN,ACME_EMAIL,PROD_PORT,DEV_PORT
+          envs: REPO_FULL,ENV_NAME,BRANCH,SITE_DOMAIN,PROD_DOMAIN,DEV_DOMAIN,ACME_EMAIL,PROD_PORT,DEV_PORT,PROD_NOTES_BASE_URL,DEV_NOTES_BASE_URL
           script: |
             set -euo pipefail
 
-            # This environment's loopback port. Both are known here because the
-            # edge config written further down describes the whole box.
+            # This environment's loopback port, and the bucket its notes come
+            # from. Both pairs are known here because the edge config written
+            # further down describes the whole box.
             case "${ENV_NAME}" in
-              prod) WEB_PORT="${PROD_PORT}" ;;
-              dev)  WEB_PORT="${DEV_PORT}" ;;
+              prod)
+                WEB_PORT="${PROD_PORT}"
+                NOTES_BASE_URL="${PROD_NOTES_BASE_URL}"
+                ;;
+              dev)
+                WEB_PORT="${DEV_PORT}"
+                NOTES_BASE_URL="${DEV_NOTES_BASE_URL}"
+                ;;
               *)
                 echo "Unknown environment '${ENV_NAME}'; expected dev or prod." >&2
                 exit 1
@@ -298,14 +315,14 @@ jobs:
             echo "Deploying $(git rev-parse --short HEAD)."
 
             # --- Compose's environment --------------------------------------
-            # docker-compose.yml interpolates WEB_PORT and IMAGE_TAG out of the
-            # environment compose itself runs in. Compose runs under sudo here,
-            # and sudo's env_reset scrubs the variables this script was given,
-            # so they would never reach it — compose would silently fall back
-            # to the file's defaults (port 8080, tag "local"), and both
-            # environments would then fight over the same port on this shared
-            # box. Write them to an env file compose reads directly, which sudo
-            # cannot strip.
+            # docker-compose.yml interpolates WEB_PORT, IMAGE_TAG and
+            # NOTES_BASE_URL out of the environment compose itself runs in.
+            # Compose runs under sudo here, and sudo's env_reset scrubs the
+            # variables this script was given, so they would never reach it —
+            # compose would silently fall back to the file's defaults (port
+            # 8080, tag "local", no bucket), and both environments would then
+            # fight over the same port on this shared box. Write them to an env
+            # file compose reads directly, which sudo cannot strip.
             #
             # Kept outside APP_DIR so the checkout never holds deploy config,
             # and root-owned 600 to match the file this would hold secrets in
@@ -315,6 +332,7 @@ jobs:
             sudo tee "${ENV_FILE}" >/dev/null <<EOF
             WEB_PORT=${WEB_PORT}
             IMAGE_TAG=${ENV_NAME}
+            NOTES_BASE_URL=${NOTES_BASE_URL}
             EOF
 
             # --- Rebuild and run this environment's stack -------------------
