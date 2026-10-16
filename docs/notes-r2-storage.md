@@ -151,44 +151,72 @@ list its contents — so `notes.json` remains the only index.
 ### 3. CORS — per bucket
 
 The browser reads the bucket cross-origin, so without this the fetch fails even
-though the object is public. `GET` and `HEAD` only.
+though the object is public. The policies differ only in their origins: the
+prod bucket is read from one place, the dev bucket from four.
 
-Bucket → **Settings** → **CORS Policy** → **Add CORS policy**, or with the same
-CLI the publishing script uses:
+The app only ever makes a plain `GET` with no custom headers, which is a
+*simple request* — the browser sends no preflight, and all that has to come
+back is `Access-Control-Allow-Origin`. That is why the header lists are empty;
+`MaxAgeSeconds` governs preflight caching and so does nothing today, but costs
+nothing to carry.
+
+**`fretbook-notes-prod`:**
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://<PROD_DOMAIN>"],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": [],
+    "ExposeHeaders": [],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+**`fretbook-notes-dev`** — the same, plus the three ways the site runs locally:
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "https://<DEV_DOMAIN>",
+      "http://localhost:5173",
+      "http://localhost:4173",
+      "http://localhost:8080"
+    ],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": [],
+    "ExposeHeaders": [],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+`5173` is `npm run dev`, `4173` is `npm run preview`, `8080` is
+`docker compose up`. `localhost` and `127.0.0.1` are different origins, so add
+the latter too if that is what you type.
+
+Paste either straight into the bucket's **Settings** → **CORS Policy** →
+**Add CORS policy** → **JSON**, which takes exactly this shape. The same rules
+go through the CLI the publishing script already uses, wrapped in `CORSRules`:
 
 ```bash
 aws s3api put-bucket-cors --bucket fretbook-notes-dev \
   --endpoint-url https://<account id>.r2.cloudflarestorage.com --region auto \
-  --cors-configuration file://cors.json
+  --cors-configuration '{"CORSRules": [{"AllowedOrigins": ["https://<DEV_DOMAIN>","http://localhost:5173","http://localhost:4173","http://localhost:8080"],"AllowedMethods": ["GET","HEAD"]}]}'
 ```
 
-```json
-{
-  "CORSRules": [
-    {
-      "AllowedHeaders": [],
-      "AllowedMethods": ["GET", "HEAD"],
-      "AllowedOrigins": [
-        "https://<PROD_DOMAIN>",
-        "https://<DEV_DOMAIN>",
-        "http://localhost:5173",
-        "http://localhost:8080"
-      ],
-      "ExposeHeaders": [],
-      "MaxAgeSeconds": 3000
-    }
-  ]
-}
-```
+`wrangler r2 bucket cors set` is a third route, but it takes a different shape
+again — `{ "rules": [ { "allowed": { "origins": [...], "methods": [...] } } ] }`
+— so pick one route and stay on it.
 
-The dashboard's JSON tab wants Cloudflare's own shape rather than this one —
-`{ "rules": [ { "allowed": { "origins": [...], "methods": [...] } } ] }` — so
-pick one route and stay on it. Give the two `localhost` origins to the dev
-bucket only (`5173` is `npm run dev`, `8080` is `docker compose up`); prod needs
-just `https://<PROD_DOMAIN>`.
-
-A request without an `Origin` header gets no CORS headers back, which is worth
-remembering when testing with curl.
+Two things that make this look broken when it is not: a request without an
+`Origin` header gets no CORS headers back, so test with
+`curl -I -H 'Origin: https://<DEV_DOMAIN>' <bucket URL>/notes.json` rather than
+a bare curl; and listing the origins is not access control — the objects are
+public to anything that is not a browser either way. What it buys is that a
+copy of the site on someone else's domain cannot read your bucket from a page.
 
 ### 4. An R2 API token to publish with
 
