@@ -44,7 +44,8 @@ and point it at the dev bucket. Everything else works without it.
   number in a circle at the far left.
 - The sheet is one continuous run of rows — no pages. **+ New row** below it
   appends another and scrolls down to it; **− Remove row** drops the last one.
-  An empty row goes straight away, one with notes asks first, and the sheet
+  A row goes on the press that asks for it, notes and all — **Undo** is what
+  takes it back, so a whole row is not worth stopping to confirm. The sheet
   never drops below a single row. A new sheet starts with four.
 
 ### Shifting a row
@@ -124,6 +125,15 @@ strip, where they exchange two positions of the running order.
   *this row* rather than *this position*, so the cells stop taking type and the
   per-row bar buttons stand down. Turning the mode back off gives all of it
   back, with the cursor where you left it.
+- **The bin at the end of a row deletes that row**, which is the only place a
+  row other than the last can be taken off. It stands where the bar buttons
+  stand the rest of the time. The row goes on one press, notes and all, and
+  **Undo** puts it back — unlike the bar **−**, which still asks twice, since
+  taking a bar off is a smaller thing to mean and a harder one to see. The
+  sheet never drops below a single row. Everything below the deleted row
+  slides up, and any slot of the running order calling for its group is
+  emptied — the numbers in the remaining circles do not change, since a group
+  is a name rather than a place.
 
 ### Ties
 
@@ -422,3 +432,16 @@ two orders apart: a slot names a group by index, so leaving the indices alone
 leaves the strip saying what it said, and the row that moved into a position is
 the one now played there. `swapGroupSlots` is the other half, reordering the
 strip without reaching into the grid at all.
+
+`removeRow` takes the same view of a row as `removeBar` does of a bar, a whole
+row wide: it cuts that row's run of columns out of the grid, so everything
+below slides up by its width, drops any tie or symbol anchored inside it, and
+remaps the rest through the same shift. It defaults to the last row, which is
+what **− Remove row** asks for; edit mode's per-row bin names one.
+
+
+TODO:
+- Groups need refactor so that rows can be grouped into sub groups 
+- Rows need custom name
+- Mb create new arrangement section, that arranges certain groups, and groups section exist purely for grouping rows. 
+- Add undo button

@@ -3,10 +3,11 @@ import GroupSection from './GroupSection.jsx'
 import MarkBar from './MarkBar.jsx'
 import PositionStrip from './PositionStrip.jsx'
 import StaffOverlay from './StaffOverlay.jsx'
-import { PasteIcon } from './icons.jsx'
+import { PasteIcon, TrashIcon } from './icons.jsx'
 import { cellMidi, noteName, nudgeTarget } from '../utils/audio.js'
 import {
   MARK_ZIGZAG,
+  MAX_ROW_NAME,
   STRING_COUNT,
   isSameTie,
   makeRange,
@@ -15,6 +16,8 @@ import {
   normalizeCell,
   previousWrittenColumn,
   rangeLength,
+  rowName,
+  rowNoteCount,
   rowStarts,
   rowWidth,
 } from '../utils/tab.js'
@@ -38,12 +41,14 @@ export default function TabEditor({
   grid,
   rows,
   groups,
+  names,
   structure,
   editing,
   onSetGroup,
   onSetGroupRepeat,
   onSwapRows,
   onSwapGroupSlots,
+  onRenameRow,
   tuning,
   ties,
   marks,
@@ -61,6 +66,7 @@ export default function TabEditor({
   onPasteRange,
   pendingRemove,
   onCancelRemove,
+  onDeleteRow,
 }) {
   // Inputs are addressed by "col:string" so keyboard navigation can jump to any
   // cell regardless of which staff chunk rendered it.
@@ -88,11 +94,85 @@ export default function TabEditor({
   // The paste button waiting on a second press because the first would have
   // written over notes, as an absolute column. Null when nothing is armed.
   const [pendingPaste, setPendingPaste] = useState(null)
+  // The row whose name is being typed, and what has been typed so far. Null
+  // when no box is open; only ever one at a time.
+  const [naming, setNaming] = useState(null)
+  const [nameDraft, setNameDraft] = useState('')
+  // Set by Escape, so the blur that follows it closes the box instead of
+  // writing down what was abandoned in it.
+  const abandoning = useRef(false)
+  // The rows folded away to their name line, by group id rather than by
+  // place, so a row stays folded wherever it is moved to. A fold is a way of
+  // handling the page rather than anything about the song, so it is not saved
+  // with the sheet.
+  const [foldedRows, setFoldedRows] = useState(() => new Set())
 
   const valueAt = (col, stringIndex) => grid[col]?.[stringIndex] ?? ''
 
   /** The number in a row's circle — its group id, counting from one. */
   const label = (rowIndex) => groups[rowIndex] + 1
+
+  /** The name this row has been given, or '' when it has none. */
+  const nameOf = (rowIndex) => rowName(names, groups[rowIndex])
+
+  /** True while this row is folded away to its name line. */
+  const isFolded = (rowIndex) => foldedRows.has(groups[rowIndex])
+
+  /** How a row is spoken of: its number, and its name where it has one. */
+  const rowTitle = (rowIndex) =>
+    nameOf(rowIndex) ? `Group ${label(rowIndex)} — ${nameOf(rowIndex)}` : `Group ${label(rowIndex)}`
+
+  /** Open the name box on a row, with whatever it is called already in it. */
+  const startNaming = (rowIndex) => {
+    setNaming(rowIndex)
+    setNameDraft(nameOf(rowIndex))
+  }
+
+  /**
+   * Close the box, writing down what was typed unless Escape sent us here.
+   * Both ways out of the box — Enter and a press elsewhere — arrive as a blur,
+   * so the name is written in one place rather than in each of them.
+   */
+  const finishNaming = (rowIndex) => {
+    setNaming(null)
+    if (abandoning.current) {
+      abandoning.current = false
+      return
+    }
+    onRenameRow(rowIndex, nameDraft)
+  }
+
+  // Edit mode lays a sheet over the whole row, so a box open underneath it
+  // could neither be typed in nor closed. It is stood down with the rest of
+  // the row's own controls for as long as the mode is on.
+  const nameBox = editing ? null : naming
+
+  /**
+   * Fold a row away to its name line, or open one again. Folding takes the
+   * strings off the page along with everything standing over them, so the
+   * errands open on the row are closed as it goes rather than left waiting
+   * where they cannot be seen or reached.
+   *
+   * Folding is left on in edit mode, unlike naming: a row folded away is
+   * still a row to pick up and swap, and a sheet of folded rows is an easier
+   * thing to put in order than a sheet of staves.
+   */
+  const toggleFold = (rowIndex) => {
+    const id = groups[rowIndex]
+    if (foldedRows.has(id)) {
+      setFoldedRows((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+      return
+    }
+
+    setFoldedRows((prev) => new Set(prev).add(id))
+    closeShift(rowIndex)
+    if (range?.row === rowIndex) setRange(null)
+    setPendingPaste(null)
+  }
 
   const disarm = useCallback(() => {
     setArming(false)
@@ -251,6 +331,9 @@ export default function TabEditor({
     // A range pointing into a row that has gone would paste from nowhere.
     setRange((prev) => (prev && prev.row < rows.length ? prev : null))
     setPendingPaste(null)
+    // A held row is held by position, so deleting any row leaves what is held
+    // naming different tab. It is put back down rather than quietly re-aimed.
+    setSelected((prev) => (prev?.kind === 'row' ? null : prev))
   }
 
   /**
@@ -490,17 +573,92 @@ export default function TabEditor({
         // a shifting row one, and a row doing both shows all three.
         const strips = editing ? 0 : (shiftRows.has(staff) ? 1 : 0) + (copying ? 2 : 0)
 
+        // Only a folded row says what it holds, so only a folded row is counted.
+        const folded = isFolded(staff)
+        const notes = folded ? rowNoteCount(grid, rows, staff) : 0
+
         return (
           <div
-            className="staff"
+            className={`staff${folded ? ' staff--folded' : ''}`}
             style={{ '--strips': strips }}
             key={staff}
             role="group"
-            aria-label={`Group ${label(staff)}`}
+            aria-label={rowTitle(staff)}
           >
-            <span className="row-number" aria-hidden="true">
-              {label(staff)}
-            </span>
+            {/* What the row is called, and the one line of it that is left
+                when it is folded away: the number, which folds and unfolds
+                the row, then the name it has been given, which is pressed to
+                write that name. A row with no name offers to take one only
+                while it is hovered, so an unnamed sheet carries no clutter;
+                naming stands down in edit mode, where the row itself is the
+                thing being pressed. */}
+            <div className="row-head">
+              <button
+                type="button"
+                className={`row-number${folded ? ' is-folded' : ''}`}
+                onClick={() => toggleFold(staff)}
+                aria-expanded={!folded}
+                title={folded ? 'Show this row' : 'Fold this row away'}
+                aria-label={`Group ${label(staff)}`}
+              >
+                {label(staff)}
+              </button>
+
+              {nameBox === staff ? (
+                <input
+                  className="row-name-input"
+                  value={nameDraft}
+                  autoFocus
+                  maxLength={MAX_ROW_NAME}
+                  placeholder="Name this row"
+                  aria-label={`Name of group ${label(staff)}`}
+                  onChange={(event) => setNameDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      event.currentTarget.blur()
+                    } else if (event.key === 'Escape') {
+                      event.preventDefault()
+                      // Nothing else on the page should act on the same press.
+                      event.stopPropagation()
+                      abandoning.current = true
+                      event.currentTarget.blur()
+                    }
+                  }}
+                  onBlur={() => finishNaming(staff)}
+                />
+              ) : nameOf(staff) ? (
+                <button
+                  type="button"
+                  className="row-name"
+                  disabled={editing}
+                  onClick={() => startNaming(staff)}
+                  title="Rename this row"
+                >
+                  {nameOf(staff)}
+                </button>
+              ) : (
+                !editing && (
+                  <button
+                    type="button"
+                    className="row-name row-name--empty"
+                    onClick={() => startNaming(staff)}
+                    title="Name this row"
+                  >
+                    Name
+                  </button>
+                )
+              )}
+
+              {/* A row put away still says what is in it, so the sheet can be
+                  read down its folded rows. */}
+              {folded && (
+                <span className="row-folded">
+                  {bars} bar{bars === 1 ? '' : 's'}
+                  {notes > 0 && ` · ${notes} note${notes === 1 ? '' : 's'}`}
+                </span>
+              )}
+            </div>
 
             {/* In edit mode a row is one thing to press rather than a grid of
                 cells, so a transparent sheet is laid over the whole staff and
@@ -710,6 +868,30 @@ export default function TabEditor({
                 ))}
               </div>
             </div>
+
+            {/* Edit mode is where a row other than the last can be taken off
+                the sheet, so its one button stands at the end of the staff,
+                where the bar controls stand the rest of the time. It has to
+                sit above the press-sheet, which covers the whole row. */}
+            {editing && (
+              <div className="row-bars row-bars--edit">
+                <button
+                  type="button"
+                  className="bar-button bar-button--delete"
+                  onClick={() => onDeleteRow(staff)}
+                  onKeyDown={dropOnEscape}
+                  disabled={rows.length <= 1}
+                  title={
+                    rows.length <= 1
+                      ? 'The sheet keeps at least one row'
+                      : 'Delete this row — Undo takes it back'
+                  }
+                  aria-label={`Delete group ${label(staff)}`}
+                >
+                  <TrashIcon />
+                </button>
+              </div>
+            )}
 
             {/* The bar controls sit under the overlay, where nothing could
                 reach them, and none of what they do is reordering. They stand

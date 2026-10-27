@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import StaffOverlay from './StaffOverlay.jsx'
 import { CELL_W, ROW_H } from '../utils/layout.js'
-import { MAX_BPM, MIN_BPM, STRING_COUNT, clampBpm } from '../utils/tab.js'
+import { MAX_BPM, MIN_BPM, STRING_COUNT, clampBpm, rowName } from '../utils/tab.js'
 import {
   BEATS_PER_BAR,
   LEAD_IN_BEATS,
@@ -46,10 +46,15 @@ const fitScale = (width, height) =>
  * are held in absolute grid columns, so a row played three times gets its arcs
  * three times over without any of them being copied.
  */
-const LiveRun = memo(function LiveRun({ run, grid, ties, marks, simpleMode }) {
+const LiveRun = memo(function LiveRun({ run, name, grid, ties, marks, simpleMode }) {
   return (
     <div className="live-run" style={{ width: run.cols * CELL_W }}>
-      {!simpleMode && <span className="live-run-label">Group {run.group + 1}</span>}
+      {/* A row that has been named is called by its name here — that is what
+          the player wrote it down for — and one that has not is called by its
+          number, the way the row itself is. */}
+      {!simpleMode && (
+        <span className="live-run-label">{name || `Group ${run.group + 1}`}</span>
+      )}
       <StaffOverlay
         ties={ties}
         marks={marks}
@@ -79,13 +84,16 @@ const LiveRun = memo(function LiveRun({ run, grid, ties, marks, simpleMode }) {
  * on its parent and the little box marking the beat being played change from
  * frame to frame.
  */
-const LiveStrip = memo(function LiveStrip({ runs, grid, ties, marks, simpleMode }) {
+const LiveStrip = memo(function LiveStrip({ runs, names, grid, ties, marks, simpleMode }) {
   return (
     <div className="live-strip">
       {runs.map((run) => (
         <LiveRun
           key={run.slot}
           run={run}
+          // Resolved here rather than in the run: a name is the row's, and
+          // the same row played three times is three runs of one name.
+          name={rowName(names, run.group)}
           grid={grid}
           ties={ties}
           marks={marks}
@@ -116,7 +124,7 @@ export default function LiveMode({
   onPlayColumn,
   onClose,
 }) {
-  const { grid, ties, marks } = sheet
+  const { grid, ties, marks, names = {} } = sheet
   const runs = useMemo(() => songRuns(sheet), [sheet])
   const total = useMemo(() => songBeats(runs), [runs])
 
@@ -337,6 +345,7 @@ export default function LiveMode({
           <div className="live-track" ref={trackRef}>
             <LiveStrip
               runs={runs}
+              names={names}
               grid={grid}
               ties={ties}
               marks={marks}

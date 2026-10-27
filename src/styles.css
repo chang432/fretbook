@@ -9,6 +9,11 @@
   --row-h: 34px;
   --bar-w: calc(var(--cell-w) * 4);
 
+  /* The column of string letters down the left of a row. Everything written
+     on the sheet starts after it — the bars, and the group strip above them —
+     so both read it from here rather than each keeping its own copy. */
+  --label-w: 30px;
+
   /* Space above and below a staff inside its section. Has to clear the symbols
      that sit over the top string, which the row's scroll container would
      otherwise cut off. */
@@ -97,9 +102,10 @@ button:focus-visible {
   gap: 8px;
 }
 
-/* Pushed to the far side by eating the toolbar's free space. It holds the one
-   control that leaves the editor rather than changing the sheet, which is why
-   it wants the distance. The auto margin survives a wrap, so on a narrow
+/* Pushed to the far side by eating the toolbar's free space. It holds the two
+   controls that are not one more thing to do to the sheet — Undo, which takes
+   the last of those back, and the one link that leaves the editor — which is
+   why it wants the distance. The auto margin survives a wrap, so on a narrow
    window the group takes its own line and stays right. */
 .toolbar-group--end {
   margin-left: auto;
@@ -254,7 +260,7 @@ button.link {
   z-index: 5;
   padding: 0;
   border: 1px dashed transparent;
-  border-radius: 10px;
+  border-radius: 3px;
   background: none;
 }
 
@@ -340,30 +346,31 @@ button.link {
 /* Group section ------------------------------------------------------- */
 
 /* The running order, in the same ruled-off shape as a row so it reads as part
-   of the same sheet — just a shallower one. */
+   of the same sheet — just a shallower one, and stacked the same way: its name
+   above, the strip under it. */
 .group-section {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   padding: 10px 0;
   border-top: 1px solid var(--bar);
 }
 
-/* Sized to the row number plus the string labels, so the slots start where the
-   bars below them do. */
+/* Above the strip at the left edge, where a row carries its number. */
 .group-title {
-  flex: none;
-  width: 66px;
-  margin-left: 10px;
+  margin-bottom: 6px;
   color: var(--muted);
   font: 600 10px/1 ui-monospace, Menlo, monospace;
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }
 
+/* Indented past the string labels so a slot stands over the bars it names. */
 .group-slots {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  margin-left: var(--label-w);
 }
 
 /* One position in the song. Empty ones are quiet dashed outlines — somewhere
@@ -464,45 +471,153 @@ button.link {
 
 /* Staff --------------------------------------------------------------- */
 
-/* A row is its own section: a rule across the top, the number on the left,
-   then the strings. Items are top-aligned rather than centred so the string
-   labels stay level with the strings even when a scrollbar takes up room
-   below them. */
+/**
+ * A row is its own section: a rule across the top, the number above the
+ * strings at the left, then the strings themselves.
+ *
+ * What the row is called stands above the strings rather than to the left of
+ * them, which is what keeps it from holding the whole row out to the right:
+ * the strings start at their own labels, where the group slots start too. It
+ * is taken out of the flow and the padding here is the room it stands in, so
+ * that a long name widens nothing — the name is written beside the number,
+ * and a column of this grid that grew to hold one would move the staff.
+ *
+ * The three parts below it keep the order they are written in — string
+ * labels, the scroller, the bar controls — and `minmax(0, max-content)` on the
+ * middle track is what `flex: 0 1 auto` used to do for the scroller: as wide
+ * as its staff and no wider, shrinking only when the row is too long for the
+ * sheet. Items are top-aligned rather than centred so the string labels stay
+ * level with the strings even when a scrollbar takes up room below them.
+ */
 .staff {
   position: relative;
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: max-content minmax(0, max-content) max-content;
+  align-items: start;
+  justify-content: start;
+  padding-top: 32px;
   border-top: 1px solid var(--bar);
 }
 
-/* Which row this is, in a circle at the far left of its section. */
+/* What the row is called, above it at its left edge: the number it answers
+   to, then the name it has been given. It stands in the room the staff's own
+   padding leaves for it — see there for why it is out of the flow.
+ *
+ * Kept above the sheet edit mode lays over the row, so the number goes on
+ * folding the row away while the order is being changed. The line is mostly
+ * empty space, so only what is actually written in it takes a press: the rest
+ * falls through to the row underneath, which is what picks the row up. */
+.row-head {
+  position: absolute;
+  z-index: 6;
+  top: 6px;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.row-head > * {
+  pointer-events: auto;
+}
+
+/* Which row this is, in a circle — and the way in to naming it. */
 .row-number {
   display: flex;
   flex: none;
-  align-self: center;
   align-items: center;
   justify-content: center;
   width: 26px;
   height: 26px;
-  margin: 0 10px;
+  padding: 0;
   border: 1px solid var(--bar);
   border-radius: 50%;
+  background: none;
   color: var(--muted);
   font: 600 13px/1 ui-monospace, Menlo, monospace;
   font-variant-numeric: tabular-nums;
+}
+
+/* The name a row carries, beside its number. Quiet: it says what the row is,
+   and the tab written below it is what there is to read. */
+.row-name {
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font: 600 12px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.04em;
+}
+
+.row-number:hover:not(:disabled),
+.row-name:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The name takes no press while the order is being edited, where the row is
+   one thing to press — and it lets that press through to the row rather than
+   swallowing it. Dimming it the way a disabled button is dimmed would say the
+   row itself had been stood down, so it is left reading as it is. */
+.row-name:disabled {
+  opacity: 1;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Folded: filled in, the way a closed box is drawn. */
+.row-number.is-folded {
+  border-color: var(--muted);
+  background: var(--bar);
+  color: var(--ink);
+}
+
+/* What a folded row is holding, so a sheet can still be read down its folded
+   rows rather than having to be opened to see what is in them. */
+.row-folded {
+  color: var(--muted);
+  font: 500 11px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.04em;
+}
+
+/* A row with no name asks for one only while it is pointed at or tabbed to,
+   so a sheet nobody has named reads as rows rather than as empty labels. */
+.row-name--empty {
+  border-style: dashed;
+  border-color: var(--bar);
+  opacity: 0;
+}
+
+.staff:hover .row-name--empty,
+.row-name--empty:hover,
+.row-name--empty:focus-visible {
+  opacity: 1;
+}
+
+/* Writing the name down. As wide as the longest name a row can hold, so the
+   box does not grow and shrink under the hand typing in it. */
+.row-name-input {
+  width: 180px;
+  padding: 3px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 600 12px ui-monospace, Menlo, monospace;
 }
 
 /**
  * Each row scrolls by itself, so reading the end of a long row leaves every
  * other row where it was.
  *
- * `flex: 0 1 auto` is what keeps that from looking odd: the scroller is as
- * wide as its staff and no wider, so the +/- buttons stay against the end of a
- * short row, and only a row too long for the sheet gets shrunk and scrolls.
+ * Its width comes from .staff's middle column, which is max-content up to
+ * whatever room the sheet has: the +/- buttons stay against the end of a short
+ * row, and only a row too long for the sheet gets shrunk and scrolls.
  * `min-width: 0` is what allows that shrinking at all.
  */
 .staff-scroll {
-  flex: 0 1 auto;
   min-width: 0;
   padding: var(--staff-air) 0;
   overflow-x: auto;
@@ -555,6 +670,49 @@ button.link {
 }
 
 .bar-button--close:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* A row folded away is its name line and nothing else: the strings go, and
+   with them the labels beside them, the strips standing over them and the
+   controls past their end. The row is still a row — it can be picked up and
+   swapped while it is folded, and the bin edit mode gives it comes back with
+   the staff when the number is pressed again. */
+.staff--folded {
+  padding-bottom: 8px;
+}
+
+.staff--folded .staff-labels,
+.staff--folded .staff-scroll,
+.staff--folded .row-bars {
+  display: none;
+}
+
+/* Edit mode's column at the end of a staff, holding the one button it has
+   there. The press-sheet over the row is laid at z-index 5 and would otherwise
+   swallow it, so this stands above it — the only part of the row that is still
+   its own thing to press while the order is being edited. */
+.row-bars--edit {
+  position: relative;
+  z-index: 6;
+}
+
+/* Takes the whole row off the sheet. The only bar button holding a drawn
+   symbol rather than a typed one: `.icon` is a block, which a button centres
+   no more than it would a paragraph, so this one is laid out like the
+   toolbar's icon buttons instead. */
+.bar-button--delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Not coloured until it is armed: it sits on every row at once, and six red
+   buttons would read as a warning about the sheet rather than as something to
+   press. */
+.bar-button--delete:hover:not(:disabled) {
+  border-color: var(--accent);
   background: var(--accent);
   color: #fff;
 }
@@ -660,7 +818,7 @@ button.link {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  width: 30px;
+  width: var(--label-w);
   height: var(--row-h);
   padding-right: 10px;
   color: var(--muted);
