@@ -3,7 +3,7 @@ import LiveMode from './components/LiveMode.jsx'
 import NoteLink from './components/NoteLink.jsx'
 import Popover from './components/Popover.jsx'
 import TabEditor from './components/TabEditor.jsx'
-import { CopyIcon, PresentIcon, SoundIcon, SwapIcon } from './components/icons.jsx'
+import { CopyIcon, PresentIcon, SoundIcon, SwapIcon, UndoIcon } from './components/icons.jsx'
 import {
   DEFAULT_BPM,
   MAX_BPM,
@@ -45,6 +45,7 @@ import {
   toJson,
   totalColumns,
 } from './utils/tab.js'
+import { HISTORY_LIMIT, nextUndoLabel, popHistory, pushHistory } from './utils/history.js'
 import { NOTES_PATH } from './utils/route.js'
 import { renderTabToPngBlob } from './utils/renderPng.js'
 import { cellFrequency, createAudioEngine } from './utils/audio.js'
@@ -143,6 +144,20 @@ export default function App({ published = null }) {
 
   const lastRowNotes = useMemo(() => rowNoteCount(grid, rows), [grid, rows])
 
+  // The sheet as it stood before each of the last few actions, oldest first.
+  // Bounded by HISTORY_LIMIT, so this is a short way back rather than a record
+  // of the session.
+  const [history, setHistory] = useState([])
+
+  // The sheet as it stands now, for `remember` to take its snapshot from. It
+  // is read through a ref rather than closed over so that the handlers which
+  // are deliberately built once — the memoised ones the editor is given — can
+  // still snapshot the sheet without being rebuilt on every change to it.
+  const sheetRef = useRef(sheet)
+  useEffect(() => {
+    sheetRef.current = sheet
+  }, [sheet])
+
   /**
    * Drop whatever deletion is waiting on a second press. Every one of them is
    * armed against the sheet as it stood when the warning was shown, so a sheet
@@ -155,11 +170,62 @@ export default function App({ published = null }) {
     setConfirmingRemoveRow(false)
   }
 
+  /**
+   * Take down how the editor stands, for the Undo button to put back. A
+   * handler calls this on the path where it is about to change something, and
+   * not on the paths where it only arms a button or refuses, so a press that
+   * changed nothing does not cost a step of history.
+   *
+   * `label` finishes the sentence "Undid …". `token` names the cell for the
+   * edits that arrive a keystroke at a time; see pushHistory. `extra` carries
+   * the fields outside the sheet that an action also rewrites, so that undoing
+   * it puts those back too.
+   */
+  const remember = useCallback((label, { token = null, extra = null } = {}) => {
+    setHistory((prev) =>
+      pushHistory(prev, { label, token, state: { ...sheetRef.current, ...extra } }),
+    )
+  }, [])
+
+  /**
+   * Put a new sheet in place. The shaping helpers in tab.js each return only
+   * the pieces their change touches, and an undo snapshot holds only the
+   * pieces its action rewrote, so whatever is absent here is left standing.
+   */
+  const applySheet = useCallback((next) => {
+    if (next.rows) setRows(next.rows)
+    if (next.groups) setGroups(next.groups)
+    if (next.grid) setGrid(next.grid)
+    if (next.ties) setTies(next.ties)
+    if (next.marks) setMarks(next.marks)
+    if (next.structure) setStructure(next.structure)
+    if (next.title !== undefined) setTitle(next.title)
+    if (next.bpm !== undefined) setBpm(next.bpm)
+  }, [])
+
+  /**
+   * Step back one action. Every snapshot is the sheet as it stood before the
+   * action that took it, so applying the newest and dropping it walks back
+   * through the stack a press at a time. Anything waiting on a second press
+   * was armed against the sheet this undoes, so it is put away with it.
+   */
+  const handleUndo = () => {
+    const { stack, entry } = popHistory(history)
+    if (!entry) return
+
+    setHistory(stack)
+    applySheet(entry.state)
+    disarmRemovals()
+    setConfirmingClear(false)
+    setStatus(`Undid ${entry.label}`)
+  }
+
   /** The number in a row's circle — its group id, counting from one. */
   const rowLabel = (rowIndex) => groups[rowIndex] + 1
 
   /** Append an empty row at the bottom and scroll down to it. */
   const handleAddRow = () => {
+    remember('adding a row')
     const next = addRow(sheet)
     // The scroll has to wait for the row to be laid out, so it is left to the
     // effect below rather than run here, where the page is still its old height.
@@ -171,14 +237,22 @@ export default function App({ published = null }) {
   }
 
   /** Put a group in one slot of the running order, or clear it with null. */
-  const handleSetGroup = useCallback((slot, group) => {
-    setStructure((prev) => setGroupSlot(prev, slot, group))
-  }, [])
+  const handleSetGroup = useCallback(
+    (slot, group) => {
+      remember('a change to the running order')
+      setStructure((prev) => setGroupSlot(prev, slot, group))
+    },
+    [remember],
+  )
 
   /** Say how many times one slot of the running order plays its group. */
-  const handleSetGroupRepeat = useCallback((slot, repeat) => {
-    setStructure((prev) => setGroupRepeat(prev, slot, repeat))
-  }, [])
+  const handleSetGroupRepeat = useCallback(
+    (slot, repeat) => {
+      remember('a change to the running order')
+      setStructure((prev) => setGroupRepeat(prev, slot, repeat))
+    },
+    [remember],
+  )
 
   /**
    * Exchange two rows, the tab written in them and all. The running order is
@@ -188,6 +262,7 @@ export default function App({ published = null }) {
    */
   const handleSwapRows = useCallback(
     (a, b) => {
+      remember(`swapping groups ${groups[a] + 1} and ${groups[b] + 1}`)
       const next = swapRows(sheet, a, b)
       setRows(next.rows)
       setGroups(next.groups)
@@ -199,14 +274,18 @@ export default function App({ published = null }) {
       // rebuilt each render and would keep this callback from being memoised.
       setStatus(`Swapped groups ${groups[a] + 1} and ${groups[b] + 1}`)
     },
-    [sheet, groups],
+    [sheet, groups, remember],
   )
 
   /** Exchange two positions of the running order, which reorders the song. */
-  const handleSwapGroupSlots = useCallback((a, b) => {
-    setStructure((prev) => swapGroupSlots(prev, a, b))
-    setStatus(`Swapped positions ${a + 1} and ${b + 1} of the running order`)
-  }, [])
+  const handleSwapGroupSlots = useCallback(
+    (a, b) => {
+      remember(`swapping positions ${a + 1} and ${b + 1} of the running order`)
+      setStructure((prev) => swapGroupSlots(prev, a, b))
+      setStatus(`Swapped positions ${a + 1} and ${b + 1} of the running order`)
+    },
+    [remember],
+  )
 
   /**
    * Take one row off the sheet, wherever it stands: the grid loses its run of
@@ -215,13 +294,8 @@ export default function App({ published = null }) {
    * buttons differ only in which row they name and how they ask first.
    */
   const applyRemoveRow = (rowIndex) => {
-    const next = removeRow(sheet, rowIndex)
-    setRows(next.rows)
-    setGroups(next.groups)
-    setGrid(next.grid)
-    setTies(next.ties)
-    setMarks(next.marks)
-    setStructure(next.structure)
+    remember(`deleting group ${rowLabel(rowIndex)}`)
+    applySheet(removeRow(sheet, rowIndex))
     disarmRemovals()
   }
 
@@ -278,6 +352,7 @@ export default function App({ published = null }) {
    * why this works off the whole sheet rather than four separate updates.
    */
   const handleAddBar = (rowIndex) => {
+    remember(`adding a bar to group ${rowLabel(rowIndex)}`)
     const next = addBar(sheet, rowIndex)
     setRows(next.rows)
     setGrid(next.grid)
@@ -295,6 +370,7 @@ export default function App({ published = null }) {
    */
   const handleShiftRow = (rowIndex, step, anchor = null) => {
     const lost = shiftLoss(grid, rows, rowIndex, step, anchor)
+    remember(`shifting group ${rowLabel(rowIndex)}`)
     const next = shiftRow(sheet, rowIndex, step, anchor)
     setGrid(next.grid)
     setTies(next.ties)
@@ -325,6 +401,7 @@ export default function App({ published = null }) {
       return
     }
 
+    remember(`deleting a bar from group ${rowLabel(rowIndex)}`)
     const next = removeBar(sheet, rowIndex)
     setRows(next.rows)
     setGrid(next.grid)
@@ -431,6 +508,7 @@ export default function App({ published = null }) {
         return 'confirm'
       }
 
+      remember('pasting')
       const next = pasteRange(sheet, range, at)
       setGrid(next.grid)
       setTies(next.ties)
@@ -439,7 +517,7 @@ export default function App({ published = null }) {
       setStatus(`Pasted ${length} position${length === 1 ? '' : 's'}`)
       return 'pasted'
     },
-    [sheet, grid, rows],
+    [sheet, grid, rows, remember],
   )
 
   /** Sound one written note. Silent for empty positions and muted strings. */
@@ -493,6 +571,7 @@ export default function App({ published = null }) {
       const source = previousWrittenColumn(grid, col)
       if (source < 0) return
 
+      remember('copying a chord')
       const next = copyColumn(sheet, source, col)
       setGrid(next.grid)
       setTies(next.ties)
@@ -501,10 +580,16 @@ export default function App({ published = null }) {
       // chord that has just been written, played from where it was copied.
       playColumn(source)
     },
-    [grid, sheet, playColumn],
+    [grid, sheet, playColumn, remember],
   )
 
-  const handleCellChange = useCallback((col, stringIndex, value) => {
+  /**
+   * Write one cell, taking no snapshot. The two corrections below — sending a
+   * note to another string, finishing an arc — are each one action made of
+   * more than one cell write, so they snapshot once themselves and come
+   * straight here rather than back through handleCellChange.
+   */
+  const writeCell = useCallback((col, stringIndex, value) => {
     setGrid((prev) => {
       if (col < 0 || col >= prev.length || prev[col][stringIndex] === value) return prev
       return prev.map((column, i) =>
@@ -521,6 +606,27 @@ export default function App({ published = null }) {
   }, [])
 
   /**
+   * Write one cell as an action of its own. A run of these in the same cell is
+   * one step back rather than one per keystroke — five steps of history should
+   * be five things done, not five characters typed — which is what the cell's
+   * token is for. The no-op check that writeCell makes again inside its
+   * updater is made here first, so that typing a fret the cell already holds
+   * does not spend a step either.
+   */
+  const handleCellChange = useCallback(
+    (col, stringIndex, value) => {
+      const { grid: written } = sheetRef.current
+      if (col < 0 || col >= written.length || written[col][stringIndex] === value) return
+
+      remember(value === '' ? 'erasing a note' : 'writing a note', {
+        token: `cell:${col}:${stringIndex}`,
+      })
+      writeCell(col, stringIndex, value)
+    },
+    [remember, writeCell],
+  )
+
+  /**
    * Send a written note to another string without changing its pitch — the
    * correction for one written on the wrong string. Its symbol
    * travels with it. An arc cannot: both ends of one live on the same string,
@@ -530,16 +636,25 @@ export default function App({ published = null }) {
   const handleNudgeNote = useCallback(
     (col, fromString, toString, fret) => {
       const symbol = markAt(marks, fromString, col)
-      handleCellChange(col, fromString, '')
-      handleCellChange(col, toString, String(fret))
+      remember('sending a note to another string')
+      writeCell(col, fromString, '')
+      writeCell(col, toString, String(fret))
       if (symbol) setMarks((prev) => toggleMark(prev, toString, col, symbol))
     },
-    [marks, handleCellChange],
+    [marks, remember, writeCell],
   )
 
-  const handleToggleMark = useCallback((col, stringIndex, symbol) => {
-    setMarks((prev) => toggleMark(prev, stringIndex, col, symbol))
-  }, [])
+  const handleToggleMark = useCallback(
+    (col, stringIndex, symbol) => {
+      // Read through the ref so that this stays built once: toggleMark drops
+      // the symbol it is handed and writes any other, so which of the two
+      // happened is worth saying.
+      const standing = markAt(sheetRef.current.marks, stringIndex, col) === symbol
+      remember(standing ? 'removing a symbol' : 'adding a symbol')
+      setMarks((prev) => toggleMark(prev, stringIndex, col, symbol))
+    },
+    [remember],
+  )
 
   /**
    * Finish a tie. An empty destination takes the source's fret; one that
@@ -554,11 +669,13 @@ export default function App({ published = null }) {
 
     const tie = makeTie(stringIndex, sourceCol, targetCol)
     if (ties.some((existingTie) => isSameTie(existingTie, tie))) {
+      remember('removing an arc')
       setTies((prev) => prev.filter((existingTie) => !isSameTie(existingTie, tie)))
       return
     }
 
-    if (!existing) handleCellChange(targetCol, stringIndex, value)
+    remember('adding an arc')
+    if (!existing) writeCell(targetCol, stringIndex, value)
     // A note carries one arc back and one on, so a new arc replaces only what
     // hung off the same side — the other side is left as it was, which is how
     // a note comes to be held right through a run of positions.
@@ -566,6 +683,9 @@ export default function App({ published = null }) {
   }
 
   const fileStem = slugify(title)
+
+  /** What the Undo button would take back, or null when it would do nothing. */
+  const undoing = nextUndoLabel(history)
 
   const exportText = () => {
     downloadFile(`${fileStem}.txt`, asciiTab, 'text/plain')
@@ -622,26 +742,26 @@ export default function App({ published = null }) {
       setStatus('That file is not a Fretboard Notebook export')
       return
     }
-    setTitle(parsed.title)
-    setRows(parsed.rows)
-    setGroups(parsed.groups)
-    setGrid(fitGrid(parsed.grid, parsed.rows))
-    setTies(parsed.ties)
-    setMarks(parsed.marks)
-    setStructure(parsed.structure)
-    setBpm(parsed.bpm)
+    // Opening a file replaces the title and the tempo as well as the sheet,
+    // so the snapshot carries those two along: undoing an import that was
+    // meant for another window puts the whole page back, not just the staves.
+    remember(`opening ${file.name}`, { extra: { title, bpm } })
+    applySheet({ ...parsed, grid: fitGrid(parsed.grid, parsed.rows) })
     disarmRemovals()
     setStatus(`Opened ${file.name}`)
   }
 
   const clearAll = () => {
     const fresh = createRows()
-    setRows(fresh)
-    setGroups(createGroups(fresh.length))
-    setGrid(createGrid(totalColumns(fresh)))
-    setTies([])
-    setMarks([])
-    setStructure([])
+    remember('clearing the sheet')
+    applySheet({
+      rows: fresh,
+      groups: createGroups(fresh.length),
+      grid: createGrid(totalColumns(fresh)),
+      ties: [],
+      marks: [],
+      structure: [],
+    })
     disarmRemovals()
     setConfirmingClear(false)
     setStatus('Cleared')
@@ -756,6 +876,24 @@ export default function App({ published = null }) {
         </span>
 
         <div className="toolbar-group toolbar-group--end">
+          {/* Undo stands apart from the buttons that do things to the sheet,
+              on the near side of the one control that leaves the editor: it is
+              reached after one of them has gone wrong rather than alongside
+              them, and it is the same button whatever the last action was. */}
+          <button
+            type="button"
+            className="icon-button"
+            onClick={handleUndo}
+            disabled={history.length === 0}
+            aria-label={undoing ? `Undo ${undoing}` : 'Nothing to undo'}
+            title={
+              undoing
+                ? `Undo ${undoing} — ${history.length} of ${HISTORY_LIMIT} steps kept`
+                : `Nothing to undo — the last ${HISTORY_LIMIT} actions can be taken back`
+            }
+          >
+            <UndoIcon />
+          </button>
           {/* Leaves the editor, so it sits at the far end, clear of every
               button that acts on the sheet. */}
           <NoteLink to={NOTES_PATH} className="button-link">

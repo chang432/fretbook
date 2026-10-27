@@ -128,3 +128,17 @@ export function TrashIcon() {
     </svg>
   )
 }
+
+/**
+ * An arrow curving back the way it came: the last action taken off the sheet.
+ * It turns anticlockwise, away from the rewind arrows it sits near, so the two
+ * do not read as the same control.
+ */
+export function UndoIcon() {
+  return (
+    <svg className="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M 2.8 5.6 H 9.2 A 3.7 3.7 0 0 1 9.2 13 H 5.2" />
+      <path d="M 5.8 2.6 L 2.8 5.6 L 5.8 8.6" />
+    </svg>
+  )
+}

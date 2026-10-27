@@ -97,9 +97,10 @@ button:focus-visible {
   gap: 8px;
 }
 
-/* Pushed to the far side by eating the toolbar's free space. It holds the one
-   control that leaves the editor rather than changing the sheet, which is why
-   it wants the distance. The auto margin survives a wrap, so on a narrow
+/* Pushed to the far side by eating the toolbar's free space. It holds the two
+   controls that are not one more thing to do to the sheet — Undo, which takes
+   the last of those back, and the one link that leaves the editor — which is
+   why it wants the distance. The auto margin survives a wrap, so on a narrow
    window the group takes its own line and stays right. */
 .toolbar-group--end {
   margin-left: auto;
