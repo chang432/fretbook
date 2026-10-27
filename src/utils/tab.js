@@ -135,6 +135,21 @@ export const clampRowNames = (names, groups) =>
     Object.entries(names ?? {}).filter(([id]) => groups.includes(Number(id))),
   )
 
+/**
+ * The sheet's written note — the paragraph above the running order, for what
+ * the staves cannot say: a tuning, a capo, who it is by, what to listen for.
+ * Called a memo throughout the code because "note" is taken twice over here,
+ * once by the fret numbers on the strings and once by a published sheet.
+ *
+ * It is one string belonging to the whole sheet, so it needs no shaping
+ * beyond a limit — long enough for a few paragraphs, short enough that a
+ * pasted book cannot arrive through a file.
+ */
+export const MAX_MEMO = 4000
+
+/** A memo from a file, cut to the limit. Anything else reads as none. */
+export const readMemo = (raw) => (typeof raw === 'string' ? raw.slice(0, MAX_MEMO) : '')
+
 /** Columns a row of this many bars occupies. */
 export const rowWidth = (bars) => bars * COLS_PER_BAR
 
@@ -853,6 +868,7 @@ export function toJson(
     marks = [],
     structure = [],
     bpm = DEFAULT_BPM,
+    memo = '',
   },
   tuning = STANDARD_TUNING,
   title = '',
@@ -862,9 +878,12 @@ export function toJson(
   return JSON.stringify(
     {
       format: 'fretboard-notebook',
-      version: 9,
+      version: 10,
       title,
       tuning,
+      // The note written above the running order — prose about the song,
+      // which is why it is kept whole rather than shaped on the way out.
+      memo: readMemo(memo),
       // Playback tempo, in beats per minute — one grid column per beat.
       bpm: clampBpm(bpm),
       // One bar count per staff row; rows can differ in length.
@@ -958,6 +977,8 @@ export function fromJson(text) {
     names: readRowNames(data.names, groups),
     // A file written before live mode existed simply plays at the default.
     bpm: clampBpm(data.bpm),
+    // A file written before the note existed (version 9 and earlier) has none.
+    memo: readMemo(data.memo),
     // A file written before groups existed simply has no running order.
     structure: clampStructure(Array.isArray(data.structure) ? data.structure : [], groups),
     ties,

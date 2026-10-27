@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import GroupSection from './GroupSection.jsx'
 import MarkBar from './MarkBar.jsx'
+import MemoSection from './MemoSection.jsx'
 import PositionStrip from './PositionStrip.jsx'
 import StaffOverlay from './StaffOverlay.jsx'
 import { PasteIcon, TrashIcon } from './icons.jsx'
@@ -43,6 +44,8 @@ export default function TabEditor({
   groups,
   names,
   structure,
+  memo,
+  onMemoChange,
   editing,
   onSetGroup,
   onSetGroupRepeat,
@@ -551,6 +554,11 @@ export default function TabEditor({
 
   return (
     <div className="editor">
+      {/* Prose about the sheet, above the running order and folded away until
+          there is something to say. It takes no part in edit mode: a note is
+          neither a row nor a slot, so there is nothing for it to swap with. */}
+      <MemoSection memo={memo} onChange={onMemoChange} />
+
       <GroupSection
         structure={structure}
         groups={groups}

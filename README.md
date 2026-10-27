@@ -77,6 +77,23 @@ right, and that is what they are showing you.
   the arrows go back to moving the whole row — which is the same thing anchored
   at its first position.
 
+### A note on the sheet
+
+Above the **Groups** strip is **Notes**, a box for what the staves cannot say —
+a tuning, a capo, who it is by, what to listen for.
+
+- It is **folded away** until you press the heading, so an empty box is never
+  in the way of the writing it is there to support. A sheet that already
+  carries a note opens with it in view, and a folded one shows its first line
+  beside the heading, so nothing is quietly lost behind a closed word.
+- Pressing the heading open puts the cursor in the box; <kbd>esc</kbd> folds it
+  away again. The note is kept as it is typed — there is nothing to save.
+- It travels with the sheet: it is kept between visits, written into the JSON
+  export and read back out of it. The text and image exports are the tab
+  itself, so they leave it out.
+- A whole run of typing is **one step of Undo**, the same bargain writing a
+  fret makes, so taking back a note you did not mean to write is one press.
+
 ### Groups and song structure
 
 Each row is a **group** — a chunk of tab meant to be played more than once. The
@@ -415,7 +432,10 @@ columns *mid-grid*, which is why `addBar` also shifts every tie and mark past
 the insertion point. Files record `rows`; ones written before it existed
 (version 3) are read back as rows of 8 bars, the 32-position line they used.
 Version 6 added `bpm`; a file without one opens at 90. Version 7 added per-slot
-repeat counts, and version 8 `groups`.
+repeat counts, version 8 `groups`, version 9 the `names` rows carry, and
+version 10 `memo` — the sheet's note, called that throughout the code because
+"note" already means a fret on a string, and a published sheet besides. A file
+written before any of them simply opens without it.
 
 The running order is a parallel `structure` array — one slot per position in
 the song, holding the index of the row played there or `null`. Because slots

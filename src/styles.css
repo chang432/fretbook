@@ -343,6 +343,95 @@ button.link {
   flex-direction: column;
 }
 
+/* Memo section -------------------------------------------------------- */
+
+/* The sheet's written note, in the same ruled-off shape as the running order
+   below it — the heading on its own line, what it holds under that. */
+.memo-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 10px 0;
+  border-top: 1px solid var(--bar);
+}
+
+/* The heading is the control: the whole line folds the note away and brings
+   it back, so there is no separate thing to find and press. */
+.memo-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  padding: 2px 6px 2px 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  text-align: left;
+}
+
+.memo-toggle:hover {
+  border: 0;
+  color: var(--accent);
+}
+
+/* Points along the line when the note is folded away and down into it when it
+   is open, which is the one place the state is drawn. */
+.memo-caret {
+  display: inline-block;
+  font: 400 12px/1 ui-monospace, Menlo, monospace;
+  transition: transform 0.12s ease-out;
+}
+
+.memo-caret.is-open {
+  transform: rotate(90deg);
+}
+
+/* Set like the Groups label beside it, so the two read as one pair of
+   headings rather than as two different kinds of thing. */
+.memo-heading {
+  font: 600 10px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+/* The first line of a folded note, so what is put away still says what it is.
+   One line, cut off rather than wrapped: the heading is not the note. */
+.memo-preview {
+  overflow: hidden;
+  font-size: 12px;
+  font-style: italic;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Indented past the string labels, so the note starts where the bars and the
+   group slots start. Grows downwards by hand when a few lines are not enough,
+   and never sideways: the sheet's own width is the line length. */
+.memo-input {
+  width: calc(100% - var(--label-w));
+  margin-left: var(--label-w);
+  padding: 6px 8px;
+  border: 1px solid var(--bar);
+  border-radius: 8px;
+  background: var(--paper);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.memo-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.memo-input::placeholder {
+  color: var(--muted);
+  font-style: italic;
+}
+
 /* Group section ------------------------------------------------------- */
 
 /* The running order, in the same ruled-off shape as a row so it reads as part

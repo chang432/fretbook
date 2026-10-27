@@ -92,6 +92,10 @@ export default function App({ published = null }) {
   // from whichever it was.
   const [saved] = useState(() => published?.sheet ?? loadSaved())
   const [title, setTitle] = useState(saved?.title ?? '')
+  // The note written above the running order: prose about the sheet — a
+  // tuning, a capo, what to listen for. Called a memo here because "note"
+  // already means a fret on a string, and a published sheet besides.
+  const [memo, setMemo] = useState(saved?.memo ?? '')
   // Rows carry their own length in bars, so they lead and the grid follows.
   const [rows, setRows] = useState(() => saved?.rows ?? createRows())
   // One group id per row, in row order. A row's id is its name rather than
@@ -200,6 +204,7 @@ export default function App({ published = null }) {
     if (next.structure) setStructure(next.structure)
     if (next.title !== undefined) setTitle(next.title)
     if (next.bpm !== undefined) setBpm(next.bpm)
+    if (next.memo !== undefined) setMemo(next.memo)
   }, [])
 
   /**
@@ -243,6 +248,18 @@ export default function App({ published = null }) {
         ? `Group ${rowLabel(rowIndex)} is now "${written}"`
         : `Group ${rowLabel(rowIndex)} has no name again`,
     )
+  }
+
+  /**
+   * Write the sheet's note. It arrives a keystroke at a time, so the whole
+   * run counts as one step of history — `memo` as the token is what holds it
+   * together — and the note itself rides along as an extra, since it is not
+   * part of the sheet the staves are drawn from.
+   */
+  const handleMemoChange = (next) => {
+    if (next === memo) return
+    remember('writing the note', { token: 'memo', extra: { memo } })
+    setMemo(next)
   }
 
   /** Append an empty row at the bottom and scroll down to it. */
@@ -421,11 +438,14 @@ export default function App({ published = null }) {
     // write over it, so a note is read and nothing more.
     if (published) return
     try {
-      localStorage.setItem(STORAGE_KEY, toJson({ ...sheet, bpm }, STANDARD_TUNING, title))
+      localStorage.setItem(
+        STORAGE_KEY,
+        toJson({ ...sheet, bpm, memo }, STANDARD_TUNING, title),
+      )
     } catch {
       // Private-mode / quota failures are not worth interrupting the user for.
     }
-  }, [published, sheet, bpm, title])
+  }, [published, sheet, bpm, memo, title])
 
   useEffect(() => {
     if (!status) return undefined
@@ -698,7 +718,7 @@ export default function App({ published = null }) {
   const exportJson = () => {
     downloadFile(
       `${fileStem}.json`,
-      toJson({ ...sheet, bpm }, STANDARD_TUNING, title),
+      toJson({ ...sheet, bpm, memo }, STANDARD_TUNING, title),
       'application/json',
     )
     setStatus('Saved JSON')
@@ -748,7 +768,7 @@ export default function App({ published = null }) {
     // Opening a file replaces the title and the tempo as well as the sheet,
     // so the snapshot carries those two along: undoing an import that was
     // meant for another window puts the whole page back, not just the staves.
-    remember(`opening ${file.name}`, { extra: { title, bpm } })
+    remember(`opening ${file.name}`, { extra: { title, bpm, memo } })
     applySheet({ ...parsed, grid: fitGrid(parsed.grid, parsed.rows) })
     disarmRemovals()
     setStatus(`Opened ${file.name}`)
@@ -765,6 +785,7 @@ export default function App({ published = null }) {
       ties: [],
       marks: [],
       structure: [],
+      memo: '',
     })
     disarmRemovals()
     setConfirmingClear(false)
@@ -996,6 +1017,8 @@ export default function App({ published = null }) {
           ties={ties}
           marks={marks}
           structure={structure}
+          memo={memo}
+          onMemoChange={handleMemoChange}
           editing={editing}
           onSetGroup={handleSetGroup}
           onSetGroupRepeat={handleSetGroupRepeat}
