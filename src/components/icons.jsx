@@ -111,3 +111,20 @@ export function RewindIcon({ width = 16, height = 16 }) {
     </svg>
   )
 }
+
+/**
+ * A waste bin: the button in edit mode that takes a whole row off the sheet.
+ * Drawn rather than written as a ×, which already closes the shift arrows one
+ * column over, and a row going is not the same as a panel closing.
+ */
+export function TrashIcon() {
+  return (
+    <svg className="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M 2.4 4.4 H 13.6" />
+      <path d="M 6.2 4.4 V 2.8 A 0.8 0.8 0 0 1 7 2 H 9 A 0.8 0.8 0 0 1 9.8 2.8 V 4.4" />
+      <path d="M 3.8 4.4 L 4.4 13.2 A 1 1 0 0 0 5.4 14 H 10.6 A 1 1 0 0 0 11.6 13.2 L 12.2 4.4" />
+      <path d="M 6.6 7 V 11.6" />
+      <path d="M 9.4 7 V 11.6" />
+    </svg>
+  )
+}

@@ -22,7 +22,6 @@ import {
   isGridEmpty,
   isSameTie,
   lastBarNoteCount,
-  lastRowNoteCount,
   makeTie,
   markAt,
   pasteLoss,
@@ -31,6 +30,7 @@ import {
   previousWrittenColumn,
   removeBar,
   removeRow,
+  rowNoteCount,
   setGroupRepeat,
   setGroupSlot,
   shiftLoss,
@@ -112,6 +112,8 @@ export default function App({ published = null }) {
   const [confirmingClear, setConfirmingClear] = useState(false)
   // Row whose minus button is armed, waiting for a second press.
   const [pendingRemove, setPendingRemove] = useState(null)
+  // Row whose delete button in edit mode is armed, waiting for a second press.
+  const [pendingRowDelete, setPendingRowDelete] = useState(null)
   const [confirmingRemoveRow, setConfirmingRemoveRow] = useState(false)
   const [showText, setShowText] = useState(false)
   // The Export button's element while its menu is open, so the menu can anchor.
@@ -139,7 +141,19 @@ export default function App({ published = null }) {
   const asciiTab = useMemo(() => toAsciiTab(sheet, STANDARD_TUNING), [sheet])
   const empty = useMemo(() => isGridEmpty(grid), [grid])
 
-  const lastRowNotes = useMemo(() => lastRowNoteCount(grid, rows), [grid, rows])
+  const lastRowNotes = useMemo(() => rowNoteCount(grid, rows), [grid, rows])
+
+  /**
+   * Drop whatever deletion is waiting on a second press. Every one of them is
+   * armed against the sheet as it stood when the warning was shown, so a sheet
+   * that has changed since disarms all three rather than deleting against a
+   * warning the reader has stopped reading.
+   */
+  const disarmRemovals = () => {
+    setPendingRemove(null)
+    setPendingRowDelete(null)
+    setConfirmingRemoveRow(false)
+  }
 
   /** The number in a row's circle — its group id, counting from one. */
   const rowLabel = (rowIndex) => groups[rowIndex] + 1
@@ -153,8 +167,7 @@ export default function App({ published = null }) {
     setRows(next.rows)
     setGroups(next.groups)
     setGrid(next.grid)
-    setPendingRemove(null)
-    setConfirmingRemoveRow(false)
+    disarmRemovals()
   }
 
   /** Put a group in one slot of the running order, or clear it with null. */
@@ -181,8 +194,7 @@ export default function App({ published = null }) {
       setGrid(next.grid)
       setTies(next.ties)
       setMarks(next.marks)
-      setPendingRemove(null)
-      setConfirmingRemoveRow(false)
+      disarmRemovals()
       // Read straight off `groups` rather than through rowLabel, which is
       // rebuilt each render and would keep this callback from being memoised.
       setStatus(`Swapped groups ${groups[a] + 1} and ${groups[b] + 1}`)
@@ -197,6 +209,23 @@ export default function App({ published = null }) {
   }, [])
 
   /**
+   * Take one row off the sheet, wherever it stands: the grid loses its run of
+   * columns, the rows below slide up, and the running order loses the slots
+   * that called for it. Both ways of deleting a row end up here, so the two
+   * buttons differ only in which row they name and how they ask first.
+   */
+  const applyRemoveRow = (rowIndex) => {
+    const next = removeRow(sheet, rowIndex)
+    setRows(next.rows)
+    setGroups(next.groups)
+    setGrid(next.grid)
+    setTies(next.ties)
+    setMarks(next.marks)
+    setStructure(next.structure)
+    disarmRemovals()
+  }
+
+  /**
    * Drop the last row. An empty one goes straight away; one with notes in it
    * says what would be lost and waits for a second press, the same bargain the
    * Clear button and the per-row minus buttons make.
@@ -208,18 +237,33 @@ export default function App({ published = null }) {
       return
     }
 
-    const next = removeRow(sheet)
-    setRows(next.rows)
-    setGroups(next.groups)
-    setGrid(next.grid)
-    setTies(next.ties)
-    setMarks(next.marks)
-    setStructure(next.structure)
-    setPendingRemove(null)
-    setConfirmingRemoveRow(false)
+    applyRemoveRow(rows.length - 1)
     if (lastRowNotes > 0) {
       setStatus(`Deleted ${lastRowNotes} note${lastRowNotes === 1 ? '' : 's'}`)
     }
+  }
+
+  /**
+   * Delete one row from inside edit mode, which is where a row other than the
+   * last can be taken off. A row with notes in it arms its button and says
+   * what would be lost, the same bargain the bar minus buttons make; an empty
+   * one goes straight away. The sheet never drops below a single row.
+   */
+  const handleDeleteRow = (rowIndex) => {
+    if (rows.length <= 1 || rowIndex < 0 || rowIndex >= rows.length) return
+
+    const group = rowLabel(rowIndex)
+    const notes = rowNoteCount(grid, rows, rowIndex)
+    if (notes > 0 && pendingRowDelete !== rowIndex) {
+      setPendingRowDelete(rowIndex)
+      setStatus(
+        `Group ${group} holds ${notes} note${notes === 1 ? '' : 's'} — press again to delete the row`,
+      )
+      return
+    }
+
+    applyRemoveRow(rowIndex)
+    setStatus(`Deleted group ${group}`)
   }
 
   useEffect(() => {
@@ -239,7 +283,7 @@ export default function App({ published = null }) {
     setGrid(next.grid)
     setTies(next.ties)
     setMarks(next.marks)
-    setPendingRemove(null)
+    disarmRemovals()
   }
 
   /**
@@ -255,7 +299,7 @@ export default function App({ published = null }) {
     setGrid(next.grid)
     setTies(next.ties)
     setMarks(next.marks)
-    setPendingRemove(null)
+    disarmRemovals()
     if (lost.notes > 0) {
       setStatus(
         `Shifted group ${rowLabel(rowIndex)} — ${lost.notes} note${lost.notes === 1 ? '' : 's'} ${
@@ -286,7 +330,7 @@ export default function App({ published = null }) {
     setGrid(next.grid)
     setTies(next.ties)
     setMarks(next.marks)
-    setPendingRemove(null)
+    disarmRemovals()
     if (notes > 0) setStatus(`Deleted ${notes} note${notes === 1 ? '' : 's'}`)
   }
 
@@ -306,10 +350,11 @@ export default function App({ published = null }) {
     if (!status) return undefined
     const timer = setTimeout(() => {
       setStatus('')
-      // An armed minus button is only armed for as long as its warning is on
-      // screen; once that has gone, the next press asks again rather than
-      // deleting something the reader has stopped expecting it to.
+      // An armed minus or delete button is only armed for as long as its
+      // warning is on screen; once that has gone, the next press asks again
+      // rather than deleting something the reader has stopped expecting it to.
       setPendingRemove(null)
+      setPendingRowDelete(null)
     }, 2400)
     return () => clearTimeout(timer)
   }, [status])
@@ -340,8 +385,7 @@ export default function App({ published = null }) {
   const toggleEditing = () => {
     const next = !editing
     setEditing(next)
-    setPendingRemove(null)
-    setConfirmingRemoveRow(false)
+    disarmRemovals()
     // The two modes both take the sheet over and would draw over each other,
     // so reaching for one puts the other away.
     if (next) setCopying(false)
@@ -586,8 +630,7 @@ export default function App({ published = null }) {
     setMarks(parsed.marks)
     setStructure(parsed.structure)
     setBpm(parsed.bpm)
-    setPendingRemove(null)
-    setConfirmingRemoveRow(false)
+    disarmRemovals()
     setStatus(`Opened ${file.name}`)
   }
 
@@ -599,8 +642,7 @@ export default function App({ published = null }) {
     setTies([])
     setMarks([])
     setStructure([])
-    setPendingRemove(null)
-    setConfirmingRemoveRow(false)
+    disarmRemovals()
     setConfirmingClear(false)
     setStatus('Cleared')
   }
@@ -728,7 +770,8 @@ export default function App({ published = null }) {
       {editing && (
         <p className="edit-hint">
           Press a row or a group, then press another, and the two exchange places.
-          Writing is off until this is turned back off.
+          The bin at the end of a row deletes that row. Writing is off until this
+          is turned back off.
         </p>
       )}
 
@@ -829,6 +872,9 @@ export default function App({ published = null }) {
           onPasteRange={handlePasteRange}
           pendingRemove={pendingRemove}
           onCancelRemove={() => setPendingRemove(null)}
+          onDeleteRow={handleDeleteRow}
+          pendingRowDelete={pendingRowDelete}
+          onCancelRowDelete={() => setPendingRowDelete(null)}
         />
       </main>
 

@@ -559,6 +559,24 @@ button.link {
   color: #fff;
 }
 
+/* Edit mode's column at the end of a staff, holding the one button it has
+   there. The press-sheet over the row is laid at z-index 5 and would otherwise
+   swallow it, so this stands above it — the only part of the row that is still
+   its own thing to press while the order is being edited. */
+.row-bars--edit {
+  position: relative;
+  z-index: 6;
+}
+
+/* Takes the whole row off the sheet. Not coloured until it is armed: it sits
+   on every row at once, and six red buttons would read as a warning about the
+   sheet rather than as something to press. */
+.bar-button--delete:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
 /* Armed: the next press deletes written notes, so it says so in the toolbar's
    status line and looks like the Clear button while it waits. */
 .bar-button.is-armed,

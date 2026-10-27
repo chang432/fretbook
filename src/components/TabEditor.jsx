@@ -3,7 +3,7 @@ import GroupSection from './GroupSection.jsx'
 import MarkBar from './MarkBar.jsx'
 import PositionStrip from './PositionStrip.jsx'
 import StaffOverlay from './StaffOverlay.jsx'
-import { PasteIcon } from './icons.jsx'
+import { PasteIcon, TrashIcon } from './icons.jsx'
 import { cellMidi, noteName, nudgeTarget } from '../utils/audio.js'
 import {
   MARK_ZIGZAG,
@@ -61,6 +61,9 @@ export default function TabEditor({
   onPasteRange,
   pendingRemove,
   onCancelRemove,
+  onDeleteRow,
+  pendingRowDelete,
+  onCancelRowDelete,
 }) {
   // Inputs are addressed by "col:string" so keyboard navigation can jump to any
   // cell regardless of which staff chunk rendered it.
@@ -251,6 +254,9 @@ export default function TabEditor({
     // A range pointing into a row that has gone would paste from nowhere.
     setRange((prev) => (prev && prev.row < rows.length ? prev : null))
     setPendingPaste(null)
+    // A held row is held by position, so deleting any row leaves what is held
+    // naming different tab. It is put back down rather than quietly re-aimed.
+    setSelected((prev) => (prev?.kind === 'row' ? null : prev))
   }
 
   /**
@@ -710,6 +716,35 @@ export default function TabEditor({
                 ))}
               </div>
             </div>
+
+            {/* Edit mode is where a row other than the last can be taken off
+                the sheet, so its one button stands at the end of the staff,
+                where the bar controls stand the rest of the time. It has to
+                sit above the press-sheet, which covers the whole row. */}
+            {editing && (
+              <div className="row-bars row-bars--edit">
+                <button
+                  type="button"
+                  className={`bar-button bar-button--delete${
+                    pendingRowDelete === staff ? ' is-armed' : ''
+                  }`}
+                  onClick={() => onDeleteRow(staff)}
+                  onBlur={onCancelRowDelete}
+                  onKeyDown={dropOnEscape}
+                  disabled={rows.length <= 1}
+                  title={
+                    rows.length <= 1
+                      ? 'The sheet keeps at least one row'
+                      : pendingRowDelete === staff
+                        ? 'Press again to delete this row and the notes in it'
+                        : 'Delete this row'
+                  }
+                  aria-label={`Delete group ${label(staff)}`}
+                >
+                  <TrashIcon />
+                </button>
+              </div>
+            )}
 
             {/* The bar controls sit under the overlay, where nothing could
                 reach them, and none of what they do is reordering. They stand

@@ -124,6 +124,15 @@ strip, where they exchange two positions of the running order.
   *this row* rather than *this position*, so the cells stop taking type and the
   per-row bar buttons stand down. Turning the mode back off gives all of it
   back, with the cursor where you left it.
+- **The bin at the end of a row deletes that row**, which is the only place a
+  row other than the last can be taken off. It stands where the bar buttons
+  stand the rest of the time. An empty row goes straight away; one with notes
+  in it says how many would be lost and waits for a second press, the same
+  bargain the bar **−** makes, and the arming lapses with the warning after a
+  few seconds. The sheet never drops below a single row. Everything below the
+  deleted row slides up, and any slot of the running order calling for its
+  group is emptied — the numbers in the remaining circles do not change, since
+  a group is a name rather than a place.
 
 ### Ties
 
@@ -422,3 +431,17 @@ two orders apart: a slot names a group by index, so leaving the indices alone
 leaves the strip saying what it said, and the row that moved into a position is
 the one now played there. `swapGroupSlots` is the other half, reordering the
 strip without reaching into the grid at all.
+
+`removeRow` takes the same view of a row as `removeBar` does of a bar, a whole
+row wide: it cuts that row's run of columns out of the grid, so everything
+below slides up by its width, drops any tie or symbol anchored inside it, and
+remaps the rest through the same shift. It defaults to the last row, which is
+what **− Remove row** asks for; edit mode's per-row bin names one.
+
+
+TODO:
+- Groups need refactor so that rows can be grouped into sub groups 
+- Rows need custom name
+- Mb create new arrangement section, that arranges certain groups, and groups section exist purely for grouping rows. 
+- Add undo button
+- Once undo button is added, disable remove section in raw confirmation.
