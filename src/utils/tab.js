@@ -94,6 +94,47 @@ export const nextGroupId = (groups) => (groups.length ? Math.max(...groups) + 1 
 /** Where the row carrying this id sits, or -1 when no row does. */
 export const rowOfGroup = (groups, id) => groups.indexOf(id)
 
+/* Row names --------------------------------------------------------------
+ *
+ * A row can be given a name of its own — "Intro", "Chorus" — written beside
+ * the number at the top of the row. Names are held against the group id and
+ * not against the row's place, exactly as the id is: a named row keeps its
+ * name wherever it is moved to, and a name is only ever lost with the row it
+ * was given to.
+ *
+ * `names` is therefore a plain object keyed by id, and holds only the rows
+ * that have been named — an unnamed row is simply absent from it.
+ */
+
+/** Longest a row name can be: enough to name a section, not a sentence. */
+export const MAX_ROW_NAME = 24
+
+/** The name this group carries, or '' when it has none. */
+export const rowName = (names, id) => (typeof names?.[id] === 'string' ? names[id] : '')
+
+/**
+ * Name a group, or clear its name by passing an empty one. Runs of whitespace
+ * are squeezed out and the ends trimmed, so a name is what it looks like on
+ * the row rather than whatever was typed around it. A cleared name is dropped
+ * from the map outright rather than kept as an empty string, which is what
+ * leaves a sheet nobody has named carrying nothing.
+ */
+export function setRowName(names, id, name) {
+  const trimmed = String(name ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_ROW_NAME)
+  const rest = { ...names }
+  delete rest[id]
+  return trimmed ? { ...rest, [id]: trimmed } : rest
+}
+
+/** Drop the names of groups no row carries any more. */
+export const clampRowNames = (names, groups) =>
+  Object.fromEntries(
+    Object.entries(names ?? {}).filter(([id]) => groups.includes(Number(id))),
+  )
+
 /** Columns a row of this many bars occupies. */
 export const rowWidth = (bars) => bars * COLS_PER_BAR
 
@@ -250,11 +291,11 @@ export function rowNoteCount(grid, rows, rowIndex = rows.length - 1) {
  * `removeBar`, a whole row wide. A sheet never drops below one row.
  */
 export function removeRow(
-  { rows, groups = createGroups(rows.length), grid, ties, marks, structure = [] },
+  { rows, groups = createGroups(rows.length), names = {}, grid, ties, marks, structure = [] },
   rowIndex = rows.length - 1,
 ) {
   if (rows.length <= 1 || rowIndex < 0 || rowIndex >= rows.length) {
-    return { rows, groups, grid, ties, marks, structure }
+    return { rows, groups, names, grid, ties, marks, structure }
   }
 
   const [at, end] = rowRange(rows, rowIndex)
@@ -273,7 +314,9 @@ export function removeRow(
       .filter((tie) => !inside(tie.from) && !inside(tie.to))
       .map((tie) => ({ ...tie, from: shift(tie.from), to: shift(tie.to) })),
     marks: marks.filter((mark) => !inside(mark.col)).map((mark) => ({ ...mark, col: shift(mark.col) })),
-    // The song can no longer call for a group that is gone.
+    // The song can no longer call for a group that is gone, and neither the
+    // name it was given nor the slots that called for it outlive the row.
+    names: clampRowNames(names, kept),
     structure: clampStructure(structure, kept),
   }
 }
@@ -801,7 +844,16 @@ export function toAsciiTab({ grid, rows, ties = [], marks = [] }, tuning = STAND
 
 /** Machine-readable export that can round-trip back into the editor. */
 export function toJson(
-  { grid, rows, groups = createGroups(rows.length), ties = [], marks = [], structure = [], bpm = DEFAULT_BPM },
+  {
+    grid,
+    rows,
+    groups = createGroups(rows.length),
+    names = {},
+    ties = [],
+    marks = [],
+    structure = [],
+    bpm = DEFAULT_BPM,
+  },
   tuning = STANDARD_TUNING,
   title = '',
 ) {
@@ -810,7 +862,7 @@ export function toJson(
   return JSON.stringify(
     {
       format: 'fretboard-notebook',
-      version: 8,
+      version: 9,
       title,
       tuning,
       // Playback tempo, in beats per minute — one grid column per beat.
@@ -820,6 +872,11 @@ export function toJson(
       // One group id per staff row, in row order. A row's id is its name, so
       // reordering the rows reorders these with them.
       groups,
+      // The names rows have been given, keyed by group id — only the rows
+      // that have one. Keyed by id rather than by place for the same reason
+      // the running order is: the name belongs to the row, not to the line it
+      // happens to be written on.
+      names: clampRowNames(names, groups),
       // The running order: one slot per position in the song, holding the
       // group played there — as a bare id, or as `{ group, repeat }` where the
       // slot calls for it more than once. Null where nothing is set.
@@ -897,6 +954,8 @@ export function fromJson(text) {
     grid: columns,
     rows,
     groups,
+    // A file written before rows could be named simply has none.
+    names: readRowNames(data.names, groups),
     // A file written before live mode existed simply plays at the default.
     bpm: clampBpm(data.bpm),
     // A file written before groups existed simply has no running order.
@@ -921,6 +980,21 @@ function readGroups(raw, rowCount) {
     kept.push(Number.isInteger(id) && id >= 0 && !kept.includes(id) ? id : nextGroupId(kept))
   }
   return kept
+}
+
+/**
+ * Row names from a file, keyed by group id. Anything that is not a name a row
+ * here can carry is dropped: an id no row has, a value that is not a string,
+ * a name that is empty once trimmed. Passing each one through `setRowName`
+ * leaves the map holding exactly what the editor would have written.
+ */
+function readRowNames(raw, groups) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  return Object.entries(raw).reduce((kept, [key, value]) => {
+    const id = Number(key)
+    if (!Number.isInteger(id) || !groups.includes(id) || typeof value !== 'string') return kept
+    return setRowName(kept, id, value)
+  }, {})
 }
 
 /** Columns a staff line held before rows could differ in length. */

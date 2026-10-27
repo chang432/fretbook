@@ -44,7 +44,8 @@ and point it at the dev bucket. Everything else works without it.
   number in a circle at the far left.
 - The sheet is one continuous run of rows — no pages. **+ New row** below it
   appends another and scrolls down to it; **− Remove row** drops the last one.
-  An empty row goes straight away, one with notes asks first, and the sheet
+  A row goes on the press that asks for it, notes and all — **Undo** is what
+  takes it back, so a whole row is not worth stopping to confirm. The sheet
   never drops below a single row. A new sheet starts with four.
 
 ### Shifting a row
@@ -126,13 +127,13 @@ strip, where they exchange two positions of the running order.
   back, with the cursor where you left it.
 - **The bin at the end of a row deletes that row**, which is the only place a
   row other than the last can be taken off. It stands where the bar buttons
-  stand the rest of the time. An empty row goes straight away; one with notes
-  in it says how many would be lost and waits for a second press, the same
-  bargain the bar **−** makes, and the arming lapses with the warning after a
-  few seconds. The sheet never drops below a single row. Everything below the
-  deleted row slides up, and any slot of the running order calling for its
-  group is emptied — the numbers in the remaining circles do not change, since
-  a group is a name rather than a place.
+  stand the rest of the time. The row goes on one press, notes and all, and
+  **Undo** puts it back — unlike the bar **−**, which still asks twice, since
+  taking a bar off is a smaller thing to mean and a harder one to see. The
+  sheet never drops below a single row. Everything below the deleted row
+  slides up, and any slot of the running order calling for its group is
+  emptied — the numbers in the remaining circles do not change, since a group
+  is a name rather than a place.
 
 ### Ties
 
@@ -444,4 +445,3 @@ TODO:
 - Rows need custom name
 - Mb create new arrangement section, that arranges certain groups, and groups section exist purely for grouping rows. 
 - Add undo button
-- Once undo button is added, disable remove section in raw confirmation.

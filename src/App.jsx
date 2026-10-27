@@ -30,9 +30,11 @@ import {
   previousWrittenColumn,
   removeBar,
   removeRow,
+  rowName,
   rowNoteCount,
   setGroupRepeat,
   setGroupSlot,
+  setRowName,
   shiftLoss,
   shiftRow,
   swapGroupSlots,
@@ -95,6 +97,9 @@ export default function App({ published = null }) {
   // One group id per row, in row order. A row's id is its name rather than
   // its place, so it travels with the row when the sheet is rearranged.
   const [groups, setGroups] = useState(() => saved?.groups ?? createGroups(saved?.rows?.length))
+  // The names rows have been given, keyed by group id — so a name travels
+  // with its row the way the id does. Rows nobody has named are absent.
+  const [names, setNames] = useState(() => saved?.names ?? {})
   const [grid, setGrid] = useState(() => fitGrid(saved?.grid ?? [], saved?.rows ?? createRows()))
   const [ties, setTies] = useState(() => saved?.ties ?? [])
   const [marks, setMarks] = useState(() => saved?.marks ?? [])
@@ -113,9 +118,6 @@ export default function App({ published = null }) {
   const [confirmingClear, setConfirmingClear] = useState(false)
   // Row whose minus button is armed, waiting for a second press.
   const [pendingRemove, setPendingRemove] = useState(null)
-  // Row whose delete button in edit mode is armed, waiting for a second press.
-  const [pendingRowDelete, setPendingRowDelete] = useState(null)
-  const [confirmingRemoveRow, setConfirmingRemoveRow] = useState(false)
   const [showText, setShowText] = useState(false)
   // The Export button's element while its menu is open, so the menu can anchor.
   const [exportMenu, setExportMenu] = useState(null)
@@ -136,13 +138,11 @@ export default function App({ published = null }) {
   const audioRef = useRef(null)
 
   const sheet = useMemo(
-    () => ({ grid, rows, groups, ties, marks, structure }),
-    [grid, rows, groups, ties, marks, structure],
+    () => ({ grid, rows, groups, names, ties, marks, structure }),
+    [grid, rows, groups, names, ties, marks, structure],
   )
   const asciiTab = useMemo(() => toAsciiTab(sheet, STANDARD_TUNING), [sheet])
   const empty = useMemo(() => isGridEmpty(grid), [grid])
-
-  const lastRowNotes = useMemo(() => rowNoteCount(grid, rows), [grid, rows])
 
   // The sheet as it stood before each of the last few actions, oldest first.
   // Bounded by HISTORY_LIMIT, so this is a short way back rather than a record
@@ -159,15 +159,13 @@ export default function App({ published = null }) {
   }, [sheet])
 
   /**
-   * Drop whatever deletion is waiting on a second press. Every one of them is
-   * armed against the sheet as it stood when the warning was shown, so a sheet
-   * that has changed since disarms all three rather than deleting against a
-   * warning the reader has stopped reading.
+   * Put away the bar minus button waiting on a second press. It is armed
+   * against the sheet as it stood when the warning was shown, so a sheet that
+   * has changed since disarms it rather than letting the next press delete
+   * against a warning the reader has stopped reading.
    */
   const disarmRemovals = () => {
     setPendingRemove(null)
-    setPendingRowDelete(null)
-    setConfirmingRemoveRow(false)
   }
 
   /**
@@ -195,6 +193,7 @@ export default function App({ published = null }) {
   const applySheet = useCallback((next) => {
     if (next.rows) setRows(next.rows)
     if (next.groups) setGroups(next.groups)
+    if (next.names) setNames(next.names)
     if (next.grid) setGrid(next.grid)
     if (next.ties) setTies(next.ties)
     if (next.marks) setMarks(next.marks)
@@ -222,6 +221,29 @@ export default function App({ published = null }) {
 
   /** The number in a row's circle — its group id, counting from one. */
   const rowLabel = (rowIndex) => groups[rowIndex] + 1
+
+  /**
+   * Name a row, or clear its name by passing an empty one. The name is kept
+   * against the row's group id rather than its place, so it stays with the
+   * row when the sheet is reordered and goes when the row does.
+   *
+   * A press that leaves the name as it was — opening the box and closing it
+   * again, or retyping the same name — changes nothing and costs no undo.
+   */
+  const handleRenameRow = (rowIndex, name) => {
+    const id = groups[rowIndex]
+    const next = setRowName(names, id, name)
+    const written = rowName(next, id)
+    if (written === rowName(names, id)) return
+
+    remember(`naming group ${rowLabel(rowIndex)}`)
+    setNames(next)
+    setStatus(
+      written
+        ? `Group ${rowLabel(rowIndex)} is now "${written}"`
+        : `Group ${rowLabel(rowIndex)} has no name again`,
+    )
+  }
 
   /** Append an empty row at the bottom and scroll down to it. */
   const handleAddRow = () => {
@@ -300,45 +322,27 @@ export default function App({ published = null }) {
   }
 
   /**
-   * Drop the last row. An empty one goes straight away; one with notes in it
-   * says what would be lost and waits for a second press, the same bargain the
-   * Clear button and the per-row minus buttons make.
-   */
-  const handleRemoveRow = () => {
-    if (rows.length <= 1) return
-    if (lastRowNotes > 0 && !confirmingRemoveRow) {
-      setConfirmingRemoveRow(true)
-      return
-    }
-
-    applyRemoveRow(rows.length - 1)
-    if (lastRowNotes > 0) {
-      setStatus(`Deleted ${lastRowNotes} note${lastRowNotes === 1 ? '' : 's'}`)
-    }
-  }
-
-  /**
-   * Delete one row from inside edit mode, which is where a row other than the
-   * last can be taken off. A row with notes in it arms its button and says
-   * what would be lost, the same bargain the bar minus buttons make; an empty
-   * one goes straight away. The sheet never drops below a single row.
+   * Delete one row, wherever it stands. It goes on the press that asks for
+   * it: Undo is the way back now, and a second press to confirm would stand
+   * between the reader and a row they can have again anyway. What went is
+   * said out loud instead, since a whole row's notes are worth accounting for.
+   * The sheet never drops below a single row.
    */
   const handleDeleteRow = (rowIndex) => {
     if (rows.length <= 1 || rowIndex < 0 || rowIndex >= rows.length) return
 
     const group = rowLabel(rowIndex)
     const notes = rowNoteCount(grid, rows, rowIndex)
-    if (notes > 0 && pendingRowDelete !== rowIndex) {
-      setPendingRowDelete(rowIndex)
-      setStatus(
-        `Group ${group} holds ${notes} note${notes === 1 ? '' : 's'} — press again to delete the row`,
-      )
-      return
-    }
-
     applyRemoveRow(rowIndex)
-    setStatus(`Deleted group ${group}`)
+    setStatus(
+      notes > 0
+        ? `Deleted group ${group} — ${notes} note${notes === 1 ? '' : 's'}`
+        : `Deleted group ${group}`,
+    )
   }
+
+  /** What − Remove row asks for: the bottom row, by the same one press. */
+  const handleRemoveRow = () => handleDeleteRow(rows.length - 1)
 
   useEffect(() => {
     if (!revealNewRow.current) return
@@ -427,11 +431,10 @@ export default function App({ published = null }) {
     if (!status) return undefined
     const timer = setTimeout(() => {
       setStatus('')
-      // An armed minus or delete button is only armed for as long as its
-      // warning is on screen; once that has gone, the next press asks again
-      // rather than deleting something the reader has stopped expecting it to.
+      // An armed minus button is only armed for as long as its warning is on
+      // screen; once that has gone, the next press asks again rather than
+      // deleting something the reader has stopped expecting it to.
       setPendingRemove(null)
-      setPendingRowDelete(null)
     }, 2400)
     return () => clearTimeout(timer)
   }, [status])
@@ -757,6 +760,7 @@ export default function App({ published = null }) {
     applySheet({
       rows: fresh,
       groups: createGroups(fresh.length),
+      names: {},
       grid: createGrid(totalColumns(fresh)),
       ties: [],
       marks: [],
@@ -987,6 +991,7 @@ export default function App({ published = null }) {
           grid={grid}
           rows={rows}
           groups={groups}
+          names={names}
           tuning={STANDARD_TUNING}
           ties={ties}
           marks={marks}
@@ -995,6 +1000,7 @@ export default function App({ published = null }) {
           onSetGroup={handleSetGroup}
           onSetGroupRepeat={handleSetGroupRepeat}
           onSwapRows={handleSwapRows}
+          onRenameRow={handleRenameRow}
           onSwapGroupSlots={handleSwapGroupSlots}
           onCellChange={handleCellChange}
           onCreateTie={createTie}
@@ -1011,8 +1017,6 @@ export default function App({ published = null }) {
           pendingRemove={pendingRemove}
           onCancelRemove={() => setPendingRemove(null)}
           onDeleteRow={handleDeleteRow}
-          pendingRowDelete={pendingRowDelete}
-          onCancelRowDelete={() => setPendingRowDelete(null)}
         />
       </main>
 
@@ -1022,14 +1026,10 @@ export default function App({ published = null }) {
         </button>
         <button
           type="button"
-          className={confirmingRemoveRow ? 'danger' : ''}
           onClick={handleRemoveRow}
-          onBlur={() => setConfirmingRemoveRow(false)}
           disabled={editing || rows.length <= 1}
         >
-          {confirmingRemoveRow
-            ? `Delete ${lastRowNotes} note${lastRowNotes === 1 ? '' : 's'} in group ${rowLabel(rows.length - 1)}?`
-            : '− Remove row'}
+          − Remove row
         </button>
       </div>
 
