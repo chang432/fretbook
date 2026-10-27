@@ -568,9 +568,19 @@ button.link {
   z-index: 6;
 }
 
-/* Takes the whole row off the sheet. Not coloured until it is armed: it sits
-   on every row at once, and six red buttons would read as a warning about the
-   sheet rather than as something to press. */
+/* Takes the whole row off the sheet. The only bar button holding a drawn
+   symbol rather than a typed one: `.icon` is a block, which a button centres
+   no more than it would a paragraph, so this one is laid out like the
+   toolbar's icon buttons instead. */
+.bar-button--delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Not coloured until it is armed: it sits on every row at once, and six red
+   buttons would read as a warning about the sheet rather than as something to
+   press. */
 .bar-button--delete:hover:not(:disabled) {
   border-color: var(--accent);
   background: var(--accent);
