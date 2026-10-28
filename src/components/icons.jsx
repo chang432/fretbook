@@ -25,18 +25,6 @@ export function SoundIcon({ muted = false }) {
   )
 }
 
-/** A screen on its stand, playing — the song shown to a room. */
-export function PresentIcon() {
-  return (
-    <svg className="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-      <rect x="1.5" y="1.8" width="13" height="8.8" rx="1.5" />
-      <path className="solid" d="M 6.8 4 L 10.2 6.2 L 6.8 8.4 Z" />
-      <path d="M 8 10.6 V 13.4" />
-      <path d="M 5.5 13.4 H 10.5" />
-    </svg>
-  )
-}
-
 /**
  * A note moving to the string above or below it: the arrow is the note, the
  * line is the string it is headed for.

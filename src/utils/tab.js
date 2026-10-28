@@ -37,26 +37,6 @@ const MAX_IMPORT_COLUMNS = 10_000
 const MAX_IMPORT_ROWS = 1_000
 const MAX_IMPORT_BARS_PER_ROW = MAX_IMPORT_COLUMNS / COLS_PER_BAR
 
-/* Tempo ------------------------------------------------------------------
- *
- * The sheet's playback speed, in beats per minute. One column is one beat, so
- * this is what live mode turns into a scroll rate; it is saved with the song
- * because a tempo belongs to the song, not to the session reading it.
- */
-
-export const DEFAULT_BPM = 90
-export const MIN_BPM = 20
-export const MAX_BPM = 300
-
-/** A usable whole-number tempo, whatever was typed or read from a file. */
-export const clampBpm = (bpm) => {
-  const value = Math.round(Number(bpm))
-  // Nothing typed reads as 0, which is a request for no tempo at all rather
-  // than for the slowest one going — so it falls back rather than clamping.
-  if (!Number.isFinite(value) || value <= 0) return DEFAULT_BPM
-  return Math.min(MAX_BPM, Math.max(MIN_BPM, value))
-}
-
 export const createColumn = () => Array(STRING_COUNT).fill('')
 
 export const createGrid = (columns) => Array.from({ length: columns }, createColumn)
@@ -1020,7 +1000,6 @@ export function toJson(
     members = {},
     ties = [],
     marks = [],
-    bpm = DEFAULT_BPM,
     memo = '',
   },
   tuning = STANDARD_TUNING,
@@ -1031,14 +1010,12 @@ export function toJson(
   return JSON.stringify(
     {
       format: 'fretboard-notebook',
-      version: 11,
+      version: 12,
       title,
       tuning,
       // The note written at the top of the sheet — prose about the song, which is
       // why it is kept whole rather than shaped on the way out.
       memo: readMemo(memo),
-      // Playback tempo, in beats per minute — one grid column per beat.
-      bpm: clampBpm(bpm),
       // One bar count per staff row; rows can differ in length.
       rows,
       // One id per staff row, in row order. A row's id is its name, so
@@ -1142,8 +1119,6 @@ export function fromJson(text) {
     names: readRowNames(data.names, rowIds),
     groups,
     members,
-    // A file written before live mode existed simply plays at the default.
-    bpm: clampBpm(data.bpm),
     // A file written before the note existed (version 9 and earlier) has none.
     memo: readMemo(data.memo),
     ties: gathered.ties,

@@ -300,35 +300,6 @@ own presses and the staff under it still picks the row up.
   like the rest of its bar controls, stands down for as long as the mode is
   on, and any shift that was out closes on the way in.
 
-### Playing it live
-
-The **screen** button in the toolbar asks for a tempo and then plays the song
-full screen: a
-playhead standing fixed on the page, with the tab sliding leftwards underneath
-it, the way a DAW moves a track past its play position.
-
-- One position is one beat, so a bar is four of them. At 90 BPM the playhead
-  crosses a position every two thirds of a second.
-- The song played is the sheet itself: every row once, top to bottom, one
-  continuous line of tab. Groups change where the rows stand, so they change
-  the order the song is played in — but a group is not itself played, and
-  nothing is repeated that is not written twice.
-- A silent bar leads in, so there is a bar's worth of tempo to pick up before
-  the first note is due.
-- With sound on, every note standing on the position the playhead reaches
-  sounds together, as a chord.
-- <kbd>space</kbd> pauses and resumes, <kbd>←</kbd> / <kbd>→</kbd> move a bar at
-  a time, <kbd>↑</kbd> / <kbd>↓</kbd> change the tempo by 5 without stopping,
-  and <kbd>esc</kbd> leaves. The transport buttons along the top do the same.
-- The tempo popup's **Simple mode** leaves the moving tab and an **Exit** button
-  only, for a clean audience-facing display.
-- The staff is zoomed to fit the space it has, measured rather than guessed —
-  a phone, or a window with the toolbar wrapped onto two lines, gets a smaller
-  staff rather than one with its top string cut off. The zoom is capped so
-  there are always beats visible ahead of the playhead to read.
-- The tempo is saved with the song, so a sheet is reopened at the speed it was
-  last played at.
-
 ### Playing a chord again
 
 Selecting any position puts a **rewind** button above it, which fills that
@@ -465,12 +436,10 @@ src/
   components/StaffOverlay.jsx the SVG arcs and symbols over one staff line
   components/MarkBar.jsx    the rewind, tie and symbol buttons floating over the selected position
   components/PositionStrip.jsx one control per position above a staff, shared by the shift anchors and edit mode's strips
-  components/LiveMode.jsx   the full-screen player: playhead, scrolling tab, transport
-  components/Popover.jsx    the anchored panel behind the export, group and tempo menus
+  components/Popover.jsx    the anchored panel behind the export menu
   components/icons.jsx      the drawn symbols on the buttons that carry no words
   utils/tab.js              grid, tie and mark model; ASCII/JSON; downloads
   utils/notes.js            the published notes: the /api calls that fetch them
-  utils/live.js             the sheet as a flat run of beats, and its timing
   utils/audio.js            fret-to-pitch both ways, and the plucked-string synthesis
   utils/popover.js          where an anchored panel sits, kept inside the window
   utils/layout.js           staff geometry and the arc/symbol maths, shared by
@@ -483,11 +452,6 @@ contiguous slice — that is how it is edited and how every export walks it. Tie
 (`{ string, from, to }`) and marks (`{ string, col, symbol }`) are kept beside
 it in absolute grid positions: that is what lets one arc be clipped across a
 staff wrap, and it keeps a cell's value a plain string.
-
-Live mode reads that same grid rather than a copy of it: `songRuns` cuts the
-sheet into one stretch per row, each holding the column that row starts at, so
-the player walks a flat list of beats and never has to work out where a row
-begins.
 
 Groups are kept the other way round from how they are drawn. The sheet holds a
 list of them — `{ id, name }`, ids handed out in turn and never reused — and
@@ -505,11 +469,14 @@ while the grid stays one flat run of columns. Adding a bar therefore inserts
 columns *mid-grid*, which is why `addBar` also shifts every tie and mark past
 the insertion point. Files record `rows`; ones written before it existed
 (version 3) are read back as rows of 8 bars, the 32-position line they used.
-Version 6 added `bpm`; a file without one opens at 90. Version 7 added per-slot
-repeat counts, version 8 `groups`, version 9 the `names` rows carry, and
-version 10 `memo` — the sheet's note, called that throughout the code because
-"note" already means a fret on a string, and a published sheet besides. A file
-written before any of them simply opens without it.
+Version 6 added `bpm`, version 7 per-slot repeat counts, version 8 `groups`,
+version 9 the `names` rows carry, and version 10 `memo` — the sheet's note,
+called that throughout the code because "note" already means a fret on a
+string, and a published sheet besides. A file written before any of them simply
+opens without it. Version 11 made `groups` a list of groups in its own right
+and moved the row ids out to `rowIds`; version 12 dropped `bpm` along with the
+player that was the only thing reading it, so a tempo in an older file is read
+past rather than kept.
 
 Rearranging the rows is the same bookkeeping run the other way, and all of it
 goes through one function. `reorderRows` takes the new order — one entry per

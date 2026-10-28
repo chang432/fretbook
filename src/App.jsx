@@ -1,17 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import LiveMode from './components/LiveMode.jsx'
 import NoteLink from './components/NoteLink.jsx'
 import Popover from './components/Popover.jsx'
 import TabEditor from './components/TabEditor.jsx'
-import { PencilIcon, PresentIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
+import { PencilIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
 import {
-  DEFAULT_BPM,
-  MAX_BPM,
-  MIN_BPM,
   STANDARD_TUNING,
   addBar,
   addRow,
-  clampBpm,
   copyColumn,
   createGrid,
   addGroup,
@@ -131,14 +126,6 @@ export default function App({ published = null }) {
   // The Export button's element while its menu is open, so the menu can anchor.
   const [exportMenu, setExportMenu] = useState(null)
   const [audioOn, setAudioOn] = useState(false)
-  // Playback tempo, and the Live button's element while it is asking for one.
-  const [bpm, setBpm] = useState(() => saved?.bpm ?? DEFAULT_BPM)
-  const [liveMenu, setLiveMenu] = useState(null)
-  const [bpmDraft, setBpmDraft] = useState('')
-  // Chosen for this launch only: a presentation should not unexpectedly open
-  // without its transport controls on a later visit.
-  const [simpleLiveMode, setSimpleLiveMode] = useState(false)
-  const [live, setLive] = useState(false)
   const fileInputRef = useRef(null)
   // Set when + New row is pressed, so the effect that scrolls to it knows to.
   const revealNewRow = useRef(false)
@@ -209,7 +196,6 @@ export default function App({ published = null }) {
     if (next.ties) setTies(next.ties)
     if (next.marks) setMarks(next.marks)
     if (next.title !== undefined) setTitle(next.title)
-    if (next.bpm !== undefined) setBpm(next.bpm)
     if (next.memo !== undefined) setMemo(next.memo)
   }, [])
 
@@ -496,14 +482,11 @@ export default function App({ published = null }) {
     // write over it, so a note is read and nothing more.
     if (published) return
     try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        toJson({ ...sheet, bpm, memo }, STANDARD_TUNING, title),
-      )
+      localStorage.setItem(STORAGE_KEY, toJson({ ...sheet, memo }, STANDARD_TUNING, title))
     } catch {
       // Private-mode / quota failures are not worth interrupting the user for.
     }
-  }, [published, sheet, bpm, memo, title])
+  }, [published, sheet, memo, title])
 
   useEffect(() => {
     if (!status) return undefined
@@ -600,36 +583,13 @@ export default function App({ published = null }) {
     [audioOn],
   )
 
-  /** Sound a whole position at once — the chord live mode's playhead reaches. */
+  /** Sound a whole position at once — every string written in one column. */
   const playColumn = useCallback(
     (col) => {
       grid[col]?.forEach((value, stringIndex) => playNote(stringIndex, value))
     },
     [grid, playNote],
   )
-
-  /** Ask for a tempo, starting from whatever the sheet was last played at. */
-  const openLive = (event) => {
-    if (liveMenu) {
-      setLiveMenu(null)
-      return
-    }
-    setBpmDraft(String(bpm))
-    setLiveMenu(event.currentTarget)
-  }
-
-  const closeLive = useCallback(() => setLive(false), [])
-
-  const startLive = () => {
-    // Fullscreen permission belongs to the click that starts playback. Asking
-    // from LiveMode's effect is too late for browsers that consume activation
-    // once this handler returns. The overlay covers the document while live,
-    // so making the document element fullscreen has the intended result.
-    document.documentElement.requestFullscreen?.().catch(() => {})
-    setBpm(clampBpm(bpmDraft))
-    setLiveMenu(null)
-    setLive(true)
-  }
 
   /**
    * Fill the selected position with the last one written before it — the same
@@ -765,7 +725,7 @@ export default function App({ published = null }) {
   const exportJson = () => {
     downloadFile(
       `${fileStem}.json`,
-      toJson({ ...sheet, bpm, memo }, STANDARD_TUNING, title),
+      toJson({ ...sheet, memo }, STANDARD_TUNING, title),
       'application/json',
     )
     setStatus('Saved JSON')
@@ -812,10 +772,10 @@ export default function App({ published = null }) {
       setStatus('That file is not a Fretboard Notebook export')
       return
     }
-    // Opening a file replaces the title and the tempo as well as the sheet,
-    // so the snapshot carries those two along: undoing an import that was
-    // meant for another window puts the whole page back, not just the staves.
-    remember(`opening ${file.name}`, { extra: { title, bpm, memo } })
+    // Opening a file replaces the title and the note as well as the sheet, so
+    // the snapshot carries those two along: undoing an import that was meant
+    // for another window puts the whole page back, not just the staves.
+    remember(`opening ${file.name}`, { extra: { title, memo } })
     applySheet({ ...parsed, grid: fitGrid(parsed.grid, parsed.rows) })
     disarmRemovals()
     setStatus(`Opened ${file.name}`)
@@ -915,18 +875,6 @@ export default function App({ published = null }) {
           >
             <SoundIcon muted={!audioOn} />
           </button>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={openLive}
-            disabled={empty}
-            aria-haspopup="dialog"
-            aria-expanded={!!liveMenu}
-            aria-label="Play the song full screen"
-            title="Play the song full screen at a tempo"
-          >
-            <PresentIcon />
-          </button>
         </div>
 
         <span className="status" role="status">
@@ -993,52 +941,6 @@ export default function App({ published = null }) {
         </Popover>
       )}
 
-      {liveMenu && (
-        <Popover
-          anchor={liveMenu}
-          className="live-menu"
-          label="Live playback"
-          onClose={() => setLiveMenu(null)}
-        >
-          <label className="live-menu-label" htmlFor="live-bpm">
-            Tempo
-          </label>
-          <div className="live-menu-row">
-            <input
-              id="live-bpm"
-              className="live-menu-input"
-              type="number"
-              inputMode="numeric"
-              min={MIN_BPM}
-              max={MAX_BPM}
-              value={bpmDraft}
-              autoFocus
-              onChange={(event) => setBpmDraft(event.target.value)}
-              onFocus={(event) => event.target.select()}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') startLive()
-              }}
-            />
-            <span className="live-menu-unit">BPM</span>
-          </div>
-          <label className="live-menu-toggle">
-            <input
-              type="checkbox"
-              checked={simpleLiveMode}
-              onChange={(event) => setSimpleLiveMode(event.target.checked)}
-            />
-            <span>Simple mode</span>
-          </label>
-          <button type="button" className="live-menu-start" onClick={startLive}>
-            Start
-          </button>
-          <p className="live-menu-hint">
-            One position is one beat, so a bar is four. The sheet plays top to
-            bottom, a row at a time.
-          </p>
-        </Popover>
-      )}
-
       <main className="sheet">
         <TabEditor
           grid={grid}
@@ -1096,19 +998,6 @@ export default function App({ published = null }) {
         </button>
         {showText && <pre className="output-pre">{empty ? '(nothing written yet)' : asciiTab}</pre>}
       </section>
-
-      {live && (
-        <LiveMode
-          sheet={sheet}
-          tuning={STANDARD_TUNING}
-          title={title}
-          bpm={bpm}
-          simpleMode={simpleLiveMode}
-          onBpmChange={setBpm}
-          onPlayColumn={playColumn}
-          onClose={closeLive}
-        />
-      )}
     </div>
   )
 }
