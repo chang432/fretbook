@@ -34,6 +34,21 @@
   --muted: #7d8894;
   --accent: #a8492f;
 
+  /* One tone per group, taken in turn as groups are made — see `groupTone`
+     in TabEditor. Each is dark enough to carry paper-coloured text on a
+     group's bar, and distinct enough from its neighbours to tell two groups
+     apart at a glance down the spines. */
+  --group-1: #a8492f;
+  --group-2: #3f6d5a;
+  --group-3: #3c5b85;
+  --group-4: #8a6a2f;
+
+  /* The spine down the left of a group's rows, and how far past it those rows
+     are indented. The bar above and the spine below share the width, so the
+     two meet as one bracket. */
+  --spine-w: 6px;
+  --group-indent: 14px;
+
   color-scheme: light;
 }
 
@@ -432,117 +447,150 @@ button.link {
   font-style: italic;
 }
 
-/* Group section ------------------------------------------------------- */
+/* Groups -------------------------------------------------------------- */
 
-/* The running order, in the same ruled-off shape as a row so it reads as part
-   of the same sheet — just a shallower one, and stacked the same way: its name
-   above, the strip under it. */
-.group-section {
+/* A group is drawn where its rows are: one bar across the full width of the
+   sheet, and the rows it holds indented under it behind a spine of the same
+   colour, so the two read as one bracket around the group. There is no strip
+   of groups above the staves — the bar is the only place a group is drawn.
+
+   `--group` is set on the section by the editor, one of the four tones below
+   per group, and everything in here takes its colour from that. */
+.group {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  padding: 10px 0;
-  border-top: 1px solid var(--bar);
+  /* Two bars never meet edge to edge, so one group always reads as ending
+     before the next begins. */
+  margin-top: 12px;
 }
 
-/* Above the strip at the left edge, where a row carries its number. */
-.group-title {
-  margin-bottom: 6px;
-  color: var(--muted);
-  font: 600 10px/1 ui-monospace, Menlo, monospace;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+/* The sheet opens flush with whatever stands first — a bar there would
+   otherwise float away from the rule above it — and a row standing on its own
+   after a group is pushed clear of that group's rows. */
+.editor > :first-child {
+  margin-top: 0;
 }
 
-/* The groups themselves, indented past the string labels so the strip starts
-   where the bars below it do. They wrap: a sheet can hold more groups than
-   one line has room for. */
-.group-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-left: var(--label-w);
+.editor > .group + .staff {
+  margin-top: 12px;
 }
 
-/* One group: what it is called, what it holds, and a row to put in it. Drawn
-   as a box rather than as a bare line of text, since a group is a thing on
-   the sheet that rows belong to. */
-.group-chip {
+/* The bar itself: short, but solid and the width of the page, so it reads as
+   a band across the sheet rather than as a chip sitting on top of one. */
+.group-bar {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 8px;
   height: 28px;
-  padding: 0 4px;
-  border: 1px solid var(--bar);
-  border-radius: 7px;
-  background: var(--paper);
+  padding: 0 10px;
+  border-radius: 4px 4px 0 0;
+  background: var(--group);
+  color: var(--paper);
 }
 
-/* The name, which is also the way in to changing it. */
-.group-name {
-  padding: 3px 5px;
+/* The name, and the way in to changing it. Carries no outline of its own
+   until it is pointed at: the bar is already a box. */
+.group-bar-name {
+  flex: none;
+  padding: 2px 5px;
   border: 1px solid transparent;
   border-radius: 5px;
   background: none;
-  color: var(--ink);
+  color: inherit;
   font: 600 12px/1 ui-monospace, Menlo, monospace;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-/* Which rows the group holds, by where they stand on the page. Quieter than
-   the name: the name is the group, these are only what is in it today. */
-.group-rows {
-  padding: 0 4px;
-  color: var(--muted);
+.group-bar-name:hover:not(:disabled) {
+  border-color: rgb(251 248 241 / 55%);
+  background: rgb(251 248 241 / 12%);
+}
+
+/* The name takes no press while the order is being edited, and lets the
+   press through rather than swallowing it — as a row's name does. */
+.group-bar-name:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+/* How many rows are under the bar. Quieter than the name: the rows are right
+   there to be read, so this only counts them. */
+.group-bar-rows {
+  color: rgb(251 248 241 / 70%);
   font: 500 11px/1 ui-monospace, Menlo, monospace;
   letter-spacing: 0.04em;
 }
 
-/* Adds a row to this group, at the bottom of the sheet. */
-.group-add-row {
-  padding: 3px 6px;
-  border: 1px solid transparent;
+/* Typing the name, in the bar's own place so nothing jumps as it is written.
+   Paper-coloured against the bar, the way a box always is. */
+.group-bar-input {
+  width: 160px;
+  padding: 2px 5px;
+  border: 1px solid rgb(251 248 241 / 70%);
   border-radius: 5px;
+  background: rgb(251 248 241 / 16%);
+  color: var(--paper);
+  font: 600 12px ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+}
+
+.group-bar-input::placeholder {
+  color: rgb(251 248 241 / 65%);
+  font-style: italic;
+}
+
+.group-bar-input:focus-visible {
+  outline: 2px solid var(--paper);
+  outline-offset: -3px;
+}
+
+/* The rows the group holds: indented past the spine running down their left
+   side, which is the same width and colour as the bar and starts flush under
+   it. The tint is faint enough to leave the staves alone and only says how
+   far the group reaches. */
+.group-body {
+  padding-left: var(--group-indent);
+  border-left: var(--spine-w) solid var(--group);
+  border-radius: 0 0 0 4px;
+  background: color-mix(in srgb, var(--group) 4%, transparent);
+}
+
+/* The bar above is the rule dividing a group from what came before it, so the
+   first row under it draws none of its own. */
+.group-body > .staff:first-child {
+  border-top: 0;
+}
+
+/* A group with no rows yet is a bar and nothing else, so it carries its own
+   foot rather than ending on a cut edge. */
+.group--empty .group-bar {
+  border-radius: 4px;
+}
+
+/* Another group, past the last of them. Dashed, the way somewhere to write is
+   drawn rather than something written, and at a bar's own width. */
+.group-add {
+  height: 28px;
+  margin-top: 12px;
+  padding: 0 10px;
+  border-style: dashed;
+  border-radius: 4px;
   background: none;
   color: var(--muted);
   font: 600 11px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
 }
 
-/* Another group, past the last of them. Dashed, the way somewhere to write
-   is drawn rather than something written. */
-.group-add {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border-style: dashed;
-  border-radius: 7px;
-  background: none;
-  color: var(--muted);
-  font: 400 16px/1 ui-monospace, Menlo, monospace;
-}
-
-.group-name:hover:not(:disabled),
-.group-add-row:hover:not(:disabled),
 .group-add:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);
 }
 
-/* Typing a group's name, in the chip's own place so the strip does not jump
-   as a name is written. */
-.group-name-input {
-  width: 120px;
-  padding: 3px 5px;
-  border: 1px solid var(--accent);
-  border-radius: 5px;
-  background: var(--paper);
-  color: var(--ink);
-  font: 600 12px ui-monospace, Menlo, monospace;
-}
-
-/* The small list that hangs under a chip: the groups a row can be put in,
-   under the chip on the row's own line, and the rows a group can hold, under
-   the chip in the strip. The same shape both ways round. */
+/* The small list that hangs under the chip on a row's own line: the groups
+   that row can be put in, and the way out of the one it is in. */
 .group-picker {
   display: flex;
   flex-direction: column;
@@ -571,21 +619,25 @@ button.link {
 }
 
 .group-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   min-width: 28px;
   height: 28px;
-  padding: 0 6px;
+  padding: 0 8px;
   border-radius: 7px;
-  font: 600 13px/1 ui-monospace, Menlo, monospace;
-  font-variant-numeric: tabular-nums;
+  font: 600 12px/1 ui-monospace, Menlo, monospace;
 }
 
-/* The row's name beside its number in the list, where it has one. Quieter
-   than the number: the number says which row it is, the name only what it is
-   called. */
-.group-option-name {
-  margin-left: 5px;
-  font-weight: 500;
-  opacity: 0.7;
+/* The group's colour, the same square the row's own chip carries, so the one
+   being chosen is recognisable as the bar it will put the row under. */
+.group-option:not(.group-option--clear)::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--group);
 }
 
 .group-option.is-active {
@@ -713,17 +765,38 @@ button.link {
   letter-spacing: 0.04em;
 }
 
-/* Which group the row is in, on the row's own line. Shaped like the name
-   beside it — these two are both what the row is, as against what is written
-   in it — and outlined, since unlike a name it is always there to be pressed. */
+/* The way a row is moved from one group to another, on the row's own line.
+   The bar above says which group this is, so the chip only carries its colour
+   and otherwise stays out of the way until the row is pointed at — the way a
+   row with no name asks for one. */
 .row-group {
-  padding: 3px 6px;
-  border: 1px solid var(--bar);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  border: 1px solid transparent;
   border-radius: 6px;
   background: none;
   color: var(--muted);
   font: 600 11px/1 ui-monospace, Menlo, monospace;
   letter-spacing: 0.04em;
+  opacity: 0;
+}
+
+/* The group's own colour, the same square the list below it marks a group
+   with — which is what ties the chip to the spine it stands against. */
+.row-group::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--group, var(--bar));
+}
+
+.staff:hover .row-group,
+.row-group:focus-visible,
+.row-group[aria-expanded='true'] {
+  opacity: 1;
 }
 
 .row-group:hover:not(:disabled) {
@@ -731,16 +804,11 @@ button.link {
   color: var(--accent);
 }
 
-/* A row in no group is quieter still: it says where it could go, not where it
-   is, and only shows its outline once it is pointed at. */
-.row-group--none {
-  border-color: transparent;
-  opacity: 0.6;
-}
-
-.staff:hover .row-group--none {
-  border-color: var(--bar);
-  opacity: 1;
+/* A row in no group has no bar to say so, so its chip says it instead — and
+   its swatch is left empty, since there is no colour to carry. */
+.row-group--none::before {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--bar);
 }
 
 /* Neither the name nor the group takes a press while the order is being

@@ -199,9 +199,8 @@ export function addRow({ rows, rowIds = createRowIds(rows.length), grid, ties, m
 /* Groups ------------------------------------------------------------------
  *
  * A group is a collection of rows — a verse, a chorus, the four bars that
- * come back later. A sheet holds a list of them, in the order the strip above
- * the staves shows them, and each one can be given a name of its own; a sheet
- * starts with a single empty group to put rows in.
+ * come back later. A sheet holds a list of them, each with a name of its own,
+ * and starts with a single empty group to put rows in.
  *
  * Which rows a group holds is kept the other way round, as one entry per row:
  * `members` maps a row id to the group that row is in, and a row that has not
@@ -209,6 +208,14 @@ export function addRow({ rows, rowIds = createRowIds(rows.length), grid, ties, m
  * one group, and because membership then travels with the row id exactly as
  * the row's name does — reordering and renaming rows need no bookkeeping here
  * at all, and deleting one is a single entry to drop.
+ *
+ * A group is drawn on the sheet as one bar across the top of the rows it
+ * holds, which asks one thing of the order those rows stand in: **a group's
+ * rows are always next to each other**. A group is therefore a place as well
+ * as a collection — it stands where its rows stand — and joining or leaving
+ * one moves the row, which is what `putRowInGroup` is for. Nothing else here
+ * may break that run: `collectGroups` is what puts a sheet right on the way
+ * in, and `groupRuns` is what reads the sheet back out as it is laid out.
  */
 
 /** Longest a group name can be: enough to name a section, not a sentence. */
@@ -256,6 +263,44 @@ export const rowsInGroup = (members, rowIds, groupId) =>
   rowIds
     .map((id, rowIndex) => (groupOfRow(members, id) === groupId ? rowIndex : -1))
     .filter((rowIndex) => rowIndex >= 0)
+
+/**
+ * The sheet as it is laid out, top to bottom: one block per group, holding the
+ * run of rows that group holds, and one block of its own for each row that is
+ * in no group.
+ *
+ * Reading the blocks off the rows rather than off the list of groups is what
+ * puts each group where its rows are. A sheet whose groups have somehow been
+ * left scattered still reads back correctly — such a group simply comes out as
+ * more than one block — so nothing drawn from this can be made nonsense by a
+ * file written elsewhere.
+ */
+export function groupRuns(members, rowIds, groups) {
+  const blocks = []
+
+  rowIds.forEach((id, rowIndex) => {
+    const groupId = groupOfRow(members, id)
+    const last = blocks[blocks.length - 1]
+
+    if (groupId !== null && last?.group?.id === groupId) {
+      last.rows.push(rowIndex)
+      return
+    }
+
+    const group = groupId === null ? null : (groups.find((one) => one.id === groupId) ?? null)
+    blocks.push({ group, rows: [rowIndex] })
+  })
+
+  return blocks
+}
+
+/**
+ * The groups holding no rows at all. They have nowhere of their own to stand
+ * on the sheet, so the view gathers them at the end: a group is somewhere to
+ * put rows before it is a bar over any.
+ */
+export const emptyGroups = (members, rowIds, groups) =>
+  groups.filter((group) => rowsInGroup(members, rowIds, group.id).length === 0)
 
 /** Drop memberships whose row, or whose group, has gone. */
 export const clampMembers = (members, rowIds, groups) =>
@@ -316,60 +361,126 @@ export function removeRow(
 }
 
 /**
- * Exchange two rows, the tab in them and all.
+ * Put the rows in a new order, the tab written in them and all.
  *
- * Rows can differ in length, so this is not a trade of two equal slices: the
- * grid is rebuilt with each row's run of columns standing where the other's
- * did, and whatever lay between them slides by the difference in their widths.
- * Arcs and symbols are held in absolute columns, so they are carried across
- * with the notes they hang on rather than left behind pointing at them.
+ * `order` is one entry per place on the page, naming the row that now stands
+ * there: `[2, 0, 1]` brings the third row to the top. Every way the sheet is
+ * rearranged comes through here — swapping two rows, gathering a group — so
+ * there is one place that knows what moving a row costs.
  *
- * The row ids travel with the tab, so everything said about a row — the name
- * it was given, the group it is in — goes with the music rather than staying
- * behind with the place on the page.
+ * Rows can differ in length, so this is not a shuffle of equal slices: the
+ * grid is rebuilt run by run in the new order, and each row's columns travel
+ * by the distance that row's own start moved. Arcs and symbols are held in
+ * absolute columns, so they are carried the same distance as the notes they
+ * hang on rather than left behind pointing at them.
+ *
+ * The row ids travel too, so everything said about a row — the name it was
+ * given, the group it is in — goes with the music rather than staying behind
+ * with the place on the page.
  */
+export function reorderRows({ rows, rowIds = createRowIds(rows.length), grid, ties, marks }, order) {
+  // Anything but one place per row would lose or duplicate a row's columns.
+  if (!Array.isArray(order) || order.length !== rows.length) {
+    return { rows, rowIds, grid, ties, marks }
+  }
+
+  const starts = rowStarts(rows)
+  const moved = order.map((from) => rows[from])
+  const movedStarts = rowStarts(moved)
+  // How far the columns of each row travel, by where that row stood before.
+  const drift = new Map(order.map((from, to) => [from, movedStarts[to] - starts[from]]))
+
+  const moveCol = (col) => {
+    const row = rowAt(rows, col)
+    return row < 0 ? col : col + drift.get(row)
+  }
+
+  return {
+    rows: moved,
+    rowIds: order.map((from) => rowIds[from]),
+    grid: [
+      ...order.flatMap((from) => grid.slice(starts[from], starts[from] + rowWidth(rows[from]))),
+      // Columns past the last row belong to no row, so they are not ours to
+      // move; they are left where they are for `fitGrid` to trim.
+      ...grid.slice(totalColumns(rows)),
+    ],
+    ties: ties.map((tie) => ({ ...tie, from: moveCol(tie.from), to: moveCol(tie.to) })),
+    marks: marks.map((mark) => ({ ...mark, col: moveCol(mark.col) })),
+  }
+}
+
+/** Exchange two rows, the tab in them and all. */
 export function swapRows({ rows, rowIds = createRowIds(rows.length), grid, ties, marks }, a, b) {
   const last = rows.length - 1
   if (a === b || a < 0 || b < 0 || a > last || b > last) {
     return { rows, rowIds, grid, ties, marks }
   }
 
-  // Named by which comes first on the page, so the grid can be cut in order.
-  const [upper, lower] = a < b ? [a, b] : [b, a]
-  const starts = rowStarts(rows)
-  const upperWidth = rowWidth(rows[upper])
-  const lowerWidth = rowWidth(rows[lower])
-  const upperEnd = starts[upper] + upperWidth
-  const lowerEnd = starts[lower] + lowerWidth
-  // What the rows caught between the two gain or lose by the exchange.
-  const drift = lowerWidth - upperWidth
-  const gap = starts[lower] - starts[upper]
+  const order = rows.map((_, at) => (at === a ? b : at === b ? a : at))
+  return reorderRows({ rows, rowIds, grid, ties, marks }, order)
+}
 
-  const moveCol = (col) => {
-    if (col >= starts[upper] && col < upperEnd) return col + gap + drift
-    if (col >= starts[lower] && col < lowerEnd) return col - gap
-    if (col >= upperEnd && col < starts[lower]) return col + drift
-    return col
-  }
+/**
+ * Put a row in a group, or take it out of the one it is in with null — and
+ * move the row to where that leaves it standing.
+ *
+ * A group is one bar over a run of rows, so joining a group gathers the row to
+ * the end of that group's run, and leaving one drops the row just past the run
+ * it was in. A row joining a group that holds nothing yet stays exactly where
+ * it is: that row is where the group now stands.
+ *
+ * Hands back the sheet, the memberships, and the place the row ended up in —
+ * which is what it has to be called by afterwards.
+ */
+export function putRowInGroup(sheet, rowIndex, groupId) {
+  const { rows, rowIds = createRowIds(rows.length), members = {} } = sheet
+  if (rowIndex < 0 || rowIndex >= rows.length) return { ...sheet, members, at: rowIndex }
 
-  const exchange = (list) =>
-    list.map((item, i) => (i === upper ? list[lower] : i === lower ? list[upper] : item))
+  const was = groupOfRow(members, rowIds[rowIndex])
+  const next = setRowGroup(members, rowIds[rowIndex], groupId)
+  // The group whose run the move is about: the one being joined, or — when
+  // the row is leaving every group — the one it is stepping out of.
+  const concerned = Number.isInteger(groupId) ? groupId : was
+  const run = rowsInGroup(next, rowIds, concerned).filter((at) => at !== rowIndex)
 
-  return {
-    rows: exchange(rows),
-    rowIds: exchange(rowIds),
-    grid: [
-      ...grid.slice(0, starts[upper]),
-      ...grid.slice(starts[lower], lowerEnd),
-      ...grid.slice(upperEnd, starts[lower]),
-      ...grid.slice(starts[upper], upperEnd),
-      ...grid.slice(lowerEnd),
-    ],
-    // Both ends of an arc live on the same row, so both travel the same way
-    // and the pair stays in order.
-    ties: ties.map((tie) => ({ ...tie, from: moveCol(tie.from), to: moveCol(tie.to) })),
-    marks: marks.map((mark) => ({ ...mark, col: moveCol(mark.col) })),
-  }
+  // Lifted out of the order, then put back down past the end of that run.
+  const order = rows.map((_, at) => at)
+  order.splice(rowIndex, 1)
+  const at = run.length ? order.indexOf(run[run.length - 1]) + 1 : rowIndex
+  order.splice(at, 0, rowIndex)
+
+  return { ...reorderRows(sheet, order), members: next, at }
+}
+
+/**
+ * Gather every group's rows together, each group standing where the first row
+ * it holds already stands.
+ *
+ * A group used to be a collection and nothing more, so a sheet written then
+ * can hold a group whose rows are scattered down the page. It is drawn as a
+ * bar over a run of rows now, so a sheet is put right on the way in rather
+ * than drawn as a group broken into pieces.
+ */
+export function collectGroups(sheet) {
+  const { rows, rowIds = createRowIds(rows.length), members = {} } = sheet
+  const order = []
+  const taken = new Set()
+
+  rowIds.forEach((id, rowIndex) => {
+    if (taken.has(rowIndex)) return
+
+    const groupId = groupOfRow(members, id)
+    // A row in no group stands alone; the first row of a group brings the
+    // rest of that group with it.
+    const run = groupId === null ? [rowIndex] : rowsInGroup(members, rowIds, groupId)
+
+    for (const at of run) {
+      order.push(at)
+      taken.add(at)
+    }
+  })
+
+  return reorderRows(sheet, order)
 }
 
 /** Grow the grid so it exactly covers `rows`, keeping what is already written. */
@@ -856,7 +967,7 @@ export function toJson(
       version: 11,
       title,
       tuning,
-      // The note written above the groups — prose about the song, which is
+      // The note written at the top of the sheet — prose about the song, which is
       // why it is kept whole rather than shaped on the way out.
       memo: readMemo(memo),
       // Playback tempo, in beats per minute — one grid column per beat.
@@ -870,7 +981,8 @@ export function toJson(
       // have one. Keyed by id rather than by place, since the name belongs to
       // the row and not to the line it happens to be written on.
       names: clampRowNames(names, rowIds),
-      // The groups the sheet holds, in the order the strip shows them.
+      // The groups the sheet holds. Which rows each one holds is read from
+      // `members`, and where it stands is read from where those rows stand.
       groups,
       // Which group each row is in, keyed by row id. Rows in none are absent.
       members: clampMembers(members, rowIds, groups),
@@ -946,23 +1058,29 @@ export function fromJson(text) {
   const legacyIds = Array.isArray(data.groups) && data.groups.every(Number.isInteger)
   const rowIds = readRowIds(legacyIds ? data.groups : data.rowIds, rows.length)
   const groups = readGroups(legacyIds ? null : data.groups)
+  // A file written before groups held rows has put none of them anywhere,
+  // and its running order, if it had one, is not a thing any more.
+  const members = readMembers(data.members, rowIds, groups)
+  // A group is drawn as one bar over a run of rows, so a file holding a group
+  // whose rows are scattered down the page has them gathered on the way in.
+  // Names and memberships are kept by row id, so neither moves with the rows.
+  const gathered = collectGroups({ rows, rowIds, grid: columns, members, ties, marks })
+
   return {
     title: typeof data.title === 'string' ? data.title : '',
-    grid: columns,
-    rows,
-    rowIds,
+    grid: gathered.grid,
+    rows: gathered.rows,
+    rowIds: gathered.rowIds,
     // A file written before rows could be named simply has none.
     names: readRowNames(data.names, rowIds),
     groups,
-    // A file written before groups held rows has put none of them anywhere,
-    // and its running order, if it had one, is not a thing any more.
-    members: readMembers(data.members, rowIds, groups),
+    members,
     // A file written before live mode existed simply plays at the default.
     bpm: clampBpm(data.bpm),
     // A file written before the note existed (version 9 and earlier) has none.
     memo: readMemo(data.memo),
-    ties,
-    marks,
+    ties: gathered.ties,
+    marks: gathered.marks,
   }
 }
 
@@ -985,8 +1103,8 @@ function readRowIds(raw, rowCount) {
 
 /**
  * The groups from a file: whatever of the list is well formed, and always at
- * least one, since a sheet with nowhere to put a row has nothing to show in
- * the strip. Ids are taken as written where they can be, so the memberships
+ * least one, since a sheet with nowhere to put a row has nothing to offer the
+ * row's own chip. Ids are taken as written where they can be, so the memberships
  * read beside them still point at the right group.
  */
 function readGroups(raw) {

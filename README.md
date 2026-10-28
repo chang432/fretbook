@@ -79,7 +79,7 @@ right, and that is what they are showing you.
 
 ### A note on the sheet
 
-Above the **Groups** strip is **Notes**, a box for what the staves cannot say —
+At the top of the sheet is **Notes**, a box for what the staves cannot say —
 a tuning, a capo, who it is by, what to listen for.
 
 - It is **folded away** until you press the heading, so an empty box is never
@@ -94,50 +94,52 @@ a tuning, a capo, who it is by, what to listen for.
 - A whole run of typing is **one step of Undo**, the same bargain writing a
   fret makes, so taking back a note you did not mean to write is one press.
 
-### Groups and song structure
+### Groups
 
-Each row is a **group** — a chunk of tab meant to be played more than once. The
-**Groups** strip above the staves is the running order: press a slot, pick a
-group from the list that appears, and it takes that group's number.
+A **group** is a run of rows that belong together — a verse, a chorus, the four
+bars that come back later. A group is drawn where its rows are: one **bar
+across the full width of the sheet**, with the rows it holds indented under it
+behind a vertical spine in the group's own colour, so the bar and the spine
+read as one bracket around the group.
 
-- Writing `1 1 2 1 3 1` there says to play the first row twice, then the
-  second, then the first, then the third, then the first again — without
-  writing any of it out twice.
-- Pressing a slot that already holds a group reopens the list with that group
-  marked, plus **Clear** to empty the slot. <kbd>esc</kbd> or a press anywhere
-  else closes the list without changing anything.
-- There is always one free slot past the end, so the strip grows as you fill it.
-- Removing a row removes the group, so any slot calling for it is emptied. A
-  new row is given a number past every one handed out so far, so a slot left
-  over from a group that has gone never quietly picks up its replacement — which
-  is why the numbers can end up 1, 2, 4 rather than always running on.
+- **Name a group by typing in its bar.** <kbd>enter</kbd> writes the name down,
+  <kbd>esc</kbd> abandons what was typed. A group nobody has named answers to
+  where it stands — *Group 2* — so there is always something to call it.
+- **Move a row between groups from the chip on its own line**, which appears
+  when the row is pointed at. The list it opens holds every group, plus
+  **None** to take the row out of the one it is in.
+- **A group's rows are always next to each other**, since the bar brackets
+  them. Putting a row in a group therefore moves it: it joins the end of that
+  group's run, and leaving a group drops it just past the rows that group still
+  holds. The row keeps its name, its notes, its arcs and its symbols — only its
+  number changes, because the number is where it stands.
+- A row in no group stands on its own, flush left, with no bar over it.
+- **+ New group** at the end of the sheet adds one. It holds no rows yet, so it
+  waits there as a bar until a row is sent to it — and the next group made
+  takes the next colour, four of them before they come round again.
+- Deleting a row takes it out of its group with it. Groups are never deleted;
+  an empty one costs a bar at the end of the sheet and nothing else.
 
 ### Reordering the sheet
 
 The **two rows and an arrow** in the toolbar turn on edit mode, which is where
 the sheet is rearranged rather than written in. Press a row, then press
-another, and the two exchange places. The same two presses work on the Groups
-strip, where they exchange two positions of the running order.
+another, and the two exchange places.
 
 - The first press picks something up and holds it, drawn in the accent colour.
   The second says what to swap it with. Pressing the same one again, or
   <kbd>esc</kbd>, puts it back down without moving anything.
-- A row and a group slot are different things with nothing to trade, so
-  reaching for one lets go of the other rather than swapping across them.
 - **Everything in a row travels with it** — the notes, the arcs, the symbols,
   and the bars it is however many of. Two rows of different lengths swap just
   as readily as two of the same length; the rows between them slide by the
   difference.
-- **A row's number goes with it.** The circle at the left of a row is its
-  group, and a group is a name rather than a place: swap the first and third
-  rows and their circles read 3 and 1. The rows are no longer numbered down the
-  page, because what is written in them has moved.
-- **The two orders are independent.** Swapping rows does not touch the Groups
-  strip, and swapping slots does not touch the rows. A strip reading `1 1 2 1`
-  still reads `1 1 2 1` after rows 1 and 2 have changed places, and still plays
-  the same music — group 1 is wherever group 1 now sits. Rearranging the page
-  and changing the running order are two separate things, and each is done in
-  one place.
+- **A row is numbered by where it stands**, so swapping two rows swaps their
+  numbers with them. What the row *is* — its name, the group it is in — travels
+  with the music instead, since both are kept against the row rather than
+  against the line it happens to be written on.
+- **Rows can be swapped across groups.** The row that moves into a group's run
+  belongs to that group afterwards, which is the one case where a swap changes
+  what a row is in rather than only where it is.
 - **Writing is off while the mode is on.** A press anywhere on a row means
   *this row* rather than *this position*, so the cells stop taking type and the
   per-row bar buttons stand down. Turning the mode back off gives all of it
@@ -148,9 +150,8 @@ strip, where they exchange two positions of the running order.
   **Undo** puts it back — unlike the bar **−**, which still asks twice, since
   taking a bar off is a smaller thing to mean and a harder one to see. The
   sheet never drops below a single row. Everything below the deleted row
-  slides up, and any slot of the running order calling for its group is
-  emptied — the numbers in the remaining circles do not change, since a group
-  is a name rather than a place.
+  slides up and is renumbered, and the group it was in simply holds one row
+  fewer.
 
 ### Ties
 
@@ -262,10 +263,10 @@ it, the way a DAW moves a track past its play position.
 
 - One position is one beat, so a bar is four of them. At 90 BPM the playhead
   crosses a position every two thirds of a second.
-- The song played is the **Groups** running order, expanded — writing `1 1 2`
-  there plays the first row, then the first row again, then the second, one
-  continuous line of tab. A sheet with an empty running order plays its rows
-  once each, top to bottom.
+- The song played is the sheet itself: every row once, top to bottom, one
+  continuous line of tab. Groups change where the rows stand, so they change
+  the order the song is played in — but a group is not itself played, and
+  nothing is repeated that is not written twice.
 - A silent bar leads in, so there is a bar's worth of tempo to pick up before
   the first note is due.
 - With sound on, every note standing on the position the playhead reaches
@@ -388,7 +389,7 @@ their CORS rule, the API token and the costs are in
 src/
   App.jsx                  state, toolbar, rows, exports, autosave
   components/TabEditor.jsx  the writable staves, keyboard nav, tie arming
-  components/GroupSection.jsx the running order above the staves, and its picker
+  components/GroupBar.jsx   one group's bar across the sheet, and the name typed into it
   components/StaffOverlay.jsx the SVG arcs and symbols over one staff line
   components/MarkBar.jsx    the rewind, tie and symbol buttons floating over the selected position
   components/PositionStrip.jsx one control per position above a staff, shared by the shift anchors and copy mode
@@ -397,7 +398,7 @@ src/
   components/icons.jsx      the drawn symbols on the buttons that carry no words
   utils/tab.js              grid, tie and mark model; ASCII/JSON; downloads
   utils/notes.js            the published notes' bucket: its URLs and reads
-  utils/live.js             the running order as a flat run of beats, and its timing
+  utils/live.js             the sheet as a flat run of beats, and its timing
   utils/audio.js            fret-to-pitch both ways, and the plucked-string synthesis
   utils/popover.js          where an anchored panel sits, kept inside the window
   utils/layout.js           staff geometry and the arc/symbol maths, shared by
@@ -411,20 +412,21 @@ contiguous slice — that is how it is edited and how every export walks it. Tie
 it in absolute grid positions: that is what lets one arc be clipped across a
 staff wrap, and it keeps a cell's value a plain string.
 
-Live mode reads that same grid rather than a copy of it: `songRuns` turns the
-running order into the list of stretches to play, each holding the column its
-row starts at. A group played three times is three runs pointing at the same
-columns, which is why a repeat costs nothing and why its arcs and symbols —
-kept in absolute columns — draw correctly every time round.
+Live mode reads that same grid rather than a copy of it: `songRuns` cuts the
+sheet into one stretch per row, each holding the column that row starts at, so
+the player walks a flat list of beats and never has to work out where a row
+begins.
 
-Group ids live in a parallel `groups` array — one per staff row, in row order —
-and are what `structure` refers to. They are zero-based, which is exactly what
-the running order held back when a slot named a row by its index, so a file
-written before ids existed reads back unchanged: `readGroups` hands its rows
-identity ids and every slot in it still resolves. `songRuns` looks each slot up
-with `rowOfGroup` rather than indexing `rows` directly, which is the whole
-mechanism — reordering rows moves the tab and its name together, and the song
-is unaffected.
+Groups are kept the other way round from how they are drawn. The sheet holds a
+list of them — `{ id, name }`, ids handed out in turn and never reused — and
+`members` maps a **row id** to the group that row is in, so membership travels
+with the row exactly as its name does. Nothing records where a group stands:
+a group is drawn as one bar over the rows it holds, so it stands where they
+do, and `groupRuns` reads that layout back off the order of the rows. The one
+thing this asks of that order is that **a group's rows are adjacent**:
+`putRowInGroup` is what keeps them so, moving the row as it changes what it
+belongs to, and `collectGroups` gathers a file whose groups were written
+scattered down the page.
 
 Row lengths live in a parallel `rows` array — one bar count per staff line —
 while the grid stays one flat run of columns. Adding a bar therefore inserts
@@ -437,21 +439,15 @@ version 10 `memo` — the sheet's note, called that throughout the code because
 "note" already means a fret on a string, and a published sheet besides. A file
 written before any of them simply opens without it.
 
-The running order is a parallel `structure` array — one slot per position in
-the song, holding the index of the row played there or `null`. Because slots
-point at rows by index, dropping a row has to blank the slots that named it,
-which is what `clampStructure` does. Files written before groups existed
-(version 4 and earlier) simply load with an empty running order.
-
-Swapping two rows is the same bookkeeping run the other way. `swapRows` rebuilds
-the grid with each row's run of columns standing where the other's did — the
-rows caught between them slide by the difference in the two widths — and remaps
-every tie and mark through the same function, since both are held in absolute
-columns. `structure` is handed straight back untouched, which is what keeps the
-two orders apart: a slot names a group by index, so leaving the indices alone
-leaves the strip saying what it said, and the row that moved into a position is
-the one now played there. `swapGroupSlots` is the other half, reordering the
-strip without reaching into the grid at all.
+Rearranging the rows is the same bookkeeping run the other way, and all of it
+goes through one function. `reorderRows` takes the new order — one entry per
+place on the page, naming the row that now stands there — rebuilds the grid run
+by run in that order, and carries every tie and mark by the distance its own
+row moved, since both are held in absolute columns. Rows can differ in length,
+so the rows caught between two that trade places slide by the difference in
+their widths. `swapRows` is that function given a two-row order, and
+`putRowInGroup` and `collectGroups` are the same function given the order a
+group's bracket needs.
 
 `removeRow` takes the same view of a row as `removeBar` does of a bar, a whole
 row wide: it cuts that row's run of columns out of the grid, so everything

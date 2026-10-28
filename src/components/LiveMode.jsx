@@ -278,8 +278,11 @@ export default function LiveMode({
   }
 
   const run = runAt(runs, beat)
+  // A run is one row of the sheet — `group` and `slot` were what a row and
+  // its place in the running order were called before either was a thing of
+  // its own, and neither has been on a run since.
   const readout = run
-    ? `Group ${run.group + 1} · bar ${barOf(run, beat)}/${run.cols / BEATS_PER_BAR} · ${run.slot + 1} of ${runs.length}`
+    ? `Row ${run.row + 1} of ${runs.length} · bar ${barOf(run, beat)}/${run.cols / BEATS_PER_BAR}`
     : beat < 0
       ? 'Ready'
       : 'End of song'

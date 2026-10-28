@@ -23,6 +23,7 @@ import {
   fromJson,
   groupLabel,
   groupOfRow,
+  putRowInGroup,
   isGridEmpty,
   isSameTie,
   lastBarNoteCount,
@@ -37,7 +38,6 @@ import {
   rowName,
   rowNoteCount,
   setGroupName,
-  setRowGroup,
   setRowName,
   shiftLoss,
   shiftRow,
@@ -107,9 +107,10 @@ export default function App({ published = null }) {
   // The names rows have been given, keyed by row id — so a name travels with
   // its row the way the id does. Rows nobody has named are absent.
   const [names, setNames] = useState(() => saved?.names ?? {})
-  // The groups the sheet holds, in the order the strip shows them, and which
-  // group each row is in — kept against the row id, so a row carries its
-  // group around the page with it. A sheet always has at least one group.
+  // The groups the sheet holds, and which group each row is in — kept against
+  // the row id, so a row carries its group around the page with it. Where a
+  // group stands is not kept at all: a group is drawn over the rows it holds,
+  // so it stands where they do. A sheet always has at least one group.
   const [groups, setGroups] = useState(() => saved?.groups ?? createGroups())
   const [members, setMembers] = useState(() => saved?.members ?? {})
   const [grid, setGrid] = useState(() => fitGrid(saved?.grid ?? [], saved?.rows ?? createRows()))
@@ -285,7 +286,10 @@ export default function App({ published = null }) {
     disarmRemovals()
   }
 
-  /** Add an empty group to the end of the strip. */
+  /**
+   * Add an empty group. It holds no rows yet, so it waits as a bar at the end
+   * of the sheet until one is sent to it.
+   */
   const handleAddGroup = () => {
     remember('adding a group')
     const next = addGroup(groups)
@@ -307,17 +311,25 @@ export default function App({ published = null }) {
     setStatus(`That group is now ${groupLabel(next, groupId)}`)
   }
 
-  /** Put a row in a group, or take it out of the one it is in with null. */
+  /**
+   * Put a row in a group, or take it out of the one it is in with null.
+   *
+   * A group is drawn as one bar over the rows it holds, so this moves the row
+   * as well: it joins the end of its new group's run, or drops just past the
+   * run it has left. The row therefore has a new number afterwards, which is
+   * what the sheet is told about — the old one no longer points at it.
+   */
   const handleSetRowGroup = (rowIndex, groupId) => {
-    const id = rowIds[rowIndex]
-    if (groupOfRow(members, id) === groupId) return
+    if (groupOfRow(members, rowIds[rowIndex]) === groupId) return
 
     remember(`moving row ${rowLabel(rowIndex)}`)
-    setMembers(setRowGroup(members, id, groupId))
+    const next = putRowInGroup(sheet, rowIndex, groupId)
+    applySheet(next)
+    disarmRemovals()
     setStatus(
       Number.isInteger(groupId)
-        ? `Row ${rowLabel(rowIndex)} is in ${groupLabel(groups, groupId)}`
-        : `Row ${rowLabel(rowIndex)} is in no group`,
+        ? `Row ${rowLabel(next.at)} is in ${groupLabel(groups, groupId)}`
+        : `Row ${rowLabel(next.at)} is in no group`,
     )
   }
 

@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import GroupSection from './GroupSection.jsx'
+import GroupBar from './GroupBar.jsx'
 import MarkBar from './MarkBar.jsx'
 import Popover from './Popover.jsx'
 import MemoSection from './MemoSection.jsx'
@@ -11,8 +11,10 @@ import {
   MARK_ZIGZAG,
   MAX_ROW_NAME,
   STRING_COUNT,
+  emptyGroups,
   groupLabel,
   groupOfRow,
+  groupRuns,
   isSameTie,
   makeRange,
   makeTie,
@@ -34,6 +36,18 @@ const TIE_KEY = 't'
 
 /** Keyboard equivalent of the rewind button beside it. */
 const COPY_KEY = 'r'
+
+/** How many colours the group bars run through before coming round again. */
+const GROUP_TONES = 4
+
+/**
+ * The colour a group is drawn in — its bar, the spine down the rows it holds,
+ * and the swatch on the chip that moves a row into it. Taken from the group's
+ * id rather than from where it stands, so a group keeps its colour for as
+ * long as it exists, and two groups made one after the other never share one:
+ * ids are handed out in turn and never reused.
+ */
+const groupTone = (id) => `var(--group-${(id % GROUP_TONES) + 1})`
 
 /**
  * The whole writable sheet: one staff per row, top to bottom. `rows` is the
@@ -557,466 +571,530 @@ export default function TabEditor({
       : 'Hold the selected note through to here'
   }
 
-  return (
-    <div className="editor">
-      {/* Prose about the sheet, above the running order and folded away until
-          there is something to say. It takes no part in edit mode: a note is
-          neither a row nor a slot, so there is nothing for it to swap with. */}
-      <MemoSection memo={memo} onChange={onMemoChange} />
+  /**
+   * One row of the sheet, from its name line to the buttons past the end of
+   * the staff. Handed out by the loop below rather than drawn in a run of its
+   * own, since a row in a group is drawn inside that group's bracket.
+   */
+  const staffOf = (staff) => {
+    const bars = rows[staff]
+    const start = starts[staff]
+    const cols = rowWidth(bars)
+    const staffColumns = grid.slice(start, start + cols)
 
-      <GroupSection
-        groups={groups}
-        members={members}
-        rowIds={rowIds}
-        names={names}
-        editing={editing}
-        onAddGroup={onAddGroup}
-        onRenameGroup={onRenameGroup}
-        onSetRowGroup={onSetRowGroup}
-      />
+    // The strips stand inside the scroller and push the strings down, so
+    // the string labels outside it have to come down by the same amount to
+    // stay level. Counted rather than special-cased: copy mode shows two,
+    // a shifting row one, and a row doing both shows all three.
+    const strips = editing ? 0 : (shiftRows.has(staff) ? 1 : 0) + (copying ? 2 : 0)
 
-      {rows.map((bars, staff) => {
-        const start = starts[staff]
-        const cols = rowWidth(bars)
-        const staffColumns = grid.slice(start, start + cols)
+    // Only a folded row says what it holds, so only a folded row is counted.
+    const folded = isFolded(staff)
+    const notes = folded ? rowNoteCount(grid, rows, staff) : 0
 
-        // The strips stand inside the scroller and push the strings down, so
-        // the string labels outside it have to come down by the same amount to
-        // stay level. Counted rather than special-cased: copy mode shows two,
-        // a shifting row one, and a row doing both shows all three.
-        const strips = editing ? 0 : (shiftRows.has(staff) ? 1 : 0) + (copying ? 2 : 0)
-
-        // Only a folded row says what it holds, so only a folded row is counted.
-        const folded = isFolded(staff)
-        const notes = folded ? rowNoteCount(grid, rows, staff) : 0
-
-        return (
-          <div
-            className={`staff${folded ? ' staff--folded' : ''}`}
-            style={{ '--strips': strips }}
-            key={staff}
-            role="group"
-            aria-label={rowTitle(staff)}
+    return (
+      <div
+        className={`staff${folded ? ' staff--folded' : ''}`}
+        style={{ '--strips': strips }}
+        key={staff}
+        role="group"
+        aria-label={rowTitle(staff)}
+      >
+        {/* What the row is called, and the one line of it that is left
+            when it is folded away: the number, which folds and unfolds
+            the row, then the name it has been given, which is pressed to
+            write that name. A row with no name offers to take one only
+            while it is hovered, so an unnamed sheet carries no clutter;
+            naming stands down in edit mode, where the row itself is the
+            thing being pressed. */}
+        <div className="row-head">
+          <button
+            type="button"
+            className={`row-number${folded ? ' is-folded' : ''}`}
+            onClick={() => toggleFold(staff)}
+            aria-expanded={!folded}
+            title={folded ? 'Show this row' : 'Fold this row away'}
+            aria-label={`Row ${label(staff)}`}
           >
-            {/* What the row is called, and the one line of it that is left
-                when it is folded away: the number, which folds and unfolds
-                the row, then the name it has been given, which is pressed to
-                write that name. A row with no name offers to take one only
-                while it is hovered, so an unnamed sheet carries no clutter;
-                naming stands down in edit mode, where the row itself is the
-                thing being pressed. */}
-            <div className="row-head">
+            {label(staff)}
+          </button>
+
+          {nameBox === staff ? (
+            <input
+              className="row-name-input"
+              value={nameDraft}
+              autoFocus
+              maxLength={MAX_ROW_NAME}
+              placeholder="Name this row"
+              aria-label={`Name of row ${label(staff)}`}
+              onChange={(event) => setNameDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  event.currentTarget.blur()
+                } else if (event.key === 'Escape') {
+                  event.preventDefault()
+                  // Nothing else on the page should act on the same press.
+                  event.stopPropagation()
+                  abandoning.current = true
+                  event.currentTarget.blur()
+                }
+              }}
+              onBlur={() => finishNaming(staff)}
+            />
+          ) : nameOf(staff) ? (
+            <button
+              type="button"
+              className="row-name"
+              disabled={editing}
+              onClick={() => startNaming(staff)}
+              title="Rename this row"
+            >
+              {nameOf(staff)}
+            </button>
+          ) : (
+            !editing && (
               <button
                 type="button"
-                className={`row-number${folded ? ' is-folded' : ''}`}
-                onClick={() => toggleFold(staff)}
-                aria-expanded={!folded}
-                title={folded ? 'Show this row' : 'Fold this row away'}
-                aria-label={`Row ${label(staff)}`}
+                className="row-name row-name--empty"
+                onClick={() => startNaming(staff)}
+                title="Name this row"
               >
-                {label(staff)}
+                Name
               </button>
+            )
+          )}
 
-              {nameBox === staff ? (
-                <input
-                  className="row-name-input"
-                  value={nameDraft}
-                  autoFocus
-                  maxLength={MAX_ROW_NAME}
-                  placeholder="Name this row"
-                  aria-label={`Name of row ${label(staff)}`}
-                  onChange={(event) => setNameDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault()
-                      event.currentTarget.blur()
-                    } else if (event.key === 'Escape') {
-                      event.preventDefault()
-                      // Nothing else on the page should act on the same press.
-                      event.stopPropagation()
-                      abandoning.current = true
-                      event.currentTarget.blur()
-                    }
-                  }}
-                  onBlur={() => finishNaming(staff)}
-                />
-              ) : nameOf(staff) ? (
-                <button
-                  type="button"
-                  className="row-name"
-                  disabled={editing}
-                  onClick={() => startNaming(staff)}
-                  title="Rename this row"
-                >
-                  {nameOf(staff)}
-                </button>
-              ) : (
-                !editing && (
-                  <button
-                    type="button"
-                    className="row-name row-name--empty"
-                    onClick={() => startNaming(staff)}
-                    title="Name this row"
-                  >
-                    Name
-                  </button>
-                )
-              )}
+          {/* The way a row is moved from one group to another. The bar
+              above already says which group this is, so the chip no longer
+              has to name it — it carries the group's colour and otherwise
+              keeps out of the way until the row is pointed at. A row in no
+              group says so, since it has no bar of its own to say it. */}
+          <button
+            type="button"
+            className={`row-group${groupOf(staff) === null ? ' row-group--none' : ''}`}
+            style={groupOf(staff) === null ? undefined : { '--group': groupTone(groupOf(staff)) }}
+            disabled={editing}
+            aria-haspopup="dialog"
+            aria-expanded={groupMenu?.row === staff}
+            onClick={(event) =>
+              setGroupMenu(
+                groupMenu?.row === staff ? null : { row: staff, element: event.currentTarget },
+              )
+            }
+            title={
+              groupOf(staff) === null
+                ? `Put row ${label(staff)} in a group`
+                : `Move row ${label(staff)} out of ${groupLabel(groups, groupOf(staff))}, or into another group`
+            }
+          >
+            {groupOf(staff) === null ? 'No group' : 'Move'}
+          </button>
 
-              {/* Which group the row is in, and the way to put it in another.
-                  A row in none says so rather than showing nothing: the chip
-                  is how a row is moved, so it has to be there to be pressed. */}
-              <button
-                type="button"
-                className={`row-group${groupOf(staff) === null ? ' row-group--none' : ''}`}
-                disabled={editing}
-                aria-haspopup="dialog"
-                aria-expanded={groupMenu?.row === staff}
-                onClick={(event) =>
-                  setGroupMenu(
-                    groupMenu?.row === staff ? null : { row: staff, element: event.currentTarget },
-                  )
+          {/* A row put away still says what is in it, so the sheet can be
+              read down its folded rows. */}
+          {folded && (
+            <span className="row-folded">
+              {bars} bar{bars === 1 ? '' : 's'}
+              {notes > 0 && ` · ${notes} note${notes === 1 ? '' : 's'}`}
+            </span>
+          )}
+        </div>
+
+        {/* In edit mode a row is one thing to press rather than a grid of
+            cells, so a transparent sheet is laid over the whole staff and
+            takes the press. The tab underneath goes on being drawn — it is
+            what you are choosing between. */}
+        {editing && (
+          <button
+            type="button"
+            className={`row-select${selectedRow === staff ? ' is-selected' : ''}`}
+            aria-pressed={selectedRow === staff}
+            onClick={() => chooseRow(staff)}
+            onKeyDown={dropOnEscape}
+            title={
+              selectedRow === null
+                ? 'Pick this row up, then press another to swap the two'
+                : selectedRow === staff
+                  ? 'Put this row back down'
+                  : `Swap this row with row ${label(selectedRow)}`
+            }
+            aria-label={
+              selectedRow === null || selectedRow === staff
+                ? `Row ${label(staff)}`
+                : `Swap row ${label(staff)} with row ${label(selectedRow)}`
+            }
+          />
+        )}
+
+        <div className="staff-labels">
+          {tuning.map((label, stringIndex) => (
+            <span className="string-label" key={stringIndex}>
+              {label}
+            </span>
+          ))}
+        </div>
+
+        <div className="staff-scroll">
+          {/* One circle per position, above the staff and scrolling with
+              it, marking where a shift pivots. Only while the row's arrows
+              are out: it is part of that errand, not of the staff. */}
+          {!editing && shiftRows.has(staff) && (
+            <PositionStrip
+              className="anchor-strip"
+              label={`Shift anchor for row ${label(staff)}`}
+              start={start}
+              cols={cols}
+              cell={(col, indexInStaff) => {
+                const anchor = shiftRows.get(staff) ?? null
+                const selected = anchor === col
+                // A shift carries the anchor and everything to its right,
+                // so those are marked too: what moves is the point.
+                const carried = anchor !== null && col > anchor
+
+                return {
+                  className: [
+                    'position-dot',
+                    selected ? 'is-selected' : '',
+                    carried ? 'is-span' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' '),
+                  'aria-pressed': selected,
+                  onClick: () => toggleAnchor(staff, col),
+                  title: selected
+                    ? 'Shift the whole row again'
+                    : 'Shift this position and everything to its right',
+                  'aria-label': `Anchor row ${label(staff)}'s shift at position ${indexInStaff + 1}`,
                 }
-                title="Which group this row is in"
-              >
-                {groupOf(staff) === null ? 'No group' : groupLabel(groups, groupOf(staff))}
-              </button>
+              }}
+            />
+          )}
 
-              {/* A row put away still says what is in it, so the sheet can be
-                  read down its folded rows. */}
-              {folded && (
-                <span className="row-folded">
-                  {bars} bar{bars === 1 ? '' : 's'}
-                  {notes > 0 && ` · ${notes} note${notes === 1 ? '' : 's'}`}
-                </span>
-              )}
-            </div>
+          {/* Copy mode's two strips: circles to pick a stretch out with,
+              and under them a paste button per position saying "start the
+              stretch here". Both ride inside the scroller so they stay
+              over their own positions when a long row is scrolled. */}
+          {!editing && copying && (
+            <>
+              <PositionStrip
+                className="range-strip"
+                label={`Copy range for row ${label(staff)}`}
+                start={start}
+                cols={cols}
+                cell={(col, indexInStaff) => {
+                  const end = range?.row === staff && isRangeEnd(col)
+                  const spanned = range?.row === staff && inRange(col)
 
-            {/* In edit mode a row is one thing to press rather than a grid of
-                cells, so a transparent sheet is laid over the whole staff and
-                takes the press. The tab underneath goes on being drawn — it is
-                what you are choosing between. */}
-            {editing && (
-              <button
-                type="button"
-                className={`row-select${selectedRow === staff ? ' is-selected' : ''}`}
-                aria-pressed={selectedRow === staff}
-                onClick={() => chooseRow(staff)}
-                onKeyDown={dropOnEscape}
-                title={
-                  selectedRow === null
-                    ? 'Pick this row up, then press another to swap the two'
-                    : selectedRow === staff
-                      ? 'Put this row back down'
-                      : `Swap this row with row ${label(selectedRow)}`
-                }
-                aria-label={
-                  selectedRow === null || selectedRow === staff
-                    ? `Row ${label(staff)}`
-                    : `Swap row ${label(staff)} with row ${label(selectedRow)}`
-                }
+                  return {
+                    className: [
+                      'position-dot',
+                      end ? 'is-selected' : '',
+                      spanned && !end ? 'is-span' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' '),
+                    'aria-pressed': Boolean(end || spanned),
+                    onClick: () => chooseRangeEnd(staff, col),
+                    title:
+                      range?.row === staff && range.to === null
+                        ? 'Press again to mark the end of the stretch'
+                        : 'Mark one end of the stretch to copy',
+                    'aria-label': `Copy from position ${indexInStaff + 1} of row ${label(staff)}`,
+                  }
+                }}
               />
-            )}
+              <PositionStrip
+                className="paste-strip"
+                label={`Paste into row ${label(staff)}`}
+                start={start}
+                cols={cols}
+                cell={(col, indexInStaff) => ({
+                  className: `paste-button${pendingPaste === col ? ' is-armed' : ''}`,
+                  disabled: !rangeReady,
+                  onClick: () => paste(col),
+                  onBlur: cancelPaste,
+                  title:
+                    pendingPaste === col
+                      ? 'Press again to write over the notes already here'
+                      : rangeReady
+                        ? 'Paste the copied stretch starting here'
+                        : 'Pick out a stretch to copy first',
+                  'aria-label': `Paste starting at position ${indexInStaff + 1} of row ${label(staff)}`,
+                  children: <PasteIcon width={12} height={12} />,
+                })}
+              />
+            </>
+          )}
 
-            <div className="staff-labels">
-              {tuning.map((label, stringIndex) => (
-                <span className="string-label" key={stringIndex}>
-                  {label}
-                </span>
-              ))}
-            </div>
+          <div className="staff-body">
+            <StaffOverlay
+              ties={ties}
+              marks={marks}
+              staffStart={start}
+              cols={cols}
+              preview={preview}
+            />
 
-            <div className="staff-scroll">
-              {/* One circle per position, above the staff and scrolling with
-                  it, marking where a shift pivots. Only while the row's arrows
-                  are out: it is part of that errand, not of the staff. */}
-              {!editing && shiftRows.has(staff) && (
-                <PositionStrip
-                  className="anchor-strip"
-                  label={`Shift anchor for row ${label(staff)}`}
-                  start={start}
-                  cols={cols}
-                  cell={(col, indexInStaff) => {
-                    const anchor = shiftRows.get(staff) ?? null
-                    const selected = anchor === col
-                    // A shift carries the anchor and everything to its right,
-                    // so those are marked too: what moves is the point.
-                    const carried = anchor !== null && col > anchor
+            {tuning.map((_, stringIndex) => (
+              <div className="string-row" key={stringIndex}>
+                {staffColumns.map((column, indexInStaff) => {
+                  const col = start + indexInStaff
+                  const value = column[stringIndex]
+                  const target = isTieTarget(col, stringIndex)
+                  const isSource =
+                    arming && focused?.col === col && focused?.string === stringIndex
 
-                    return {
-                      className: [
-                        'position-dot',
-                        selected ? 'is-selected' : '',
-                        carried ? 'is-span' : '',
+                  return (
+                    <input
+                      key={col}
+                      ref={registerCell(`${col}:${stringIndex}`)}
+                      className={[
+                        'cell',
+                        value ? 'cell--filled' : '',
+                        target ? 'cell--tie-target' : '',
+                        target && col === cursor ? 'cell--tie-cursor' : '',
+                        isSource ? 'cell--tie-source' : '',
                       ]
                         .filter(Boolean)
-                        .join(' '),
-                      'aria-pressed': selected,
-                      onClick: () => toggleAnchor(staff, col),
-                      title: selected
-                        ? 'Shift the whole row again'
-                        : 'Shift this position and everything to its right',
-                      'aria-label': `Anchor row ${label(staff)}'s shift at position ${indexInStaff + 1}`,
-                    }
-                  }}
-                />
-              )}
-
-              {/* Copy mode's two strips: circles to pick a stretch out with,
-                  and under them a paste button per position saying "start the
-                  stretch here". Both ride inside the scroller so they stay
-                  over their own positions when a long row is scrolled. */}
-              {!editing && copying && (
-                <>
-                  <PositionStrip
-                    className="range-strip"
-                    label={`Copy range for row ${label(staff)}`}
-                    start={start}
-                    cols={cols}
-                    cell={(col, indexInStaff) => {
-                      const end = range?.row === staff && isRangeEnd(col)
-                      const spanned = range?.row === staff && inRange(col)
-
-                      return {
-                        className: [
-                          'position-dot',
-                          end ? 'is-selected' : '',
-                          spanned && !end ? 'is-span' : '',
-                        ]
-                          .filter(Boolean)
-                          .join(' '),
-                        'aria-pressed': Boolean(end || spanned),
-                        onClick: () => chooseRangeEnd(staff, col),
-                        title:
-                          range?.row === staff && range.to === null
-                            ? 'Press again to mark the end of the stretch'
-                            : 'Mark one end of the stretch to copy',
-                        'aria-label': `Copy from position ${indexInStaff + 1} of row ${label(staff)}`,
+                        .join(' ')}
+                      value={value}
+                      data-col={col}
+                      data-string={stringIndex}
+                      // Nothing is written while the order is being edited:
+                      // the overlay above takes every press, and this keeps
+                      // the cells out of the tab order behind it.
+                      readOnly={editing}
+                      tabIndex={editing ? -1 : undefined}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      spellCheck="false"
+                      aria-label={`String ${tuning[stringIndex]}, position ${col + 1}`}
+                      title={target ? tieHint(col, stringIndex) : undefined}
+                      onChange={(event) =>
+                        onCellChange(col, stringIndex, normalizeCell(event.target.value))
                       }
-                    }}
-                  />
-                  <PositionStrip
-                    className="paste-strip"
-                    label={`Paste into row ${label(staff)}`}
-                    start={start}
-                    cols={cols}
-                    cell={(col, indexInStaff) => ({
-                      className: `paste-button${pendingPaste === col ? ' is-armed' : ''}`,
-                      disabled: !rangeReady,
-                      onClick: () => paste(col),
-                      onBlur: cancelPaste,
-                      title:
-                        pendingPaste === col
-                          ? 'Press again to write over the notes already here'
-                          : rangeReady
-                            ? 'Paste the copied stretch starting here'
-                            : 'Pick out a stretch to copy first',
-                      'aria-label': `Paste starting at position ${indexInStaff + 1} of row ${label(staff)}`,
-                      children: <PasteIcon width={12} height={12} />,
-                    })}
-                  />
-                </>
-              )}
-
-              <div className="staff-body">
-                <StaffOverlay
-                  ties={ties}
-                  marks={marks}
-                  staffStart={start}
-                  cols={cols}
-                  preview={preview}
-                />
-
-                {tuning.map((_, stringIndex) => (
-                  <div className="string-row" key={stringIndex}>
-                    {staffColumns.map((column, indexInStaff) => {
-                      const col = start + indexInStaff
-                      const value = column[stringIndex]
-                      const target = isTieTarget(col, stringIndex)
-                      const isSource =
-                        arming && focused?.col === col && focused?.string === stringIndex
-
-                      return (
-                        <input
-                          key={col}
-                          ref={registerCell(`${col}:${stringIndex}`)}
-                          className={[
-                            'cell',
-                            value ? 'cell--filled' : '',
-                            target ? 'cell--tie-target' : '',
-                            target && col === cursor ? 'cell--tie-cursor' : '',
-                            isSource ? 'cell--tie-source' : '',
-                          ]
-                            .filter(Boolean)
-                            .join(' ')}
-                          value={value}
-                          data-col={col}
-                          data-string={stringIndex}
-                          // Nothing is written while the order is being edited:
-                          // the overlay above takes every press, and this keeps
-                          // the cells out of the tab order behind it.
-                          readOnly={editing}
-                          tabIndex={editing ? -1 : undefined}
-                          inputMode="numeric"
-                          autoComplete="off"
-                          spellCheck="false"
-                          aria-label={`String ${tuning[stringIndex]}, position ${col + 1}`}
-                          title={target ? tieHint(col, stringIndex) : undefined}
-                          onChange={(event) =>
-                            onCellChange(col, stringIndex, normalizeCell(event.target.value))
-                          }
-                          onMouseDown={(event) => {
-                            if (target) {
-                              // Taking a tie target keeps the source note
-                              // selected, so the press must not move focus here.
-                              event.preventDefault()
-                              onPlayNote(focused.string, valueAt(focused.col, focused.string))
-                              commitTie(focused.col, focused.string, col)
-                              return
-                            }
-                            // Pressing a note sounds it, every press — focus only
-                            // changes the first time, so it cannot carry this.
-                            onPlayNote(stringIndex, value)
-                          }}
-                          // Hover aims the same cursor the arrow keys move, so the
-                          // preview arc always shows what a press would draw.
-                          onMouseEnter={() => target && setCursor(col)}
-                          onFocus={(event) => {
-                            event.target.select()
-                            disarm()
-                            // The element rides along so the bar can anchor to it.
-                            setFocused({ col, string: stringIndex, element: event.target })
-                          }}
-                          onBlur={() => {
-                            disarm()
-                            setFocused(null)
-                          }}
-                          onDragStart={(event) => event.preventDefault()}
-                          onKeyDown={(event) => handleKeyDown(event, col, stringIndex)}
-                        />
-                      )
-                    })}
-                  </div>
-                ))}
+                      onMouseDown={(event) => {
+                        if (target) {
+                          // Taking a tie target keeps the source note
+                          // selected, so the press must not move focus here.
+                          event.preventDefault()
+                          onPlayNote(focused.string, valueAt(focused.col, focused.string))
+                          commitTie(focused.col, focused.string, col)
+                          return
+                        }
+                        // Pressing a note sounds it, every press — focus only
+                        // changes the first time, so it cannot carry this.
+                        onPlayNote(stringIndex, value)
+                      }}
+                      // Hover aims the same cursor the arrow keys move, so the
+                      // preview arc always shows what a press would draw.
+                      onMouseEnter={() => target && setCursor(col)}
+                      onFocus={(event) => {
+                        event.target.select()
+                        disarm()
+                        // The element rides along so the bar can anchor to it.
+                        setFocused({ col, string: stringIndex, element: event.target })
+                      }}
+                      onBlur={() => {
+                        disarm()
+                        setFocused(null)
+                      }}
+                      onDragStart={(event) => event.preventDefault()}
+                      onKeyDown={(event) => handleKeyDown(event, col, stringIndex)}
+                    />
+                  )
+                })}
               </div>
-            </div>
+            ))}
+          </div>
+        </div>
 
-            {/* Edit mode is where a row other than the last can be taken off
-                the sheet, so its one button stands at the end of the staff,
-                where the bar controls stand the rest of the time. It has to
-                sit above the press-sheet, which covers the whole row. */}
-            {editing && (
-              <div className="row-bars row-bars--edit">
-                <button
-                  type="button"
-                  className="bar-button bar-button--delete"
-                  onClick={() => onDeleteRow(staff)}
-                  onKeyDown={dropOnEscape}
-                  disabled={rows.length <= 1}
-                  title={
-                    rows.length <= 1
-                      ? 'The sheet keeps at least one row'
-                      : 'Delete this row — Undo takes it back'
-                  }
-                  aria-label={`Delete row ${label(staff)}`}
-                >
-                  <TrashIcon />
-                </button>
-              </div>
-            )}
+        {/* Edit mode is where a row other than the last can be taken off
+            the sheet, so its one button stands at the end of the staff,
+            where the bar controls stand the rest of the time. It has to
+            sit above the press-sheet, which covers the whole row. */}
+        {editing && (
+          <div className="row-bars row-bars--edit">
+            <button
+              type="button"
+              className="bar-button bar-button--delete"
+              onClick={() => onDeleteRow(staff)}
+              onKeyDown={dropOnEscape}
+              disabled={rows.length <= 1}
+              title={
+                rows.length <= 1
+                  ? 'The sheet keeps at least one row'
+                  : 'Delete this row — Undo takes it back'
+              }
+              aria-label={`Delete row ${label(staff)}`}
+            >
+              <TrashIcon />
+            </button>
+          </div>
+        )}
 
-            {/* The bar controls sit under the overlay, where nothing could
-                reach them, and none of what they do is reordering. They stand
-                down for as long as the mode is on. */}
-            <div className="row-bars" hidden={editing}>
-              {/* Shifting a row is the rarer errand of the four, so it is kept
-                  behind one button and opens out into the two arrows in place,
-                  above the buttons that change how many bars the row holds. */}
-              {shiftRows.has(staff) ? (
-                <>
-                  {/* Nothing else puts the arrows away, so they close on their
-                      own terms rather than the moment attention moves. It leads
-                      the group it closes, leaving the two arrows side by side. */}
-                  <button
-                    type="button"
-                    className="bar-button bar-button--close"
-                    onClick={() => closeShift(staff)}
-                    onKeyDown={closeShiftOnEscape(staff)}
-                    aria-expanded
-                    title="Done shifting this row"
-                    aria-label={`Hide row ${label(staff)}'s shift controls`}
-                  >
-                    ×
-                  </button>
-                  <button
-                    type="button"
-                    className="bar-button"
-                    // Taken as the arrows appear, so the press that opened them
-                    // does not leave focus behind on a button that has gone.
-                    autoFocus
-                    onClick={() => shift(staff, -1)}
-                    onKeyDown={closeShiftOnEscape(staff)}
-                    title="Move this row's notes one position left"
-                    aria-label={`Move row ${label(staff)}'s notes left`}
-                  >
-                    ←
-                  </button>
-                  <button
-                    type="button"
-                    className="bar-button"
-                    onClick={() => shift(staff, 1)}
-                    onKeyDown={closeShiftOnEscape(staff)}
-                    title="Move this row's notes one position right"
-                    aria-label={`Move row ${label(staff)}'s notes right`}
-                  >
-                    →
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  className="bar-button"
-                  onClick={() => openShift(staff)}
-                  disabled={copying}
-                  aria-expanded={false}
-                  title={
-                    copying
-                      ? 'Turn copy mode off to slide this row along'
-                      : "Slide this row's notes along"
-                  }
-                  aria-label={`Shift row ${label(staff)}'s notes`}
-                >
-                  ↔
-                </button>
-              )}
+        {/* The bar controls sit under the overlay, where nothing could
+            reach them, and none of what they do is reordering. They stand
+            down for as long as the mode is on. */}
+        <div className="row-bars" hidden={editing}>
+          {/* Shifting a row is the rarer errand of the four, so it is kept
+              behind one button and opens out into the two arrows in place,
+              above the buttons that change how many bars the row holds. */}
+          {shiftRows.has(staff) ? (
+            <>
+              {/* Nothing else puts the arrows away, so they close on their
+                  own terms rather than the moment attention moves. It leads
+                  the group it closes, leaving the two arrows side by side. */}
+              <button
+                type="button"
+                className="bar-button bar-button--close"
+                onClick={() => closeShift(staff)}
+                onKeyDown={closeShiftOnEscape(staff)}
+                aria-expanded
+                title="Done shifting this row"
+                aria-label={`Hide row ${label(staff)}'s shift controls`}
+              >
+                ×
+              </button>
               <button
                 type="button"
                 className="bar-button"
-                onClick={() => onAddBar(staff)}
-                title={`Add a bar to this row (${bars} so far)`}
-                aria-label={`Add a bar to row ${label(staff)}`}
+                // Taken as the arrows appear, so the press that opened them
+                // does not leave focus behind on a button that has gone.
+                autoFocus
+                onClick={() => shift(staff, -1)}
+                onKeyDown={closeShiftOnEscape(staff)}
+                title="Move this row's notes one position left"
+                aria-label={`Move row ${label(staff)}'s notes left`}
               >
-                +
+                ←
               </button>
               <button
                 type="button"
-                className={`bar-button${pendingRemove === staff ? ' is-armed' : ''}`}
-                onClick={() => onRemoveBar(staff)}
-                onBlur={onCancelRemove}
-                disabled={bars <= 1}
-                title={
-                  pendingRemove === staff
-                    ? 'Press again to delete this bar and the notes in it'
-                    : `Remove the last bar of this row (${bars} so far)`
-                }
-                aria-label={`Remove the last bar of row ${label(staff)}`}
+                className="bar-button"
+                onClick={() => shift(staff, 1)}
+                onKeyDown={closeShiftOnEscape(staff)}
+                title="Move this row's notes one position right"
+                aria-label={`Move row ${label(staff)}'s notes right`}
               >
-                −
+                →
               </button>
-            </div>
-          </div>
-        )
-      })}
+            </>
+          ) : (
+            <button
+              type="button"
+              className="bar-button"
+              onClick={() => openShift(staff)}
+              disabled={copying}
+              aria-expanded={false}
+              title={
+                copying
+                  ? 'Turn copy mode off to slide this row along'
+                  : "Slide this row's notes along"
+              }
+              aria-label={`Shift row ${label(staff)}'s notes`}
+            >
+              ↔
+            </button>
+          )}
+          <button
+            type="button"
+            className="bar-button"
+            onClick={() => onAddBar(staff)}
+            title={`Add a bar to this row (${bars} so far)`}
+            aria-label={`Add a bar to row ${label(staff)}`}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            className={`bar-button${pendingRemove === staff ? ' is-armed' : ''}`}
+            onClick={() => onRemoveBar(staff)}
+            onBlur={onCancelRemove}
+            disabled={bars <= 1}
+            title={
+              pendingRemove === staff
+                ? 'Press again to delete this bar and the notes in it'
+                : `Remove the last bar of this row (${bars} so far)`
+            }
+            aria-label={`Remove the last bar of row ${label(staff)}`}
+          >
+            −
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="editor">
+      {/* Prose about the sheet, at the top of it and folded away until there
+          is something to say. It takes no part in edit mode: a note is
+          neither a row nor a group, so there is nothing for it to swap with. */}
+      <MemoSection memo={memo} onChange={onMemoChange} />
+
+      {/* The sheet, top to bottom. A group is a bar across the page with the
+          rows it holds indented under it behind a spine in the group's own
+          colour, and a row in no group stands on its own where that bracket
+          would be. The rows are in sheet order either way: `groupRuns` only
+          reads the layout off the order the rows already stand in. */}
+      {groupRuns(members, rowIds, groups).map((block) =>
+        block.group ? (
+          <section
+            className="group"
+            key={`group-${block.group.id}`}
+            style={{ '--group': groupTone(block.group.id) }}
+            role="group"
+            aria-label={groupLabel(groups, block.group.id)}
+          >
+            <GroupBar
+              group={block.group}
+              label={groupLabel(groups, block.group.id)}
+              rows={block.rows.length}
+              editing={editing}
+              onRename={onRenameGroup}
+            />
+            <div className="group-body">{block.rows.map(staffOf)}</div>
+          </section>
+        ) : (
+          staffOf(block.rows[0])
+        ),
+      )}
+
+      {/* A group holding no rows has no rows to stand over, so it waits at the
+          end of the sheet: a bar to name, and somewhere for a row to be sent
+          to from its own chip. */}
+      {emptyGroups(members, rowIds, groups).map((group) => (
+        <section
+          className="group group--empty"
+          key={`group-${group.id}`}
+          style={{ '--group': groupTone(group.id) }}
+          role="group"
+          aria-label={groupLabel(groups, group.id)}
+        >
+          <GroupBar
+            group={group}
+            label={groupLabel(groups, group.id)}
+            rows={0}
+            editing={editing}
+            onRename={onRenameGroup}
+          />
+        </section>
+      ))}
+
+      {/* Another group, past the last of them — at a bar's own full width,
+          and dashed, the way somewhere to write is drawn rather than
+          something written. */}
+      <button
+        type="button"
+        className="group-add"
+        disabled={editing}
+        onClick={onAddGroup}
+        title="Add another group"
+      >
+        + New group
+      </button>
 
       {!editing && focused && (
         <MarkBar
@@ -1052,6 +1130,7 @@ export default function TabEditor({
                   key={group.id}
                   type="button"
                   className={`group-option${groupOf(groupMenu.row) === group.id ? ' is-active' : ''}`}
+                  style={{ '--group': groupTone(group.id) }}
                   aria-pressed={groupOf(groupMenu.row) === group.id}
                   onClick={() => {
                     onSetRowGroup(groupMenu.row, group.id)

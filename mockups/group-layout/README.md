@@ -1,5 +1,9 @@
 # Group layout mockup
 
+**Implemented.** The editor works this way now — see `src/components/GroupBar.jsx`,
+`groupRuns`/`putRowInGroup` in `src/utils/tab.js`, and the `.group*` rules in
+`src/styles.css`. This folder is kept as the sketch the refactor was agreed from.
+
 A standalone mockup of a refactor of the group layout. Open
 `mockups/group-layout/index.html` in a browser — no build, no dependencies.
 
@@ -24,7 +28,7 @@ A standalone mockup of a refactor of the group layout. Open
 - `+ New group` adds another bar, in the next colour.
 - Escape closes an open group list.
 
-## The one decision this layout forces
+## The decision this layout forced
 
 Today a group is a collection and not a place: `GroupSection.jsx` says its rows
 "need be neither next to each other nor in any particular order". A bar with a
@@ -33,6 +37,6 @@ spine under it can only bracket rows that are adjacent, so in this mockup
 member stands and collects the rest. An ungrouped row renders as a plain staff
 in sheet order, with no spine or indent.
 
-If groups should stay a free collection of non-adjacent rows, this layout
-cannot be literal, and the alternative is one bar per contiguous run of a
-group's rows.
+The editor took this route: `putRowInGroup` moves the row as it changes what
+it belongs to, and `collectGroups` gathers any older sheet whose groups were
+written scattered down the page.
