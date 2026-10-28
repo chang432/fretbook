@@ -16,7 +16,17 @@ npm run lint
 npm run stack       # the whole thing in Docker, as the VPS runs it
 npm run stack:logs  # follow both containers
 npm run stack:down  # stop them
+
+npm run deploy:local  # the full deploy: verify, start, smoke-test, then watch
 ```
+
+`deploy:local` runs the phases [the CI workflow](.github/workflows/deploy.yml)
+runs against the VPS — lint and build, then the images, then a smoke test of
+`/api/health`, `/api/notes`, `/notes` and one note — and then stays, tailing
+both containers: errors highlighted and counted, healthcheck probes hidden, and
+a banner whenever a container restarts or a healthcheck turns. Ctrl-C leaves
+the stack running. `--no-verify` skips the first phase, `--all` keeps the
+probes, `--down-on-exit` tears it down when you stop watching.
 
 The published notes come from a private R2 bucket rather than from the repo,
 read by the backend over the S3 API — so `/notes` is empty under a bare
@@ -461,22 +471,13 @@ a group is drawn as one bar over the rows it holds, so it stands where they
 do, and `groupRuns` reads that layout back off the order of the rows. The one
 thing this asks of that order is that **a group's rows are adjacent**:
 `putRowInGroup` is what keeps them so, moving the row as it changes what it
-belongs to, and `collectGroups` gathers a file whose groups were written
-scattered down the page.
+belongs to.
 
 Row lengths live in a parallel `rows` array — one bar count per staff line —
 while the grid stays one flat run of columns. Adding a bar therefore inserts
 columns *mid-grid*, which is why `addBar` also shifts every tie and mark past
-the insertion point. Files record `rows`; ones written before it existed
-(version 3) are read back as rows of 8 bars, the 32-position line they used.
-Version 6 added `bpm`, version 7 per-slot repeat counts, version 8 `groups`,
-version 9 the `names` rows carry, and version 10 `memo` — the sheet's note,
-called that throughout the code because "note" already means a fret on a
-string, and a published sheet besides. A file written before any of them simply
-opens without it. Version 11 made `groups` a list of groups in its own right
-and moved the row ids out to `rowIds`; version 12 dropped `bpm` along with the
-player that was the only thing reading it, so a tempo in an older file is read
-past rather than kept.
+the insertion point. Imports accept the current version 12 sheet format only;
+older exports and browser saves are not loaded.
 
 Rearranging the rows is the same bookkeeping run the other way, and all of it
 goes through one function. `reorderRows` takes the new order — one entry per

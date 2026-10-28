@@ -60,8 +60,6 @@ export const createRows = (count = INITIAL_ROWS) => Array(count).fill(DEFAULT_BA
  * different afterwards.
  *
  * Ids are held in a `rowIds` array parallel to `rows`, and are zero-based.
- * Files written while a row was itself a group held the same list under the
- * name `groups`, which is what their running order named rows by.
  */
 
 /** The ids a new sheet's rows carry: one per row, counting from zero. */
@@ -194,8 +192,7 @@ export function addRow({ rows, rowIds = createRowIds(rows.length), grid, ties, m
  * rows are always next to each other**. A group is therefore a place as well
  * as a collection — it stands where its rows stand — and joining or leaving
  * one moves the row, which is what `putRowInGroup` is for. Nothing else here
- * may break that run: `collectGroups` is what puts a sheet right on the way
- * in, and `groupRuns` is what reads the sheet back out as it is laid out.
+ * may break that run; `groupRuns` reads the sheet back out as it is laid out.
  */
 
 /** Longest a group name can be: enough to name a section, not a sentence. */
@@ -497,37 +494,6 @@ export function putRowInGroup(sheet, rowIndex, groupId) {
   // place the row already stands in.
   const to = run.length ? run[run.length - 1] + 1 : rowIndex
   return moveRowTo(sheet, rowIndex, to, groupId)
-}
-
-/**
- * Gather every group's rows together, each group standing where the first row
- * it holds already stands.
- *
- * A group used to be a collection and nothing more, so a sheet written then
- * can hold a group whose rows are scattered down the page. It is drawn as a
- * bar over a run of rows now, so a sheet is put right on the way in rather
- * than drawn as a group broken into pieces.
- */
-export function collectGroups(sheet) {
-  const { rows, rowIds = createRowIds(rows.length), members = {} } = sheet
-  const order = []
-  const taken = new Set()
-
-  rowIds.forEach((id, rowIndex) => {
-    if (taken.has(rowIndex)) return
-
-    const groupId = groupOfRow(members, id)
-    // A row in no group stands alone; the first row of a group brings the
-    // rest of that group with it.
-    const run = groupId === null ? [rowIndex] : rowsInGroup(members, rowIds, groupId)
-
-    for (const at of run) {
-      order.push(at)
-      taken.add(at)
-    }
-  })
-
-  return reorderRows(sheet, order)
 }
 
 /** Grow the grid so it exactly covers `rows`, keeping what is already written. */
@@ -1010,7 +976,7 @@ export function toJson(
   return JSON.stringify(
     {
       format: 'fretboard-notebook',
-      version: 12,
+      version: SHEET_VERSION,
       title,
       tuning,
       // The note written at the top of the sheet — prose about the song, which is
@@ -1040,7 +1006,9 @@ export function toJson(
   )
 }
 
-/** Best-effort parse of a file written by `toJson`. Returns null when invalid. */
+const SHEET_VERSION = 12
+
+/** Parse the current sheet format. Returns null when invalid. */
 export function fromJson(text) {
   let data
   try {
@@ -1048,7 +1016,13 @@ export function fromJson(text) {
   } catch {
     return null
   }
-  if (!data || !Array.isArray(data.columns) || data.columns.length > MAX_IMPORT_COLUMNS) {
+  if (!data || data.format !== 'fretboard-notebook' || data.version !== SHEET_VERSION ||
+      !Array.isArray(data.columns) || data.columns.length > MAX_IMPORT_COLUMNS ||
+      !Array.isArray(data.rows) || !Array.isArray(data.rowIds) ||
+      !Array.isArray(data.groups) || !Array.isArray(data.ties) || !Array.isArray(data.marks) ||
+      !data.names || typeof data.names !== 'object' || Array.isArray(data.names) ||
+      !data.members || typeof data.members !== 'object' || Array.isArray(data.members) ||
+      typeof data.memo !== 'string' || typeof data.title !== 'string' || !Array.isArray(data.tuning)) {
     return null
   }
 
@@ -1059,8 +1033,8 @@ export function fromJson(text) {
     )
   if (columns.length === 0) return null
 
-  // Ties are dropped unless both ends land on a real note, so a hand-edited or
-  // older file can never leave an arc hanging off nothing.
+  // Ties are dropped unless both ends land on a real note, so a hand-edited
+  // file can never leave an arc hanging off nothing.
   const candidates = (Array.isArray(data.ties) ? data.ties : [])
     .filter(
       (tie) =>
@@ -1095,71 +1069,40 @@ export function fromJson(text) {
     )
     .map(({ string, col, symbol }) => ({ string, col, symbol }))
 
-  const rows = readRows(data.rows, columns.length)
-  if (!rows) return null
-  // Files written while a row was itself a group held the row ids under
-  // `groups`, where the list of groups now lives.
-  const legacyIds = Array.isArray(data.groups) && data.groups.every(Number.isInteger)
-  const rowIds = readRowIds(legacyIds ? data.groups : data.rowIds, rows.length)
-  const groups = readGroups(legacyIds ? null : data.groups)
-  // A file written before groups held rows has put none of them anywhere,
-  // and its running order, if it had one, is not a thing any more.
+  const { rows, rowIds, groups } = data
+  if (!rows.length || rows.length > MAX_IMPORT_ROWS ||
+      rows.some((bars) => !Number.isInteger(bars) || bars <= 0 || bars > MAX_IMPORT_BARS_PER_ROW) ||
+      totalColumns(rows) !== columns.length ||
+      rowIds.length !== rows.length || rowIds.some((id) => !Number.isInteger(id) || id < 0) ||
+      new Set(rowIds).size !== rowIds.length || !groups.length ||
+      groups.some((group) => !group || !Number.isInteger(group.id) || group.id < 0 || typeof group.name !== 'string') ||
+      new Set(groups.map((group) => group.id)).size !== groups.length) return null
+
   const members = readMembers(data.members, rowIds, groups)
-  // A group is drawn as one bar over a run of rows, so a file holding a group
-  // whose rows are scattered down the page has them gathered on the way in.
-  // Names and memberships are kept by row id, so neither moves with the rows.
-  const gathered = collectGroups({ rows, rowIds, grid: columns, members, ties, marks })
+  // A group must occupy one continuous run in the current format.
+  const completed = new Set()
+  let previous = null
+  for (const id of rowIds) {
+    const group = groupOfRow(members, id)
+    if (group !== previous) {
+      if (previous !== null) completed.add(previous)
+      if (group !== null && completed.has(group)) return null
+      previous = group
+    }
+  }
 
   return {
-    title: typeof data.title === 'string' ? data.title : '',
-    grid: gathered.grid,
-    rows: gathered.rows,
-    rowIds: gathered.rowIds,
-    // A file written before rows could be named simply has none.
+    title: data.title,
+    grid: columns,
+    rows,
+    rowIds,
     names: readRowNames(data.names, rowIds),
     groups,
     members,
-    // A file written before the note existed (version 9 and earlier) has none.
     memo: readMemo(data.memo),
-    ties: gathered.ties,
-    marks: gathered.marks,
+    ties,
+    marks,
   }
-}
-
-/**
- * Group ids from a file, one per row. A file written before ids existed (version
- * 7 and earlier) had no way to reorder rows, so its rows were their own names:
- * ids counting from zero are exactly what its running order already refers to.
- * A short, damaged or duplicated list is topped up the same way rather than
- * leaving two rows answering to one name.
- */
-function readRowIds(raw, rowCount) {
-  const kept = []
-  const list = Array.isArray(raw) ? raw : []
-  for (let i = 0; i < rowCount; i += 1) {
-    const id = list[i]
-    kept.push(Number.isInteger(id) && id >= 0 && !kept.includes(id) ? id : nextRowId(kept))
-  }
-  return kept
-}
-
-/**
- * The groups from a file: whatever of the list is well formed, and always at
- * least one, since a sheet with nowhere to put a row has nothing to offer the
- * row's own chip. Ids are taken as written where they can be, so the memberships
- * read beside them still point at the right group.
- */
-function readGroups(raw) {
-  const kept = []
-  for (const group of Array.isArray(raw) ? raw : []) {
-    if (!group || typeof group !== 'object') continue
-    const id =
-      Number.isInteger(group.id) && group.id >= 0 && !kept.some((other) => other.id === group.id)
-        ? group.id
-        : nextGroupId(kept)
-    kept.push({ id, name: cleanName(group.name, MAX_GROUP_NAME) })
-  }
-  return kept.length ? kept : createGroups()
 }
 
 /**
@@ -1190,40 +1133,6 @@ function readRowNames(raw, rowIds) {
     if (!Number.isInteger(id) || !rowIds.includes(id) || typeof value !== 'string') return kept
     return setRowName(kept, id, value)
   }, {})
-}
-
-/** Columns a staff line held before rows could differ in length. */
-const LEGACY_COLS_PER_LINE = 32
-
-/**
- * Row lengths from a file, or a set derived from its columns. Files written
- * before rows existed wrapped every 32 positions, so that is what their
- * columns are cut back into; a row count that does not cover the columns is
- * topped up rather than dropping what was written.
- */
-function readRows(raw, columns) {
-  const rawRows = Array.isArray(raw) ? raw : []
-  if (rawRows.length > MAX_IMPORT_ROWS) return null
-
-  const rows = rawRows
-    .filter((bars) => Number.isInteger(bars) && bars > 0)
-    .slice(0, columns)
-
-  if (rows.some((bars) => bars > MAX_IMPORT_BARS_PER_ROW)) return null
-
-  if (rows.length === 0) {
-    const lines = Math.max(1, Math.ceil(columns / LEGACY_COLS_PER_LINE))
-    const legacyRows = Array(lines).fill(LEGACY_COLS_PER_LINE / COLS_PER_BAR)
-    return totalColumns(legacyRows) <= MAX_IMPORT_COLUMNS ? legacyRows : null
-  }
-
-  const short = columns - totalColumns(rows)
-  if (short <= 0) return totalColumns(rows) <= MAX_IMPORT_COLUMNS ? rows : null
-
-  const filled = [...rows, ...Array(Math.ceil(short / rowWidth(DEFAULT_BARS))).fill(DEFAULT_BARS)]
-  return filled.length <= MAX_IMPORT_ROWS && totalColumns(filled) <= MAX_IMPORT_COLUMNS
-    ? filled
-    : null
 }
 
 /**

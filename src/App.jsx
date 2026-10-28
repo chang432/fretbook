@@ -769,7 +769,7 @@ export default function App({ published = null }) {
     }
     const parsed = fromJson(await file.text())
     if (!parsed) {
-      setStatus('That file is not a Fretboard Notebook export')
+      setStatus('That file is not a current Fretboard Notebook export')
       return
     }
     // Opening a file replaces the title and the note as well as the sheet, so
