@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import GroupBar from './GroupBar.jsx'
 import MarkBar from './MarkBar.jsx'
-import Popover from './Popover.jsx'
 import MemoSection from './MemoSection.jsx'
 import PositionStrip from './PositionStrip.jsx'
 import StaffOverlay from './StaffOverlay.jsx'
@@ -70,6 +69,7 @@ export default function TabEditor({
   onAddGroup,
   onRenameGroup,
   onSetRowGroup,
+  onDeleteGroup,
   tuning,
   ties,
   marks,
@@ -114,9 +114,10 @@ export default function TabEditor({
   // The paste button waiting on a second press because the first would have
   // written over notes, as an absolute column. Null when nothing is armed.
   const [pendingPaste, setPendingPaste] = useState(null)
-  // The row whose group is being chosen, carrying the button the list hangs
-  // under. Null when no list is open.
-  const [groupMenu, setGroupMenu] = useState(null)
+  // The groups folded away to their bar, by group id. A fold is a way of
+  // handling the page rather than anything about the song, so — like a folded
+  // row — it is not saved with the sheet.
+  const [foldedGroups, setFoldedGroups] = useState(() => new Set())
   // The row whose name is being typed, and what has been typed so far. Null
   // when no box is open; only ever one at a time.
   const [naming, setNaming] = useState(null)
@@ -137,6 +138,18 @@ export default function TabEditor({
 
   /** The name this row has been given, or '' when it has none. */
   const nameOf = (rowIndex) => rowName(names, rowIds[rowIndex])
+
+  /** True while this group is folded away to its bar. */
+  const isGroupFolded = (groupId) => foldedGroups.has(groupId)
+
+  /** Fold a group's rows away, or bring them back. */
+  const toggleGroupFold = (groupId) => {
+    setFoldedGroups((folded) => {
+      const next = new Set(folded)
+      if (!next.delete(groupId)) next.add(groupId)
+      return next
+    })
+  }
 
   /** True while this row is folded away to its name line. */
   const isFolded = (rowIndex) => foldedRows.has(rowIds[rowIndex])
@@ -354,10 +367,8 @@ export default function TabEditor({
   if (rowCount !== rows.length) {
     setRowCount(rows.length)
     setShiftRows((prev) => new Map([...prev].filter(([row]) => row < rows.length)))
-    // A range pointing into a row that has gone would paste from nowhere,
-    // and a group menu hanging under one would name different tab.
+    // A range pointing into a row that has gone would paste from nowhere.
     setRange((prev) => (prev && prev.row < rows.length ? prev : null))
-    setGroupMenu(null)
     setPendingPaste(null)
     // A held row is held by position, so deleting any row leaves what is held
     // naming different tab. It is put back down rather than quietly re-aimed.
@@ -378,6 +389,29 @@ export default function TabEditor({
     setSelectedRow(null)
   }
 
+  /**
+   * The row edit mode is carrying, as the bars above need it: which row it
+   * is called by, and whether this group is the one it is already in — which
+   * is what decides whether pressing that bar takes the row in or lets it go.
+   * Null whenever nothing is held, which is when a bar is not a target.
+   */
+  const held = (groupId) =>
+    selectedRow === null
+      ? null
+      : { label: label(selectedRow), inGroup: groupOf(selectedRow) === groupId }
+
+  /**
+   * Send the held row to a group, or take it out of the one it is in. The row
+   * moves to the end of that group's run, so it is somewhere else afterwards
+   * and what was being held is no longer where it was: it is put back down
+   * rather than quietly re-aimed, the same bargain a deleted row makes.
+   */
+  const dropHeldRow = (groupId, takes) => {
+    if (selectedRow === null) return
+    onSetRowGroup(selectedRow, takes ? groupId : null)
+    setSelectedRow(null)
+  }
+
   /** Put down whatever is held, the same as pressing it a second time. */
   const dropOnEscape = (event) => {
     if (event.key !== 'Escape') return
@@ -394,7 +428,6 @@ export default function TabEditor({
   if (wasEditing !== editing) {
     setWasEditing(editing)
     setSelectedRow(null)
-    setGroupMenu(null)
     setShiftRows(new Map())
     setFocused(null)
     setArming(false)
@@ -664,32 +697,6 @@ export default function TabEditor({
               </button>
             )
           )}
-
-          {/* The way a row is moved from one group to another. The bar
-              above already says which group this is, so the chip no longer
-              has to name it — it carries the group's colour and otherwise
-              keeps out of the way until the row is pointed at. A row in no
-              group says so, since it has no bar of its own to say it. */}
-          <button
-            type="button"
-            className={`row-group${groupOf(staff) === null ? ' row-group--none' : ''}`}
-            style={groupOf(staff) === null ? undefined : { '--group': groupTone(groupOf(staff)) }}
-            disabled={editing}
-            aria-haspopup="dialog"
-            aria-expanded={groupMenu?.row === staff}
-            onClick={(event) =>
-              setGroupMenu(
-                groupMenu?.row === staff ? null : { row: staff, element: event.currentTarget },
-              )
-            }
-            title={
-              groupOf(staff) === null
-                ? `Put row ${label(staff)} in a group`
-                : `Move row ${label(staff)} out of ${groupLabel(groups, groupOf(staff))}, or into another group`
-            }
-          >
-            {groupOf(staff) === null ? 'No group' : 'Move'}
-          </button>
 
           {/* A row put away still says what is in it, so the sheet can be
               read down its folded rows. */}
@@ -1042,7 +1049,7 @@ export default function TabEditor({
       {groupRuns(members, rowIds, groups).map((block) =>
         block.group ? (
           <section
-            className="group"
+            className={`group${isGroupFolded(block.group.id) ? ' group--folded' : ''}`}
             key={`group-${block.group.id}`}
             style={{ '--group': groupTone(block.group.id) }}
             role="group"
@@ -1052,10 +1059,19 @@ export default function TabEditor({
               group={block.group}
               label={groupLabel(groups, block.group.id)}
               rows={block.rows.length}
+              bars={block.rows.reduce((n, staff) => n + rows[staff], 0)}
+              notes={block.rows.reduce((n, staff) => n + rowNoteCount(grid, rows, staff), 0)}
+              folded={isGroupFolded(block.group.id)}
               editing={editing}
+              holding={held(block.group.id)}
               onRename={onRenameGroup}
+              onToggleFold={toggleGroupFold}
+              onDelete={onDeleteGroup}
+              onDrop={dropHeldRow}
             />
-            <div className="group-body">{block.rows.map(staffOf)}</div>
+            {!isGroupFolded(block.group.id) && (
+              <div className="group-body">{block.rows.map(staffOf)}</div>
+            )}
           </section>
         ) : (
           staffOf(block.rows[0])
@@ -1077,8 +1093,15 @@ export default function TabEditor({
             group={group}
             label={groupLabel(groups, group.id)}
             rows={0}
+            bars={0}
+            notes={0}
+            folded={false}
             editing={editing}
+            holding={held(group.id)}
             onRename={onRenameGroup}
+            onToggleFold={toggleGroupFold}
+            onDelete={onDeleteGroup}
+            onDrop={dropHeldRow}
           />
         </section>
       ))}
@@ -1112,50 +1135,6 @@ export default function TabEditor({
         />
       )}
 
-      {/* The groups a row can be put in, under the chip it was opened from.
-          Rendered here rather than in the row so that a long sheet is not a
-          page of hidden menus — only the open one exists. */}
-      {groupMenu && (
-        <Popover
-          anchor={groupMenu.element}
-          className="group-picker"
-          label={`Group for row ${label(groupMenu.row)}`}
-          onClose={() => setGroupMenu(null)}
-        >
-          <div className="group-picker-section">
-            <span className="group-picker-title">Group</span>
-            <div className="group-picker-options">
-              {groups.map((group, index) => (
-                <button
-                  key={group.id}
-                  type="button"
-                  className={`group-option${groupOf(groupMenu.row) === group.id ? ' is-active' : ''}`}
-                  style={{ '--group': groupTone(group.id) }}
-                  aria-pressed={groupOf(groupMenu.row) === group.id}
-                  onClick={() => {
-                    onSetRowGroup(groupMenu.row, group.id)
-                    setGroupMenu(null)
-                  }}
-                >
-                  {group.name || `Group ${index + 1}`}
-                </button>
-              ))}
-              {groupOf(groupMenu.row) !== null && (
-                <button
-                  type="button"
-                  className="group-option group-option--clear"
-                  onClick={() => {
-                    onSetRowGroup(groupMenu.row, null)
-                    setGroupMenu(null)
-                  }}
-                >
-                  None
-                </button>
-              )}
-            </div>
-          </div>
-        </Popover>
-      )}
     </div>
   )
 }

@@ -476,16 +476,116 @@ button.link {
 }
 
 /* The bar itself: short, but solid and the width of the page, so it reads as
-   a band across the sheet rather than as a chip sitting on top of one. */
+   a band across the sheet rather than as a chip sitting on top of one. It is
+   the ground the drop target is laid over, so it is positioned. */
 .group-bar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   height: 28px;
-  padding: 0 10px;
+  padding: 0 6px 0 4px;
   border-radius: 4px 4px 0 0;
   background: var(--group);
   color: var(--paper);
+}
+
+/* Folds the group away and brings it back. Points along the bar when the
+   rows are put away and down into them when they are open — the one place
+   the state is drawn, as the note at the top of the sheet does it. */
+.group-caret {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: inherit;
+}
+
+.group-caret-mark {
+  display: block;
+  font: 400 13px/1 ui-monospace, Menlo, monospace;
+  transition: transform 0.12s ease-out;
+}
+
+.group-caret-mark.is-open {
+  transform: rotate(90deg);
+}
+
+/* Takes the group off the sheet. Last on the bar, pushed to the far end by
+   eating its free space, and quiet until it is pointed at: deleting a group
+   is rarer than naming one, and it should not read as the bar's first offer.
+   It warms rather than reddens on hover — the rows are not going anywhere. */
+.group-delete {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: rgb(251 248 241 / 65%);
+  font: 400 15px/1 ui-monospace, Menlo, monospace;
+}
+
+.group-caret:hover:not(:disabled),
+.group-delete:hover:not(:disabled) {
+  border-color: rgb(251 248 241 / 55%);
+  background: rgb(251 248 241 / 16%);
+  color: var(--paper);
+}
+
+.group-delete:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* While edit mode holds a row, the whole bar is one thing to press: where
+   that row is sent. Laid over the bar rather than replacing it, so the group
+   being aimed at still reads as itself underneath. */
+.group-drop {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 10px;
+  border: 1px dashed rgb(251 248 241 / 60%);
+  border-radius: inherit;
+  background: rgb(22 32 43 / 12%);
+}
+
+.group-drop:hover,
+.group-drop:focus-visible {
+  border-style: solid;
+  border-color: var(--paper);
+  background: rgb(22 32 43 / 24%);
+  outline: none;
+}
+
+/* What the press would do, said on the bar itself rather than left to a
+   tooltip: this is the only way a row joins a group. */
+.group-drop-hint {
+  color: var(--paper);
+  font: 600 10px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.group-drop:hover .group-drop-hint,
+.group-drop:focus-visible .group-drop-hint {
+  opacity: 1;
 }
 
 /* The name, and the way in to changing it. Carries no outline of its own
@@ -562,9 +662,11 @@ button.link {
   border-top: 0;
 }
 
-/* A group with no rows yet is a bar and nothing else, so it carries its own
-   foot rather than ending on a cut edge. */
-.group--empty .group-bar {
+/* A group with no rows under it — none yet, or all of them folded away — is a
+   bar and nothing else, so it carries its own foot rather than ending on a
+   cut edge. */
+.group--empty .group-bar,
+.group--folded .group-bar {
   border-radius: 4px;
 }
 
@@ -587,69 +689,6 @@ button.link {
 .group-add:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);
-}
-
-/* The small list that hangs under the chip on a row's own line: the groups
-   that row can be put in, and the way out of the one it is in. */
-.group-picker {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-width: 240px;
-  padding: 5px;
-}
-
-.group-picker-section {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.group-picker-title {
-  color: var(--muted);
-  font: 600 9px/1 ui-monospace, Menlo, monospace;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-}
-
-.group-picker-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.group-option {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 8px;
-  border-radius: 7px;
-  font: 600 12px/1 ui-monospace, Menlo, monospace;
-}
-
-/* The group's colour, the same square the row's own chip carries, so the one
-   being chosen is recognisable as the bar it will put the row under. */
-.group-option:not(.group-option--clear)::before {
-  content: '';
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  background: var(--group);
-}
-
-.group-option.is-active {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
-}
-
-.group-option--clear {
-  color: var(--muted);
-  font-size: 12px;
-  letter-spacing: 0.02em;
 }
 
 /* Staff --------------------------------------------------------------- */
@@ -763,60 +802,6 @@ button.link {
   color: var(--muted);
   font: 500 11px/1 ui-monospace, Menlo, monospace;
   letter-spacing: 0.04em;
-}
-
-/* The way a row is moved from one group to another, on the row's own line.
-   The bar above says which group this is, so the chip only carries its colour
-   and otherwise stays out of the way until the row is pointed at — the way a
-   row with no name asks for one. */
-.row-group {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 7px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: none;
-  color: var(--muted);
-  font: 600 11px/1 ui-monospace, Menlo, monospace;
-  letter-spacing: 0.04em;
-  opacity: 0;
-}
-
-/* The group's own colour, the same square the list below it marks a group
-   with — which is what ties the chip to the spine it stands against. */
-.row-group::before {
-  content: '';
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  background: var(--group, var(--bar));
-}
-
-.staff:hover .row-group,
-.row-group:focus-visible,
-.row-group[aria-expanded='true'] {
-  opacity: 1;
-}
-
-.row-group:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-/* A row in no group has no bar to say so, so its chip says it instead — and
-   its swatch is left empty, since there is no colour to carry. */
-.row-group--none::before {
-  background: none;
-  box-shadow: inset 0 0 0 1px var(--bar);
-}
-
-/* Neither the name nor the group takes a press while the order is being
-   edited, and neither swallows one: it belongs to the row underneath. */
-.row-group:disabled {
-  opacity: 1;
-  cursor: default;
-  pointer-events: none;
 }
 
 /* A row with no name asks for one only while it is pointed at or tabbed to,

@@ -2,7 +2,10 @@
 
 **Implemented.** The editor works this way now — see `src/components/GroupBar.jsx`,
 `groupRuns`/`putRowInGroup` in `src/utils/tab.js`, and the `.group*` rules in
-`src/styles.css`. This folder is kept as the sketch the refactor was agreed from.
+`src/styles.css`. This folder is kept as the sketch the refactor was agreed from. The editor has
+moved on from it since: a group's bar also folds its rows away and carries a ×
+that deletes the group, and a row joins or leaves a group in edit mode rather
+than from a chip on its own line.
 
 A standalone mockup of a refactor of the group layout. Open
 `mockups/group-layout/index.html` in a browser — no build, no dependencies.

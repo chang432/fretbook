@@ -105,9 +105,17 @@ read as one bracket around the group.
 - **Name a group by typing in its bar.** <kbd>enter</kbd> writes the name down,
   <kbd>esc</kbd> abandons what was typed. A group nobody has named answers to
   where it stands — *Group 2* — so there is always something to call it.
-- **Move a row between groups from the chip on its own line**, which appears
-  when the row is pointed at. The list it opens holds every group, plus
-  **None** to take the row out of the one it is in.
+- **Fold a group away** with the caret at the left of its bar. The rows go,
+  the bar stays and says what has been put aside — *3 rows · 6 bars · 14
+  notes* — so a long sheet can be read as its sections. A fold is a way of
+  handling the page rather than part of the song, so it is not saved.
+- **Delete a group with the × at the right of its bar.** The rows it held are
+  not touched: they stay exactly where they stand and are in no group
+  afterwards. It goes on one press and **Undo** takes it back, the same
+  bargain the bin at the end of a row makes.
+- **Rows join and leave groups in edit mode** — see below. There is nothing on
+  a row's own line to press, since the bar above it already says which group
+  it is in.
 - **A group's rows are always next to each other**, since the bar brackets
   them. Putting a row in a group therefore moves it: it joins the end of that
   group's run, and leaving a group drops it just past the rows that group still
@@ -117,14 +125,17 @@ read as one bracket around the group.
 - **+ New group** at the end of the sheet adds one. It holds no rows yet, so it
   waits there as a bar until a row is sent to it — and the next group made
   takes the next colour, four of them before they come round again.
-- Deleting a row takes it out of its group with it. Groups are never deleted;
-  an empty one costs a bar at the end of the sheet and nothing else.
+- Deleting a row takes it out of its group with it. A group that loses its
+  last row that way stays on the sheet, waiting at the end as an empty bar.
 
 ### Reordering the sheet
 
 The **two rows and an arrow** in the toolbar turn on edit mode, which is where
 the sheet is rearranged rather than written in. Press a row, then press
-another, and the two exchange places.
+another, and the two exchange places. It is also the one place a row joins or
+leaves a group: while a row is held, **every group's bar becomes somewhere to
+put it** — *Put here* on the groups it could join, *Take out* on the one it is
+already in.
 
 - The first press picks something up and holds it, drawn in the accent colour.
   The second says what to swap it with. Pressing the same one again, or
@@ -134,12 +145,18 @@ another, and the two exchange places.
   as readily as two of the same length; the rows between them slide by the
   difference.
 - **A row is numbered by where it stands**, so swapping two rows swaps their
-  numbers with them. What the row *is* — its name, the group it is in — travels
-  with the music instead, since both are kept against the row rather than
-  against the line it happens to be written on.
-- **Rows can be swapped across groups.** The row that moves into a group's run
-  belongs to that group afterwards, which is the one case where a swap changes
-  what a row is in rather than only where it is.
+  numbers with them. The name a row carries travels with the music instead,
+  since it is kept against the row rather than against the line it happens to
+  be written on.
+- **Rows can be swapped across groups.** Which group a row is in belongs to
+  the place it stands rather than to the row, so a row swapped into the middle
+  of a group joins it and the row it changed places with takes the group it
+  has left. A swap therefore never leaves a bar drawn over a row that is not
+  in it.
+- **Pressing a group's bar moves the held row to the end of that group**,
+  which is how a group grows or empties — a swap alone could only ever trade
+  one row for another. The row is put back down afterwards, since it is
+  somewhere else now.
 - **Writing is off while the mode is on.** A press anywhere on a row means
   *this row* rather than *this position*, so the cells stop taking type and the
   per-row bar buttons stand down. Turning the mode back off gives all of it

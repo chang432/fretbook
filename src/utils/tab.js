@@ -302,6 +302,21 @@ export function groupRuns(members, rowIds, groups) {
 export const emptyGroups = (members, rowIds, groups) =>
   groups.filter((group) => rowsInGroup(members, rowIds, group.id).length === 0)
 
+/**
+ * Take a group off the sheet. The rows it held are not touched — they stay
+ * exactly where they stand and are simply in no group afterwards, which is
+ * what keeps deleting a group a thing done to the sheet's structure rather
+ * than to its music.
+ */
+export function removeGroup(groups, members, groupId) {
+  return {
+    groups: groups.filter((group) => group.id !== groupId),
+    members: Object.fromEntries(
+      Object.entries(members ?? {}).filter(([, id]) => id !== groupId),
+    ),
+  }
+}
+
 /** Drop memberships whose row, or whose group, has gone. */
 export const clampMembers = (members, rowIds, groups) =>
   Object.fromEntries(
@@ -409,15 +424,37 @@ export function reorderRows({ rows, rowIds = createRowIds(rows.length), grid, ti
   }
 }
 
-/** Exchange two rows, the tab in them and all. */
-export function swapRows({ rows, rowIds = createRowIds(rows.length), grid, ties, marks }, a, b) {
+/**
+ * Exchange two rows, the tab in them and all.
+ *
+ * A group is a bar over a run of rows, so which group a row is in belongs to
+ * the place it stands rather than to the row: a row swapped into the middle
+ * of a group joins that group, and the row it changed places with takes the
+ * group it has left. Anything else would carry a row out of its bracket and
+ * leave the group drawn over a row that is not in it.
+ */
+export function swapRows(
+  { rows, rowIds = createRowIds(rows.length), members = {}, grid, ties, marks },
+  a,
+  b,
+) {
   const last = rows.length - 1
   if (a === b || a < 0 || b < 0 || a > last || b > last) {
-    return { rows, rowIds, grid, ties, marks }
+    return { rows, rowIds, members, grid, ties, marks }
   }
 
   const order = rows.map((_, at) => (at === a ? b : at === b ? a : at))
-  return reorderRows({ rows, rowIds, grid, ties, marks }, order)
+  const swapped = reorderRows({ rows, rowIds, grid, ties, marks }, order)
+
+  // The two memberships stay behind with the places, which is the one thing
+  // about a row that does not travel with it.
+  const groupOfA = groupOfRow(members, rowIds[a])
+  const groupOfB = groupOfRow(members, rowIds[b])
+
+  return {
+    ...swapped,
+    members: setRowGroup(setRowGroup(members, rowIds[a], groupOfB), rowIds[b], groupOfA),
+  }
 }
 
 /**

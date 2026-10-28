@@ -24,6 +24,7 @@ import {
   groupLabel,
   groupOfRow,
   putRowInGroup,
+  removeGroup,
   isGridEmpty,
   isSameTie,
   lastBarNoteCount,
@@ -36,6 +37,7 @@ import {
   removeBar,
   removeRow,
   rowName,
+  rowsInGroup,
   rowNoteCount,
   setGroupName,
   setRowName,
@@ -312,6 +314,25 @@ export default function App({ published = null }) {
   }
 
   /**
+   * Take a group off the sheet. The rows it held stay exactly where they
+   * stand and are in no group afterwards — the bar goes, the music does not,
+   * which is why this goes on one press with Undo as the way back rather
+   * than asking first.
+   */
+  const handleDeleteGroup = (groupId) => {
+    const was = groupLabel(groups, groupId)
+    const held = rowsInGroup(members, rowIds, groupId).length
+
+    remember(`deleting ${was}`)
+    applySheet(removeGroup(groups, members, groupId))
+    setStatus(
+      held
+        ? `Deleted ${was} — its ${held === 1 ? 'row is' : `${held} rows are`} in no group now`
+        : `Deleted ${was}`,
+    )
+  }
+
+  /**
    * Put a row in a group, or take it out of the one it is in with null.
    *
    * A group is drawn as one bar over the rows it holds, so this moves the row
@@ -334,23 +355,19 @@ export default function App({ published = null }) {
   }
 
   /**
-   * Exchange two rows, the tab written in them and all. Everything said about
-   * a row is kept against its id rather than its place, so the names and the
-   * groups travel with the music and nothing else has to be put right here.
+   * Exchange two rows, the tab written in them and all. A row's name travels
+   * with the music, since it is kept against the row's id; which group a row
+   * is in stays behind with the place it stood, so a row swapped into a
+   * group's run joins that group — see `swapRows`.
    */
   const handleSwapRows = useCallback(
     (a, b) => {
       remember(`swapping rows ${a + 1} and ${b + 1}`)
-      const next = swapRows(sheet, a, b)
-      setRows(next.rows)
-      setRowIds(next.rowIds)
-      setGrid(next.grid)
-      setTies(next.ties)
-      setMarks(next.marks)
+      applySheet(swapRows(sheetRef.current, a, b))
       disarmRemovals()
       setStatus(`Swapped rows ${a + 1} and ${b + 1}`)
     },
-    [sheet, remember],
+    [applySheet, remember],
   )
 
   /**
@@ -877,7 +894,7 @@ export default function App({ published = null }) {
             onClick={toggleEditing}
             title={
               editing
-                ? 'Editing the order — press two rows to swap them'
+                ? 'Editing the order — press two rows to swap them, or a group to move one in'
                 : 'Reorder the rows'
             }
           >
@@ -960,9 +977,10 @@ export default function App({ published = null }) {
           mode that is still on. So the mode says what it is here instead. */}
       {editing && (
         <p className="edit-hint">
-          Press a row, then press another, and the two exchange places. The bin
-          at the end of a row deletes that row. Writing is off until this is
-          turned back off.
+          Press a row, then press another, and the two exchange places — a row
+          swapped into a group joins it. Press a group&rsquo;s bar instead to put the
+          held row in that group, or to take it out again. The bin at the end of
+          a row deletes that row. Writing is off until this is turned back off.
         </p>
       )}
 
@@ -1054,6 +1072,7 @@ export default function App({ published = null }) {
           onAddGroup={handleAddGroup}
           onRenameGroup={handleRenameGroup}
           onSetRowGroup={handleSetRowGroup}
+          onDeleteGroup={handleDeleteGroup}
           onCellChange={handleCellChange}
           onCreateTie={createTie}
           onToggleMark={handleToggleMark}
