@@ -1,7 +1,7 @@
 # Shared ground for the two scripts that drive the local app stack:
 #
 #   scripts/stack.sh          up / down / logs, for daily work
-#   scripts/deploy-local.sh   the whole deploy, then tail and track it
+#   deploy-local.sh           the whole deploy, then tail and track it
 #
 # Sourced, never run. Everything here is about *this* repo's compose project,
 # so it carries the paths rather than taking them as arguments.

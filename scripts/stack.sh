@@ -9,7 +9,7 @@
 #   npm run stack:down     stop and remove them
 #
 # For the whole deploy — verify, start, smoke-test, then tail and track the
-# logs — use scripts/deploy-local.sh (npm run deploy:local). This one is the
+# logs — use deploy-local.sh (npm run deploy:local). This one is the
 # quick version for daily work.
 set -euo pipefail
 

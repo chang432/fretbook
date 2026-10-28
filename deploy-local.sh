@@ -22,8 +22,8 @@
 # Ctrl-C leaves the stack running by default — it is a deploy, not a session.
 set -euo pipefail
 
-# shellcheck source=lib/stack.sh
-. "$(dirname "${BASH_SOURCE[0]}")/lib/stack.sh"
+# shellcheck source=scripts/lib/stack.sh
+. "$(dirname "${BASH_SOURCE[0]}")/scripts/lib/stack.sh"
 
 LOG="$ROOT/.local/deploy.log"
 VERIFY=1
