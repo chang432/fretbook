@@ -1,5 +1,12 @@
 # Two containers: caddy serves the built Vite app and reverse-proxies /api to
-# gunicorn/Flask. Run from this directory: `docker compose up --build`.
+# gunicorn/Flask, which is also where the published notes come from — the
+# bucket is private, so the backend reads it over the S3 API and the browser
+# never touches R2. Run from this directory: `docker compose up --build`.
+#
+# The backend's four notes variables come from a git-ignored .env beside this
+# file locally, and from /opt/fretbook-<env>-deploy.env on the VPS. Without
+# them the stack still runs: /api/notes answers 503 and /notes shows an empty
+# shelf.
 #
 # IMAGE_TAG namespaces the images this builds. It defaults to "local" so a
 # laptop is unaffected; CI sets it per environment (see
@@ -16,6 +23,18 @@ services:
       PORT: "8000"
       WEB_CONCURRENCY: "2"
       LOG_LEVEL: info
+      # The private notes bucket this environment serves, and the credentials
+      # for it. Runtime settings rather than build args, which is what lets one
+      # web image serve both environments: the bundle asks its own origin, and
+      # this is the end that knows which bucket that means.
+      #
+      # The token here should be Object Read only — this process never writes.
+      # Publishing is a laptop with a different token; see
+      # docs/notes-via-s3-client.md. boto3 reads the AWS_* pair itself.
+      FRETBOOK_NOTES_BUCKET: ${FRETBOOK_NOTES_BUCKET:-}
+      FRETBOOK_R2_ENDPOINT: ${FRETBOOK_R2_ENDPOINT:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
     # Not published on the host — only caddy needs to reach it.
     expose:
       - "8000"
@@ -37,12 +56,6 @@ services:
       # that root rather than to this file.
       context: ../..
       dockerfile: docker/app/caddy/Dockerfile
-      args:
-        # The public R2 bucket this environment's published notes live in,
-        # baked into the bundle by the node stage. Unset locally, where there
-        # is usually no bucket to read; CI writes it into the deploy env file
-        # per environment (see .github/workflows/deploy.yml).
-        NOTES_BASE_URL: ${NOTES_BASE_URL:-}
     image: fretbook-web:${IMAGE_TAG:-local}
     restart: unless-stopped
     ports:

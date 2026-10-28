@@ -1,23 +1,30 @@
 # Published notes in R2
 
 The published notes used to be files in `public/notes/`, baked into each
-environment's image by `vite-plugin-notes.js`. They now live in a **public
-Cloudflare R2 bucket, one per environment**, and the browser reads them
-straight out of it.
+environment's image by `vite-plugin-notes.js`. They now live in a **private
+Cloudflare R2 bucket, one per environment**, read over the S3 API by the app's
+own backend.
 
-Two consequences, and they are the point:
+Three consequences, and they are the point:
 
 - **Publishing is no longer a deploy.** A note is uploaded with
   `npm run notes:publish`; it is live immediately, and nothing is rebuilt.
-- **A deploy no longer carries notes.** `dev` and `main` ship the same code and
-  differ only in which bucket their bundle was built against.
+- **A deploy no longer carries notes.** `dev` and `main` ship the same code,
+  and now the same image: nothing environment-specific is baked in.
+- **Nothing is world-readable.** The bucket has no public URL; the only things
+  that can read it are a laptop with the read-write token and the backend with
+  a read-only one. [notes-via-s3-client.md](notes-via-s3-client.md) is why it
+  is that way round.
 
 ## How it fits together
 
 ```
-browser ──► https://<site>/notes            the app, served by Caddy from the image
-        └─► https://<bucket>/notes.json     the manifest the index lists
-        └─► https://<bucket>/notes/<name>.json   one note
+browser ──► https://<site>/notes          the app, served by Caddy from the image
+        └─► https://<site>/api/notes      the manifest the index lists
+        └─► https://<site>/api/notes/<name>   one note
+                    │  same origin, so no CORS
+                    ▼
+            Caddy handle /api/*  ──►  Flask + boto3  ──►  R2 (private)
 ```
 
 | Bucket object | What it is |
@@ -28,15 +35,17 @@ browser ──► https://<site>/notes            the app, served by Caddy from 
 Notes sit under a prefix and the manifest does not, so no note is barred from
 being called `notes`.
 
-The bucket's URL reaches the bundle as `VITE_NOTES_BASE_URL`, which Vite inlines
-at build time. That is why it is a **Docker build arg** (`NOTES_BASE_URL`) rather
-than a runtime variable: the `web` image for dev and the one for prod are built
-from the same source with different values.
+Which bucket an environment serves is the **backend's runtime setting**, not a
+build arg, which is what lets one `web` image serve both:
 
 ```
-repo variable DEV_NOTES_BASE_URL ─► deploy.yml ─► /opt/fretbook-dev-deploy.env
-  ─► compose build arg NOTES_BASE_URL ─► ENV VITE_NOTES_BASE_URL ─► npm run build
+repo variable R2_ENDPOINT + secrets ─► deploy.yml ─► /opt/fretbook-dev-deploy.env
+  ─► compose env FRETBOOK_NOTES_BUCKET / FRETBOOK_R2_ENDPOINT / AWS_* ─► backend
 ```
+
+The bucket name is derived rather than configured — `fretbook-notes-${ENV_NAME}`
+— the same way the loopback port is picked, so a third name would be a typo and
+not a choice.
 
 The checks the build used to do — a note's name is a legal URL, and the file is
 an export the editor can open — moved into `scripts/notes.mjs`, which is now the
@@ -44,8 +53,8 @@ only moment a note is looked at. It refuses a bad file before uploading it, and
 rebuilds `notes.json` from the bucket's actual contents afterwards rather than
 editing it, so the manifest cannot drift from the notes it lists.
 
-A build given no bucket still works: `/notes` says it was not told where the
-notes are, instead of fetching a nonsense URL.
+A stack given no bucket still comes up: `/api/notes` answers 503, and `/notes`
+shows an empty shelf rather than an error.
 
 ### Why the AWS CLI
 
@@ -113,8 +122,9 @@ magnitude, and that holds even if the site gets genuinely popular. The free
 tier is per *account*, so it is shared with anything else you put in R2.
 
 Egress being free is the substantive difference from S3, where bandwidth was
-the one line with no ceiling on it. The ceiling here is not money but the
-r2.dev rate limit — see below.
+the one line with no ceiling on it. Notes now transit the VPS on their way to a
+reader, so that line moves to the VPS's own allowance — tens of kilobytes a
+read, which no plan will notice.
 
 ## Manual Setup Required From Owner
 
@@ -128,111 +138,40 @@ location hint near the VPS (EU) if offered; everything else can stay default.
 
 There is no versioning setting to turn on — R2 does not have one.
 
-### 2. Make each one public (Public Development URL)
+### 2. Keep each one private
 
-Bucket → **Settings** → **Public Development URL** → **Enable**, type `allow`
-to confirm, and check that **Public URL Access** reads *Allowed*. Cloudflare
-hands back a URL of the form:
+There is nothing to switch on, which is the point of
+[notes-via-s3-client.md](notes-via-s3-client.md). If a bucket was made public
+before that change, turn it off now: Bucket → **Settings** → **Public
+Development URL** → **Disable**.
 
-```
-https://pub-<32 hex characters>.r2.dev
-```
+Do that only once a deploy has been verified, because until it is done both
+paths work and the change is reversible — and afterwards a rollback to an older
+image needs the public URL turned back on, since that bundle has no other way
+to read a note.
 
-That is the value of the repo variable in step 5.
+**There is no CORS policy to write.** The fetch is same-origin — the browser
+asks the site, not the bucket — so a bucket CORS rule allows an origin that
+never makes the request. If one is still set from before, deleting it is
+housekeeping rather than a step.
 
-Two things to know about it, both deliberate trade-offs we took:
+Two things worth knowing anyway, because they are why private is the easier
+shape: R2 has **no bucket policy**, so public is a per-bucket switch rather than
+a per-prefix grant, and a public bucket **will not list its contents** — which
+is why `notes.json` exists as the index at all.
 
-- **Cloudflare rate-limits r2.dev and says it is for development only.** There
-  is no CDN caching, no WAF and no bot management on it. At this site's traffic
-  that is fine; a sustained burst would get 429s rather than a bill.
-- **Moving to a custom domain later costs one variable.** It needs a zone in
-  the same Cloudflare account as the bucket (DNS is on Route 53 today, so that
-  means moving a zone or delegating a subdomain). Nothing in the app changes —
-  only the value of `*_NOTES_BASE_URL`.
+### 4. Two R2 API tokens
 
-Also note that R2 has **no bucket policy**: public is a per-bucket switch, not a
-per-prefix grant. Every object in these buckets is world-readable, so put
-nothing in them but notes. Listing is not exposed — a public bucket will not
-list its contents — so `notes.json` remains the only index.
+**One for your laptop, to publish with.** R2 → **Manage API tokens** → **Create
+API token**, permission **Object Read & Write**, scoped to the two buckets. It
+gives you an **Access Key ID**, a **Secret Access Key**, and the account
+endpoint `https://<account id>.r2.cloudflarestorage.com`.
 
-### 3. CORS — per bucket
-
-The browser reads the bucket cross-origin, so without this the fetch fails even
-though the object is public. The policies differ only in their origins: the
-prod bucket is read from one place, the dev bucket from four.
-
-The app only ever makes a plain `GET` with no custom headers, which is a
-*simple request* — the browser sends no preflight, and all that has to come
-back is `Access-Control-Allow-Origin`. That is why the header lists are empty;
-`MaxAgeSeconds` governs preflight caching and so does nothing today, but costs
-nothing to carry.
-
-**`fretbook-notes-prod`:**
-
-```json
-[
-  {
-    "AllowedOrigins": ["https://<PROD_DOMAIN>"],
-    "AllowedMethods": ["GET", "HEAD"],
-    "AllowedHeaders": [],
-    "ExposeHeaders": [],
-    "MaxAgeSeconds": 3600
-  }
-]
-```
-
-**`fretbook-notes-dev`** — the same, plus the three ways the site runs locally:
-
-```json
-[
-  {
-    "AllowedOrigins": [
-      "https://<DEV_DOMAIN>",
-      "http://localhost:5173",
-      "http://localhost:4173",
-      "http://localhost:8080"
-    ],
-    "AllowedMethods": ["GET", "HEAD"],
-    "AllowedHeaders": [],
-    "ExposeHeaders": [],
-    "MaxAgeSeconds": 3600
-  }
-]
-```
-
-`5173` is `npm run dev`, `4173` is `npm run preview`, `8080` is
-`docker compose up`. `localhost` and `127.0.0.1` are different origins, so add
-the latter too if that is what you type.
-
-Paste either straight into the bucket's **Settings** → **CORS Policy** →
-**Add CORS policy** → **JSON**, which takes exactly this shape. The same rules
-go through the CLI the publishing script already uses, wrapped in `CORSRules`:
-
-```bash
-aws s3api put-bucket-cors --bucket fretbook-notes-dev \
-  --endpoint-url https://<account id>.r2.cloudflarestorage.com --region auto \
-  --cors-configuration '{"CORSRules": [{"AllowedOrigins": ["https://<DEV_DOMAIN>","http://localhost:5173","http://localhost:4173","http://localhost:8080"],"AllowedMethods": ["GET","HEAD"]}]}'
-```
-
-`wrangler r2 bucket cors set` is a third route, but it takes a different shape
-again — `{ "rules": [ { "allowed": { "origins": [...], "methods": [...] } } ] }`
-— so pick one route and stay on it.
-
-Two things that make this look broken when it is not: a request without an
-`Origin` header gets no CORS headers back, so test with
-`curl -I -H 'Origin: https://<DEV_DOMAIN>' <bucket URL>/notes.json` rather than
-a bare curl; and listing the origins is not access control — the objects are
-public to anything that is not a browser either way. What it buys is that a
-copy of the site on someone else's domain cannot read your bucket from a page.
-
-### 4. An R2 API token to publish with
-
-Only your laptop writes to these buckets — CI does not.
-
-R2 → **Manage API tokens** → **Create API token**, permission **Object Read &
-Write**, scoped to the two buckets. It gives you an **Access Key ID**, a
-**Secret Access Key**, and the account endpoint
-`https://<account id>.r2.cloudflarestorage.com`.
+**One for the server, to read with.** The same again, permission **Object Read
+only**. The backend signs its `GetObject` calls with this one. It is separate on
+purpose: a web server that only ever reads has no business holding a token that
+can delete, and either can be rolled without touching the other. CI itself
+needs neither — it only passes the read-only pair through to the VPS.
 
 Keep it apart from the AWS credentials that Route 53 and the Terraform state
 bucket use — these are different keys for a different provider:
@@ -243,18 +182,21 @@ export AWS_PROFILE=r2
 export FRETBOOK_R2_ENDPOINT=https://<account id>.r2.cloudflarestorage.com
 ```
 
-### 5. Two repository variables
+### 5. One repository variable, two secrets
 
-Settings → Secrets and variables → Actions → **Variables**:
+Settings → Secrets and variables → Actions:
 
-| Variable | Value |
-|---|---|
-| `DEV_NOTES_BASE_URL` | the dev bucket's `https://pub-….r2.dev` |
-| `PROD_NOTES_BASE_URL` | the prod bucket's `https://pub-….r2.dev` |
+| | Name | Value |
+|---|---|---|
+| Variable | `R2_ENDPOINT` | `https://<account id>.r2.cloudflarestorage.com` |
+| Secret | `R2_ACCESS_KEY_ID` | the **read-only** token from step 4 |
+| Secret | `R2_SECRET_ACCESS_KEY` | the same token's secret |
 
-No trailing slash (one is stripped anyway). **The next deploy fails fast if
-either is missing** — deliberately, since the alternative is a silently empty
-`/notes` page.
+**The next deploy fails fast if any is missing** — deliberately, since the
+alternative is a stack that comes up with a silently empty `/notes`.
+
+`DEV_NOTES_BASE_URL` and `PROD_NOTES_BASE_URL` are no longer read by anything
+and can be deleted.
 
 ### 6. Seed a fresh bucket
 
@@ -284,9 +226,20 @@ Three values, and the only local setup there is:
 
 | | |
 |---|---|
-| `VITE_NOTES_BASE_URL` | the dev bucket's `pub-….r2.dev`, so `npm run dev` shows the published notes |
 | `FRETBOOK_R2_ENDPOINT` | the account endpoint the notes commands publish and pull through |
-| `AWS_PROFILE` | `r2`, the token from step 4 |
+| `AWS_PROFILE` | `r2`, the read-write token from step 4 |
 
 The bucket is not among them: the commands default to `fretbook-notes-dev`, and
 production is named when it is meant.
+
+To see `/notes` under `npm run dev`, the backend has to be running too, since
+that is what reads the bucket now:
+
+```bash
+cd docker/app && docker compose up --build   # reads its own git-ignored .env
+npm run dev                                  # 5173, proxying /api to 8080
+```
+
+`docker/app/.env` wants the same four values the VPS gets —
+`FRETBOOK_NOTES_BUCKET`, `FRETBOOK_R2_ENDPOINT`, `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY` — and is git-ignored.

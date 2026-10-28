@@ -9,13 +9,10 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Which bucket this image's site reads its published notes from. Vite inlines
-# VITE_* variables at build time, so this has to be present here rather than at
-# run time — which is exactly what makes dev and prod different images built
-# from the same source. Empty is allowed: /notes then says it was not told
-# where the notes are, instead of fetching a nonsense URL.
-ARG NOTES_BASE_URL=""
-ENV VITE_NOTES_BASE_URL=$NOTES_BASE_URL
+# Nothing environment-specific is baked in: the app reads its published notes
+# from its own origin, through the backend, so this image is the same for dev
+# and for production. Which bucket it serves is the backend's runtime setting
+# (FRETBOOK_NOTES_BUCKET), not a build arg. See docs/notes-via-s3-client.md.
 
 COPY . .
 RUN npm run build

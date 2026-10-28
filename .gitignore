@@ -3,6 +3,7 @@
 node_modules
 dist
 *.local
+.env
 .DS_Store
 *.zip
 __pycache__/

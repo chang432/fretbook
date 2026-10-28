@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import NoteLink from './NoteLink.jsx'
 import { notePath } from '../utils/route.js'
-import { fetchManifest, notesConfigured } from '../utils/notes.js'
+import { fetchManifest } from '../utils/notes.js'
 
 /**
  * The published notes, listed. The list is notes.json in this environment's
- * bucket, rewritten whenever a note is published — so the page is current
- * without the site being rebuilt.
+ * bucket, served through /api/notes and rewritten whenever a note is published
+ * — so the page is current without the site being rebuilt.
  */
 export default function NoteIndex() {
   const [notes, setNotes] = useState(null)
@@ -30,17 +30,12 @@ export default function NoteIndex() {
         </NoteLink>
       </header>
 
-      {/* A build with no bucket behind it has nothing to list and no way to
-          find out, which is a different thing from nothing being published. */}
-      {!notesConfigured && (
-        <p className="note-shell-text">
-          This build was not told where the notes are (VITE_NOTES_BASE_URL).
-        </p>
-      )}
+      {notes === null && <p className="note-shell-text">Loading…</p>}
 
-      {notesConfigured && notes === null && <p className="note-shell-text">Loading…</p>}
-
-      {notesConfigured && notes?.length === 0 && (
+      {/* An unreachable backend lands here too, as an empty shelf. There is no
+          longer a build that does not know where the notes are: the app asks
+          its own origin, so the question is whether anything answers. */}
+      {notes?.length === 0 && (
         <p className="note-shell-text">Nothing has been published yet.</p>
       )}
 

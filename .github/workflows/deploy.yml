@@ -41,23 +41,25 @@ name: Build, verify and deploy to the VPS
 #   PROD_DOMAIN   Hostname the edge serves production on. Required.
 #   DEV_DOMAIN    Hostname the edge serves dev on. Required.
 #   ACME_EMAIL    Contact address Let's Encrypt uses for expiry notices.
-#   PROD_NOTES_BASE_URL  Public R2 bucket production reads its published notes
-#                        from, e.g. https://pub-<hash>.r2.dev
-#   DEV_NOTES_BASE_URL   The same for dev. Both required — see
-#                        docs/notes-r2-storage.md for the buckets themselves.
+#   R2_ENDPOINT   The account's R2 endpoint, e.g.
+#                 https://<account id>.r2.cloudflarestorage.com. Required. The
+#                 backend reads the published notes through it; the bucket name
+#                 is derived from the environment, not configured.
 #
 # Both domains are needed on every run, including a dev-only deploy, because
 # the edge Caddyfile describes the whole box: writing it with one hostname
-# missing would take the other environment offline. The notes URLs are not
-# like that — only this environment's is used — but they are read here for the
-# same reason the ports are: one place that knows both, so the pair cannot
-# drift.
+# missing would take the other environment offline.
 #
 # Repository secrets — same page, Secrets tab:
 #   SSH_PASSWORD       Password of the VPS's SSH user. sshd must permit
 #                      password auth, and the user must keep passwordless
 #                      sudo — the non-interactive script below cannot answer
 #                      a sudo prompt.
+#   R2_ACCESS_KEY_ID   An R2 API token scoped to the notes buckets, **Object
+#   R2_SECRET_ACCESS_KEY  Read only**. The backend signs its GetObject calls
+#                      with it. Deliberately not the read-write token used to
+#                      publish from a laptop: a web server that only reads has
+#                      no business holding one that can delete.
 #
 # Nothing is needed to read the code: the repo is public, so the VPS clones it
 # anonymously.
@@ -182,8 +184,9 @@ jobs:
           PROD_DOMAIN: ${{ vars.PROD_DOMAIN }}
           DEV_DOMAIN: ${{ vars.DEV_DOMAIN }}
           ACME_EMAIL: ${{ vars.ACME_EMAIL }}
-          PROD_NOTES_BASE_URL: ${{ vars.PROD_NOTES_BASE_URL }}
-          DEV_NOTES_BASE_URL: ${{ vars.DEV_NOTES_BASE_URL }}
+          R2_ENDPOINT: ${{ vars.R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           SITE_DOMAIN: ${{ inputs.site_domain }}
           ENV_NAME: ${{ inputs.env_name }}
         run: |
@@ -194,13 +197,19 @@ jobs:
           [ -n "${PROD_DOMAIN}" ] || missing="${missing} PROD_DOMAIN"
           [ -n "${DEV_DOMAIN}" ]  || missing="${missing} DEV_DOMAIN"
           [ -n "${ACME_EMAIL}" ]  || missing="${missing} ACME_EMAIL"
-          # Baked into the frontend bundle, so a missing one is not a broken
-          # deploy but a site whose /notes page can only say it was not told
-          # where the notes are — worth failing here instead.
-          [ -n "${PROD_NOTES_BASE_URL}" ] || missing="${missing} PROD_NOTES_BASE_URL"
-          [ -n "${DEV_NOTES_BASE_URL}" ]  || missing="${missing} DEV_NOTES_BASE_URL"
+          # Without these the stack still comes up, but /api/notes answers 503
+          # and /notes is an empty shelf — a silent half-deploy, so fail here.
+          [ -n "${R2_ENDPOINT}" ] || missing="${missing} R2_ENDPOINT"
           if [ -n "${missing}" ]; then
             echo "::error::Missing repository variables:${missing}. Set them under Settings > Secrets and variables > Actions > Variables."
+            exit 1
+          fi
+
+          secrets=""
+          [ -n "${R2_ACCESS_KEY_ID}" ]     || secrets="${secrets} R2_ACCESS_KEY_ID"
+          [ -n "${R2_SECRET_ACCESS_KEY}" ] || secrets="${secrets} R2_SECRET_ACCESS_KEY"
+          if [ -n "${secrets}" ]; then
+            echo "::error::Missing repository secrets:${secrets}. Set them under Settings > Secrets and variables > Actions > Secrets."
             exit 1
           fi
 
@@ -226,8 +235,9 @@ jobs:
           ACME_EMAIL: ${{ vars.ACME_EMAIL }}
           PROD_PORT: ${{ env.PROD_PORT }}
           DEV_PORT: ${{ env.DEV_PORT }}
-          PROD_NOTES_BASE_URL: ${{ vars.PROD_NOTES_BASE_URL }}
-          DEV_NOTES_BASE_URL: ${{ vars.DEV_NOTES_BASE_URL }}
+          R2_ENDPOINT: ${{ vars.R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         with:
           host: ${{ vars.VPS_IP }}
           username: ${{ inputs.ssh_user }}
@@ -238,21 +248,18 @@ jobs:
           # Give the remote shell a generous budget: a cold box installs Docker
           # and builds both images from scratch on the first run.
           command_timeout: 30m
-          envs: REPO_FULL,ENV_NAME,BRANCH,SITE_DOMAIN,PROD_DOMAIN,DEV_DOMAIN,ACME_EMAIL,PROD_PORT,DEV_PORT,PROD_NOTES_BASE_URL,DEV_NOTES_BASE_URL
+          envs: REPO_FULL,ENV_NAME,BRANCH,SITE_DOMAIN,PROD_DOMAIN,DEV_DOMAIN,ACME_EMAIL,PROD_PORT,DEV_PORT,R2_ENDPOINT,R2_ACCESS_KEY_ID,R2_SECRET_ACCESS_KEY
           script: |
             set -euo pipefail
 
-            # This environment's loopback port, and the bucket its notes come
-            # from. Both pairs are known here because the edge config written
-            # further down describes the whole box.
+            # This environment's loopback port. Both are known here because the
+            # edge config written further down describes the whole box.
             case "${ENV_NAME}" in
               prod)
                 WEB_PORT="${PROD_PORT}"
-                NOTES_BASE_URL="${PROD_NOTES_BASE_URL}"
                 ;;
               dev)
                 WEB_PORT="${DEV_PORT}"
-                NOTES_BASE_URL="${DEV_NOTES_BASE_URL}"
                 ;;
               *)
                 echo "Unknown environment '${ENV_NAME}'; expected dev or prod." >&2
@@ -323,8 +330,9 @@ jobs:
             echo "Deploying $(git rev-parse --short HEAD)."
 
             # --- Compose's environment --------------------------------------
-            # docker-compose.yml interpolates WEB_PORT, IMAGE_TAG and
-            # NOTES_BASE_URL out of the environment compose itself runs in.
+            # docker-compose.yml interpolates WEB_PORT, IMAGE_TAG and the
+            # backend's four notes variables out of the environment compose
+            # itself runs in.
             # Compose runs under sudo here, and sudo's env_reset scrubs the
             # variables this script was given, so they would never reach it —
             # compose would silently fall back to the file's defaults (port
@@ -333,14 +341,22 @@ jobs:
             # file compose reads directly, which sudo cannot strip.
             #
             # Kept outside APP_DIR so the checkout never holds deploy config,
-            # and root-owned 600 to match the file this would hold secrets in
-            # once the backend grows any.
+            # and root-owned 600 because it now does hold a secret: the R2
+            # token the backend reads the notes bucket with.
+            #
+            # The bucket is derived from the environment rather than configured,
+            # the same way the port is picked above — fretbook-notes-dev and
+            # fretbook-notes-prod are the two that exist, so a third name here
+            # would be a typo rather than a choice.
             ENV_FILE="/opt/fretbook-${ENV_NAME}-deploy.env"
             sudo install -m 600 /dev/null "${ENV_FILE}"
             sudo tee "${ENV_FILE}" >/dev/null <<EOF
             WEB_PORT=${WEB_PORT}
             IMAGE_TAG=${ENV_NAME}
-            NOTES_BASE_URL=${NOTES_BASE_URL}
+            FRETBOOK_NOTES_BUCKET=fretbook-notes-${ENV_NAME}
+            FRETBOOK_R2_ENDPOINT=${R2_ENDPOINT}
+            AWS_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+            AWS_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
             EOF
 
             # --- Rebuild and run this environment's stack -------------------

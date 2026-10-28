@@ -1,7 +1,7 @@
 # The bucket is the source of truth
 
-The bucket already decides what readers see — the browser reads
-`pub-….r2.dev` directly and a deploy carries no notes
+The bucket already decides what readers see — at the time of this change the
+browser read `pub-….r2.dev` directly, and a deploy carried no notes
 ([docs/notes-r2-storage.md](notes-r2-storage.md)). The repo has not caught up:
 six JSON files under `notes/` are tracked in git and kept in step by hand,
 documented as "local copies, not the source of truth" while in practice being
@@ -27,7 +27,7 @@ notes/*.json  tracked, 6 files          notes/   git-ignored cache
   ↑ the de-facto backup                     s3api list-objects-v2
                                             s3api get-object
 
-browser ──► pub-….r2.dev/notes.json    unchanged
+browser ──► pub-….r2.dev/notes.json    unchanged by *this* change
 ```
 
 ## Deleting the tracked files loses nothing
@@ -180,16 +180,19 @@ commit there is nowhere else to look.
   obvious answer to R2 having no versioning, and still wrong here: *public is a
   per-bucket switch with no per-prefix grant*, so every archived revision would
   be world-readable alongside the notes.
-- **A second, private bucket for archives.** This is the one to reach for if
-  the finality above ever actually costs something — it keeps the archive out of
-  the public bucket, and `notes:publish` would copy the outgoing object into it
-  before overwriting. Left out now because it doubles the buckets to reason
-  about for a risk that is six small files.
+- **A second bucket for archives.** This is the one to reach for if the
+  finality above ever actually costs something: `notes:publish` would copy the
+  outgoing object into it before overwriting. Left out because it doubles the
+  buckets to reason about for a risk that is six small files. (The buckets are
+  private now, so the world-readable objection to an `archive/` prefix in the
+  same bucket has gone — but a separate bucket is still the cleaner shape, since
+  the backend's read-only token should not be able to see old revisions.)
 - **Moving the runtime read path onto the S3 API** (private bucket, Flask
-  proxying `get-object`) — a bigger, separate change. It retires the public
+  proxying `get-object`) — a bigger, separate change, and the one that was
+  rejected here and then done anyway: see
+  [notes-via-s3-client.md](notes-via-s3-client.md). It retired the public
   bucket, its CORS rule and the r2.dev rate limit, at the cost of the R2 token
-  on the VPS and a server hop in front of every note. Worth revisiting if
-  r2.dev's rate limit ever bites.
+  on the VPS and a server hop in front of every note.
 
 ## Cost estimate
 

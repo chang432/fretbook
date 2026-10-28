@@ -14,9 +14,11 @@ npm run preview  # serve dist/ the way the server does
 npm run lint
 ```
 
-The published notes come from an R2 bucket rather than from the repo, so
-`/notes` is empty until the build is told which one: `cp .env.example .env.local`
-and point it at the dev bucket. Everything else works without it.
+The published notes come from a private R2 bucket rather than from the repo,
+read by the backend over the S3 API — so `/notes` is empty under a bare
+`npm run dev` until something is serving `/api`. Bring the stack up beside it
+(`cd docker/app && docker compose up`) and the dev server proxies to it.
+Everything else — which is most of the app — works without any of that.
 
 ## Writing tab
 
@@ -358,9 +360,10 @@ rows are yours to add, so a file records the sheet exactly as you left it.
 ## Publishing notes
 
 A published note is a read-only note with a URL of its own, and `/notes` lists
-them all. They live in a **public Cloudflare R2 bucket, one per environment** —
-dev and prod read different buckets — and the browser reads them straight out
-of it, so publishing is a command rather than a deploy:
+them all. They live in a **private Cloudflare R2 bucket, one per environment**,
+and the app reads them from its own origin through the backend, which is the
+one thing holding a credential for that bucket. Publishing is a command rather
+than a deploy:
 
 ```bash
 cp .env.example .env.local      # once: the R2 endpoint and the token's profile
@@ -418,18 +421,20 @@ could not open, so a broken note never reaches a reader, and afterwards it
 rebuilds `notes.json` — the manifest `/notes` lists — from what is actually in
 the bucket, so there is no list to keep in step.
 
-Which bucket a build reads is `VITE_NOTES_BASE_URL`, inlined at build time:
-CI sets it per environment from the `DEV_NOTES_BASE_URL` /
-`PROD_NOTES_BASE_URL` repository variables, and `.env.example` is the local
-copy. A build without it runs fine — `/notes` says it was not told where the
-notes are.
+**Nothing about a note is baked into the build.** The browser asks
+`/api/notes` and `/api/notes/<name>` on its own origin; Caddy hands those to
+Flask, and `docker/app/backend/app/notes.py` fetches the object from R2 with
+boto3. Which bucket that means is the backend's runtime setting, so the dev and
+prod web images are identical — see
+[docs/notes-via-s3-client.md](docs/notes-via-s3-client.md).
 
-R2 speaks the S3 API, so publishing is the ordinary `aws` CLI pointed at the
-account's R2 endpoint — no new dependency.
+Everything speaks the S3 API, in other words: publishing is the ordinary `aws`
+CLI pointed at the account's R2 endpoint, and reading is boto3 pointed at the
+same place. Nothing reads the bucket over HTTP, and the bucket is not public.
 
-**The buckets themselves are not created by this repo.** Making them public,
-their CORS rule, the API token and the costs are in
-[docs/notes-r2-storage.md](docs/notes-r2-storage.md).
+**The buckets themselves are not created by this repo.** The API tokens — a
+read-write one for your laptop, a read-only one for the server — and the costs
+are in [docs/notes-r2-storage.md](docs/notes-r2-storage.md).
 
 ## Layout
 
@@ -445,7 +450,7 @@ src/
   components/Popover.jsx    the anchored panel behind the export, group and tempo menus
   components/icons.jsx      the drawn symbols on the buttons that carry no words
   utils/tab.js              grid, tie and mark model; ASCII/JSON; downloads
-  utils/notes.js            the published notes' bucket: its URLs and reads
+  utils/notes.js            the published notes: the /api calls that fetch them
   utils/live.js             the sheet as a flat run of beats, and its timing
   utils/audio.js            fret-to-pitch both ways, and the plucked-string synthesis
   utils/popover.js          where an anchored panel sits, kept inside the window
