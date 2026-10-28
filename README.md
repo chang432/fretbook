@@ -137,14 +137,27 @@ worked on rather than written in — the one mode it has. Everything that
 rearranges a sheet lives there: swapping rows, moving a row between groups,
 deleting a row, and copying a stretch of notes from one place to another.
 
-Press a row, then press another, and the two exchange places. It is also the
-one place a row joins or leaves a group: while a row is held, **every group's
-bar becomes somewhere to put it** — *Put here* on the groups it could join,
-*Take out* on the one it is already in.
+Press a row, then press another, and the two exchange places. A row can also
+be moved rather than traded: while one is held, **the places between the rows
+light up as dashed lines**, and pressing one takes the held row there, with
+everything in between closing up behind it.
+
+It is also the one place a row joins or leaves a group. A line inside a
+group's bracket puts the row in that group; a line between two blocks leaves
+it in none. **Every group's bar is somewhere to put it too** — *Put here* on
+the groups it could join, *Take out* on the one it is already in.
 
 - The first press picks something up and holds it, drawn in the accent colour.
-  The second says what to swap it with. Pressing the same one again, or
-  <kbd>esc</kbd>, puts it back down without moving anything.
+  The second says what to swap it with, or where to move it to. Pressing the
+  same row again, or <kbd>esc</kbd>, puts it back down without moving
+  anything.
+- **The lines are there for as long as the mode is**, empty until something is
+  held, so picking a row up lights the places it could go rather than moving
+  the whole sheet about. The two lines either side of the held row stay unlit:
+  they are where it already is.
+- Each line says where it would land — *into Chorus, after row 3*, *between
+  rows 2 and 3, in no group* — so the line under a group's bar and the line
+  just above it read as the two different offers they are.
 - **Everything in a row travels with it** — the notes, the arcs, the symbols,
   and the bars it is however many of. Two rows of different lengths swap just
   as readily as two of the same length; the rows between them slide by the

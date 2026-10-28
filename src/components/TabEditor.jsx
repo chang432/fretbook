@@ -69,6 +69,7 @@ export default function TabEditor({
   onAddGroup,
   onRenameGroup,
   onSetRowGroup,
+  onMoveRow,
   onDeleteGroup,
   tuning,
   ties,
@@ -409,6 +410,81 @@ export default function TabEditor({
     if (selectedRow === null) return
     onSetRowGroup(selectedRow, takes ? groupId : null)
     setSelectedRow(null)
+  }
+
+  /**
+   * Send the held row to a place between two rows — and into whichever group
+   * that place belongs to, which is what the gap pressed knows and the row
+   * being carried does not.
+   *
+   * Put back down afterwards, as a row sent to a bar is: it is somewhere else
+   * now, and what was held is no longer where it was picked up from.
+   */
+  const moveHeldRow = (to, groupId) => {
+    if (selectedRow === null) return
+    onMoveRow(selectedRow, to, groupId)
+    setSelectedRow(null)
+  }
+
+  /**
+   * The place between two rows, as something to press while a row is held.
+   * `to` is the gap it stands in — 0 above the first row of the sheet, one
+   * more for each row after that — and `groupId` the group the gap is inside,
+   * which is what makes the place under a group's bar a different offer from
+   * the place just above it.
+   *
+   * The band is there for as long as the mode is, so picking a row up lights
+   * the places it could go rather than moving the whole sheet about. The two
+   * gaps either side of the held row are left unlit: they are where it is.
+   */
+  const gap = (to, groupId) => {
+    const key = `gap-${to}-${groupId ?? 'loose'}`
+    const standing =
+      selectedRow !== null &&
+      (to === selectedRow || to === selectedRow + 1) &&
+      groupOf(selectedRow) === groupId
+
+    if (selectedRow === null || standing) {
+      return <div className="row-gap" key={key} aria-hidden="true" />
+    }
+
+    const where =
+      groupId === null
+        ? to === 0
+          ? 'to the top of the sheet, in no group'
+          : to === rows.length
+            ? 'to the end of the sheet, in no group'
+            : `between rows ${label(to - 1)} and ${label(to)}, in no group`
+        : `into ${groupLabel(groups, groupId)}, ${
+            to === 0 || groupOf(to - 1) !== groupId
+              ? 'at its top'
+              : `after row ${label(to - 1)}`
+          }`
+
+    return (
+      <div className="row-gap" key={key}>
+        <button
+          type="button"
+          className="row-gap-drop"
+          onClick={() => moveHeldRow(to, groupId)}
+          onKeyDown={dropOnEscape}
+          title={`Move row ${label(selectedRow)} ${where}`}
+          aria-label={`Move row ${label(selectedRow)} ${where}`}
+        >
+          <span className="row-gap-line" />
+        </button>
+      </div>
+    )
+  }
+
+  /** The rows of one block, with the places between them to move a row to. */
+  const rowsWithGaps = (indices, groupId) => {
+    const out = []
+    for (const staff of indices) {
+      out.push(gap(staff, groupId), staffOf(staff))
+    }
+    out.push(gap(indices[indices.length - 1] + 1, groupId))
+    return out
   }
 
   /** Put down whatever is held, the same as pressing it a second time. */
@@ -1037,7 +1113,10 @@ export default function TabEditor({
           colour, and a row in no group stands on its own where that bracket
           would be. The rows are in sheet order either way: `groupRuns` only
           reads the layout off the order the rows already stand in. */}
-      {groupRuns(members, rowIds, groups).map((block) =>
+      {groupRuns(members, rowIds, groups).flatMap((block) => [
+        // Between two blocks, which is a place in no group — and above the
+        // bar rather than under it, so it reads as outside the bracket.
+        editing ? gap(block.rows[0], null) : null,
         block.group ? (
           <section
             className={`group${isGroupFolded(block.group.id) ? ' group--folded' : ''}`}
@@ -1061,13 +1140,18 @@ export default function TabEditor({
               onDrop={dropHeldRow}
             />
             {!isGroupFolded(block.group.id) && (
-              <div className="group-body">{block.rows.map(staffOf)}</div>
+              <div className="group-body">
+                {editing ? rowsWithGaps(block.rows, block.group.id) : block.rows.map(staffOf)}
+              </div>
             )}
           </section>
         ) : (
           staffOf(block.rows[0])
         ),
-      )}
+      ])}
+
+      {/* The end of the sheet, past every block. */}
+      {editing && gap(rows.length, null)}
 
       {/* A group holding no rows has no rows to stand over, so it waits at the
           end of the sheet: a bar to name, and somewhere for a row to be sent

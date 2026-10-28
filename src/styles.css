@@ -265,6 +265,70 @@ button.link {
   font-size: 13px;
 }
 
+/* The place between two rows, which is where a held row is moved to rather
+   than swapped with. The band stands for as long as the mode does, so picking
+   a row up lights the places it could go instead of moving the whole sheet
+   about; it is empty and takes no press until something is held.
+
+   Thin: it divides two rows and must not read as a gap between them, which is
+   why the line inside it is drawn faint rather than the band being drawn at
+   all. */
+.row-gap {
+  position: relative;
+  z-index: 7;
+  height: 12px;
+}
+
+.row-gap-drop {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+/* The line itself: dashed while it is only an offer, so it reads as a place
+   to put something rather than as one more rule between two rows, and solid
+   in the accent colour under the pointer — the colour the held row is drawn
+   in, so what is being carried and where it would land read as one errand. */
+.row-gap-line {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: 1px;
+  background: repeating-linear-gradient(
+    to right,
+    rgb(168 73 47 / 45%) 0 7px,
+    transparent 7px 13px
+  );
+}
+
+.row-gap-drop:hover .row-gap-line,
+.row-gap-drop:focus-visible .row-gap-line {
+  height: 3px;
+  background: var(--accent);
+}
+
+/* A dot at the left end under the pointer, where the row would start — the
+   line says the place, the dot says it is a place to put something. */
+.row-gap-drop:hover::before,
+.row-gap-drop:focus-visible::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.row-gap-drop:focus-visible {
+  outline: none;
+}
+
 /* The transparent sheet laid over a staff while the sheet is being edited, so
    a row is one thing to press rather than a grid of cells. It is inset by a
    couple of pixels so its outline reads as around the row rather than as a

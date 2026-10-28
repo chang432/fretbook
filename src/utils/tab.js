@@ -458,6 +458,43 @@ export function swapRows(
 }
 
 /**
+ * Move a row to a given place on the sheet, and into the group that place
+ * belongs to — `null` for a place in no group.
+ *
+ * `to` names a gap rather than a row: the place *before* the row standing
+ * there now, counting from 0 above the first row to `rows.length` below the
+ * last. That is what a press between two rows means, and it is the one way of
+ * saying "here" that does not change meaning as the row is lifted out.
+ *
+ * Which group the row lands in is told rather than worked out, because only
+ * the gap pressed knows it: the place between two rows of a group is inside
+ * that group's bracket, and the place between two groups is inside neither.
+ *
+ * Hands back the sheet, the memberships, and the place the row ended up in —
+ * which is what it has to be called by afterwards.
+ */
+export function moveRowTo(sheet, from, to, groupId = null) {
+  const { rows, rowIds = createRowIds(rows.length), members = {} } = sheet
+  if (from < 0 || from >= rows.length || to < 0 || to > rows.length) {
+    return { ...sheet, members, at: from }
+  }
+
+  // Lifted out of the order, then put back down in the gap. The gap is named
+  // in the order as it stands, so one past the row lifted out is one fewer
+  // place once it is gone.
+  const order = rows.map((_, at) => at)
+  order.splice(from, 1)
+  const at = to > from ? to - 1 : to
+  order.splice(at, 0, from)
+
+  return {
+    ...reorderRows(sheet, order),
+    members: setRowGroup(members, rowIds[from], groupId),
+    at,
+  }
+}
+
+/**
  * Put a row in a group, or take it out of the one it is in with null — and
  * move the row to where that leaves it standing.
  *
@@ -465,28 +502,21 @@ export function swapRows(
  * the end of that group's run, and leaving one drops the row just past the run
  * it was in. A row joining a group that holds nothing yet stays exactly where
  * it is: that row is where the group now stands.
- *
- * Hands back the sheet, the memberships, and the place the row ended up in —
- * which is what it has to be called by afterwards.
  */
 export function putRowInGroup(sheet, rowIndex, groupId) {
   const { rows, rowIds = createRowIds(rows.length), members = {} } = sheet
   if (rowIndex < 0 || rowIndex >= rows.length) return { ...sheet, members, at: rowIndex }
 
-  const was = groupOfRow(members, rowIds[rowIndex])
-  const next = setRowGroup(members, rowIds[rowIndex], groupId)
   // The group whose run the move is about: the one being joined, or — when
   // the row is leaving every group — the one it is stepping out of.
+  const was = groupOfRow(members, rowIds[rowIndex])
   const concerned = Number.isInteger(groupId) ? groupId : was
-  const run = rowsInGroup(next, rowIds, concerned).filter((at) => at !== rowIndex)
+  const run = rowsInGroup(members, rowIds, concerned).filter((at) => at !== rowIndex)
 
-  // Lifted out of the order, then put back down past the end of that run.
-  const order = rows.map((_, at) => at)
-  order.splice(rowIndex, 1)
-  const at = run.length ? order.indexOf(run[run.length - 1]) + 1 : rowIndex
-  order.splice(at, 0, rowIndex)
-
-  return { ...reorderRows(sheet, order), members: next, at }
+  // Past the end of that run, or — for a group holding nothing yet — the
+  // place the row already stands in.
+  const to = run.length ? run[run.length - 1] + 1 : rowIndex
+  return moveRowTo(sheet, rowIndex, to, groupId)
 }
 
 /**

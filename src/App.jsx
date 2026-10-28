@@ -23,6 +23,7 @@ import {
   fromJson,
   groupLabel,
   groupOfRow,
+  moveRowTo,
   putRowInGroup,
   removeGroup,
   isGridEmpty,
@@ -347,6 +348,23 @@ export default function App({ published = null }) {
       Number.isInteger(groupId)
         ? `Row ${rowLabel(next.at)} is in ${groupLabel(groups, groupId)}`
         : `Row ${rowLabel(next.at)} is in no group`,
+    )
+  }
+
+  /**
+   * Move a row to a place between two others, and into whatever group that
+   * place belongs to. The other half of edit mode's reordering: a swap trades
+   * two rows, this one takes a row somewhere else and lets everything between
+   * close up behind it.
+   */
+  const handleMoveRow = (from, to, groupId) => {
+    remember(`moving row ${rowLabel(from)}`)
+    const next = moveRowTo(sheet, from, to, groupId)
+    applySheet(next)
+    disarmRemovals()
+    setStatus(
+      `Row ${rowLabel(from)} moved to row ${rowLabel(next.at)}` +
+        (Number.isInteger(groupId) ? `, in ${groupLabel(groups, groupId)}` : ', in no group'),
     )
   }
 
@@ -948,9 +966,11 @@ export default function App({ published = null }) {
       {editing && (
         <p className="edit-hint">
           Press a row, then press another, and the two exchange places — a row
-          swapped into a group joins it. Press a group&rsquo;s bar instead to put the
-          held row in that group, or to take it out again. The bin at the end of
-          a row deletes that row. Above each staff, press two circles to pick a
+          swapped into a group joins it. While a row is held, the lines between
+          the rows light up: press one to move the held row there instead of
+          swapping it, and a line inside a group&rsquo;s bracket puts it in that
+          group. A group&rsquo;s bar takes the held row too, or lets it go. The bin
+          at the end of a row deletes that row. Above each staff, press two circles to pick a
           stretch of notes out — one row at a time — then a paste button to
           write it down starting there. Writing is off until this is turned
           back off.
@@ -1038,6 +1058,7 @@ export default function App({ published = null }) {
           onAddGroup={handleAddGroup}
           onRenameGroup={handleRenameGroup}
           onSetRowGroup={handleSetRowGroup}
+          onMoveRow={handleMoveRow}
           onDeleteGroup={handleDeleteGroup}
           onCellChange={handleCellChange}
           onCreateTie={createTie}
