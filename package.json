@@ -10,7 +10,9 @@
     "lint": "eslint .",
     "notes:publish": "node scripts/notes.mjs publish",
     "notes:unpublish": "node scripts/notes.mjs unpublish",
-    "notes:manifest": "node scripts/notes.mjs manifest"
+    "notes:manifest": "node scripts/notes.mjs manifest",
+    "notes:pull": "node scripts/notes.mjs pull",
+    "notes:check": "node scripts/notes.mjs check"
   },
   "dependencies": {
     "react": "^19.2.0",

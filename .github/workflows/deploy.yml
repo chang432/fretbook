@@ -137,6 +137,14 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Confirm no notes are tracked in git
+        # The notes bucket is the only place a published note lives, and
+        # .gitignore cannot do anything about a file that is already tracked.
+        # The failure this catches is a note being added back long after the
+        # move, which is not a thing anyone remembers to look for. Needs no
+        # bucket and no credentials — it reads the index.
+        run: npm run notes:check
+
       - name: Build the frontend
         run: npm run build
 

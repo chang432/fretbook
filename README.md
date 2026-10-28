@@ -362,6 +362,7 @@ export AWS_PROFILE=r2                                # the R2 token's credential
 npm run notes:publish   -- notes/tie_that_binds_by_drake.json
 npm run notes:unpublish -- tie_that_binds_by_drake
 npm run notes:manifest                               # rebuild the index only
+npm run notes:pull                                   # refresh the local cache
 ```
 
 ```
@@ -375,12 +376,24 @@ read differently, keeping to lowercase letters and digits joined by single
 dashes or underscores. It is live as soon as the upload finishes; nothing is
 rebuilt and no merge is involved.
 
-The bucket is the only source of truth: a reader can open a note and play with
-it, but nothing they do is saved anywhere, and `notes:publish` is the only
-thing that can change what everyone sees. The repo's `notes/` folder is just
-local copies of what you have published — deleting a file there changes
-nothing, but keep them: R2 has no object versioning, so republishing over a
-note or unpublishing one is final.
+**The bucket is the only place a note lives.** A reader can open one and play
+with it, but nothing they do is saved anywhere, and `notes:publish` is the only
+thing that can change what everyone sees. Nothing in this repo is
+authoritative about a note: `notes/` is git-ignored, and `notes:check` — which
+CI runs — fails if a note is tracked.
+
+`notes:pull` is how you get the notes onto a machine. It **mirrors** the
+bucket: it fetches what you do not have and deletes what the bucket no longer
+has, because a file the bucket does not have is not a note. A second pull in a
+row fetches nothing, so it costs nothing to run before reaching for anything
+else. An export you have not published yet does not belong in `notes/` —
+publish it from wherever the browser saved it, since `notes:publish` takes any
+path.
+
+That leaves no second copy anywhere, and **R2 has no object versioning**, so
+republishing over a note or unpublishing one is final. That is the deliberate
+cost of one source of truth; [docs/notes-pull-from-r2.md](docs/notes-pull-from-r2.md)
+is where it is argued, and what to do if it ever bites.
 
 `scripts/notes.mjs` is the whole of publishing. It refuses a file the editor
 could not open, so a broken note never reaches a reader, and afterwards it

@@ -83,7 +83,10 @@ publishing over a note replaces it, unpublishing deletes it, both on one press.
 
 One small thing worth taking from the same list call: a file whose MD5 already
 equals the live object's ETag is **skipped with `unchanged`** rather than
-re-uploaded. That is an avoided no-op, not a safety rail.
+re-uploaded. That is an avoided no-op, not a safety rail. If every file in a
+publish is skipped, the manifest is left alone too — rebuilding it reads every
+note in the bucket, which is not a cost to pay for a run that changed nothing,
+and `notes:manifest` still forces it.
 
 **R2 has no object versioning, so both remain final** — and with nothing in git
 there is no second copy to restore from. That is the accepted cost of a single

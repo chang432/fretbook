@@ -76,15 +76,21 @@ npm run notes:publish   -- notes/passionfruit_by_drake.json
 npm run notes:publish   -- notes/*.json              # seed a fresh bucket
 npm run notes:unpublish -- passionfruit_by_drake     # the name, not a path
 npm run notes:manifest                               # rebuild notes.json only
+npm run notes:pull                                   # mirror the bucket locally
+npm run notes:check                                  # no notes tracked in git
 ```
 
-The repo's `notes/` folder is **local copies, not the source of truth** — a
-place to keep the exports you have published from. Deleting a file there
-publishes nothing and unpublishes nothing.
+The bucket is **the only place a note lives**. The repo's `notes/` folder is a
+git-ignored cache of it: `notes:pull` mirrors the bucket into it — fetching
+what is missing, deleting what the bucket no longer has — and `notes:check`,
+which CI runs, fails if a note is tracked in git. See
+[notes-pull-from-r2.md](notes-pull-from-r2.md) for why it is that way round.
 
-It does matter more here than it would on S3, though: **R2 has no object
-versioning** (`PutBucketVersioning` is unimplemented), so republishing a note
-over itself, or unpublishing one, is final. The copy in `notes/` is the backup.
+So there is no second copy of a note anywhere, and **R2 has no object
+versioning** (`PutBucketVersioning` is unimplemented): republishing a note over
+itself, or unpublishing one, is final. That is the accepted cost of one source
+of truth, and the mitigation if it ever matters — a second, private bucket for
+archives — is written up in the same doc.
 
 `notes:manifest` is the repair tool: run it if an upload is interrupted, or
 after dropping an object in by hand.
@@ -249,18 +255,23 @@ No trailing slash (one is stripped anyway). **The next deploy fails fast if
 either is missing** — deliberately, since the alternative is a silently empty
 `/notes` page.
 
-### 6. Seed the buckets before merging
+### 6. Seed a fresh bucket
 
-The six notes that used to ship with the site are in `notes/`. Until they are
-uploaded, `/notes` is empty on a deployed environment:
+Both buckets are seeded. A new one is empty until something is uploaded, and
+`/notes` is empty with it, so publish into it from a machine that has pulled
+the notes already:
 
 ```bash
 export AWS_PROFILE=r2
 export FRETBOOK_R2_ENDPOINT=https://<account id>.r2.cloudflarestorage.com
 
-FRETBOOK_NOTES_BUCKET=fretbook-notes-dev  npm run notes:publish -- notes/*.json
-FRETBOOK_NOTES_BUCKET=fretbook-notes-prod npm run notes:publish -- notes/*.json
+FRETBOOK_NOTES_BUCKET=fretbook-notes-dev npm run notes:pull
+FRETBOOK_NOTES_BUCKET=<the new bucket>   npm run notes:publish -- notes/*.json
 ```
+
+Pull first, in that order: `notes/` is a mirror of whichever bucket was pulled
+last, so publishing out of it without looking is how one environment quietly
+overwrites the other.
 
 ### 7. Locally (optional)
 

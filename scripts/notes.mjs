@@ -3,9 +3,10 @@
  * Publishing, as a command.
  *
  * The published notes live in a public Cloudflare R2 bucket — one per
- * environment — and that bucket is the source of truth: publishing is this
- * script, not a commit, and a deploy neither carries notes nor can lose them.
- * The layout it writes is the one src/utils/notes.js reads:
+ * environment — and **that bucket is the only place a note lives**. Nothing in
+ * this repo is authoritative about one: publishing is this script, not a
+ * commit, and a deploy neither carries notes nor can lose them. The layout it
+ * writes is the one src/utils/notes.js reads:
  *
  *   notes.json            the manifest /notes lists
  *   notes/<name>.json     one note, the editor's own JSON export
@@ -13,6 +14,14 @@
  *   npm run notes:publish   -- --bucket fretbook-notes-dev notes/*.json
  *   npm run notes:unpublish -- --bucket fretbook-notes-dev passionfruit_by_drake
  *   npm run notes:manifest  -- --bucket fretbook-notes-dev
+ *   npm run notes:pull      -- --bucket fretbook-notes-dev
+ *   npm run notes:check
+ *
+ * The local `notes/` folder is a **cache of the bucket**, not a copy worth
+ * keeping: it is git-ignored, `pull` mirrors it onto whatever the bucket holds,
+ * and `check` fails if anything under it is tracked in git. An export you have
+ * not published yet does not belong there — publish it from wherever the
+ * browser saved it, since `publish` takes any path.
  *
  * R2 speaks the S3 API, so this drives the ordinary AWS CLI pointed at the
  * account's R2 endpoint (`--endpoint`, or FRETBOOK_R2_ENDPOINT — see
@@ -28,11 +37,17 @@
  *     broken one;
  *   - the manifest is rebuilt from what is actually in the bucket afterwards,
  *     rather than edited, so it cannot drift from the notes it lists.
+ *
+ * R2 has no object versioning, so a republish and an unpublish are both final,
+ * and with nothing in git there is no second copy to restore from. That is the
+ * accepted cost of one source of truth — see docs/notes-pull-from-r2.md.
  */
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { fileURLToPath } from 'node:url'
 
 // The parser the app itself imports notes with, so what passes here is exactly
 // what will open in the editor.
@@ -43,6 +58,12 @@ const PREFIX = 'notes'
 
 /** The manifest's key in the bucket. */
 const MANIFEST = 'notes.json'
+
+/** The repo, found from this file rather than from the caller's cwd. */
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+
+/** The cache `pull` mirrors the bucket into. Named after the bucket's prefix. */
+const NOTES_DIR = join(ROOT, PREFIX)
 
 /**
  * Every call is a single small object, so this uses the low-level `s3api`
@@ -74,6 +95,14 @@ const die = (message) => {
   console.error(message)
   process.exit(1)
 }
+
+/**
+ * A local file's MD5, which is directly comparable to an R2 ETag: these notes
+ * are a few KB and go up as a single part, and a non-multipart object's ETag is
+ * the MD5 of its body. That equivalence is what lets `pull` skip a download and
+ * `publish` skip a no-op upload, without either of them keeping any state.
+ */
+const localMd5 = (file) => createHash('md5').update(readFileSync(file)).digest('hex')
 
 /** `--bucket x` / `--endpoint x` out of the arguments, leaving the rest. */
 function parseArgs(argv) {
@@ -126,8 +155,13 @@ function slugOf(file) {
 /** A scratch directory for the objects this reads back and the file it writes. */
 const scratch = () => mkdtempSync(join(tmpdir(), 'fretbook-notes-'))
 
-/** Every note key in the bucket, in whatever order R2 hands them over. */
-function listNotes(bucket) {
+/**
+ * Every note in the bucket as `key → md5`, in one request. The ETag rides along
+ * on the listing for free, and it is the answer to every "do I already have
+ * these bytes" question below — which is why this is one function rather than a
+ * listing plus a head-object per note.
+ */
+function bucketIndex(bucket) {
   const output = aws(
     's3api',
     'list-objects-v2',
@@ -136,12 +170,22 @@ function listNotes(bucket) {
     '--prefix',
     `${PREFIX}/`,
     '--query',
-    'Contents[].Key',
+    `Contents[].{Key:Key,ETag:ETag}`,
     '--output',
     'json',
   )
-  const keys = JSON.parse(output || 'null')
-  return Array.isArray(keys) ? keys.filter((key) => key.endsWith('.json')) : []
+
+  const rows = JSON.parse(output || 'null')
+  const index = new Map()
+  if (!Array.isArray(rows)) return index
+
+  for (const { Key: key, ETag: etag } of rows) {
+    // The ETag arrives quoted, as the S3 API sends it; strip them once here so
+    // no caller has to remember.
+    if (key?.endsWith('.json')) index.set(key, (etag ?? '').replaceAll('"', ''))
+  }
+
+  return index
 }
 
 /** One object's body. get-object writes it to a file, so it lands in `dir`. */
@@ -170,6 +214,12 @@ function putObject(bucket, key, file, cacheControl) {
   )
 }
 
+/** The slug a note's key stands for, or null if that key is not a note's. */
+function slugOfKey(key) {
+  const slug = key.slice(`${PREFIX}/`.length, -'.json'.length)
+  return NOTE_NAME.test(slug) ? slug : null
+}
+
 /**
  * Rewrite the manifest from the bucket's own contents. Every note is read back
  * for its title, which is a handful of small reads and means a note uploaded
@@ -179,9 +229,9 @@ function writeManifest(bucket) {
   const dir = scratch()
   const notes = []
 
-  for (const key of listNotes(bucket)) {
-    const slug = key.slice(`${PREFIX}/`.length, -'.json'.length)
-    if (!NOTE_NAME.test(slug)) {
+  for (const key of bucketIndex(bucket).keys()) {
+    const slug = slugOfKey(key)
+    if (!slug) {
       console.warn(`  skipping ${key}: not a publishable name`)
       continue
     }
@@ -207,6 +257,105 @@ function writeManifest(bucket) {
 
   console.log(`Manifest: ${notes.length} note${notes.length === 1 ? '' : 's'}.`)
   return notes
+}
+
+/**
+ * Bring the local cache to exactly what the bucket holds: fetch what we do not
+ * have, delete what the bucket no longer does. A file the bucket does not have
+ * is not a note, so mirroring is the whole point rather than an option — the
+ * bucket is the source of truth, and this folder is a view of it.
+ *
+ * A second pull in a row fetches nothing and says so, which is what makes it
+ * reasonable to run before reaching for `publish`.
+ */
+function pull(bucket) {
+  const index = bucketIndex(bucket)
+  mkdirSync(NOTES_DIR, { recursive: true })
+
+  const wanted = new Set()
+  let fetched = 0
+  let held = 0
+
+  for (const [key, etag] of index) {
+    const slug = slugOfKey(key)
+    if (!slug) {
+      console.warn(`  skipping ${key}: not a publishable name`)
+      continue
+    }
+
+    const name = `${slug}.json`
+    const file = join(NOTES_DIR, name)
+    wanted.add(name)
+
+    if (existsSync(file) && localMd5(file) === etag) {
+      held += 1
+      continue
+    }
+
+    aws('s3api', 'get-object', '--bucket', bucket, '--key', key, file)
+    fetched += 1
+    console.log(`  fetched ${name}`)
+
+    // Written either way: a note the editor cannot open is still the thing the
+    // bucket is serving readers, and seeing it is the point of pulling.
+    if (!fromJson(readFileSync(file, 'utf8'))) {
+      console.warn(`  warning: ${name} is not an export the editor can open`)
+    }
+  }
+
+  // Dotfiles are left alone: nothing here writes one, so one that exists is
+  // somebody's, and deleting it is not this command's business.
+  const removed = readdirSync(NOTES_DIR).filter(
+    (name) => name.endsWith('.json') && !name.startsWith('.') && !wanted.has(name),
+  )
+
+  for (const name of removed) {
+    rmSync(join(NOTES_DIR, name))
+    console.log(`  removed ${name} — not in the bucket`)
+  }
+
+  const counts = [
+    `${fetched} fetched`,
+    `${held} already held`,
+    `${removed.length} removed`,
+  ].join(', ')
+  console.log(`${PREFIX}/ mirrors ${bucket}: ${counts}.`)
+}
+
+/**
+ * Fail if any note is tracked in git. `.gitignore` stops an accidental
+ * `git add` but says nothing about a file that is already tracked, which is the
+ * state this repo started in — so the invariant gets a check of its own, cheap
+ * enough to run in CI. No network and no credentials: it is a git command.
+ */
+function check() {
+  let tracked
+  try {
+    tracked = execFileSync('git', ['ls-files', '--', `${PREFIX}/`], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'inherit'],
+    })
+  } catch {
+    // Not a checkout — a tarball, or a Docker build context without .git. There
+    // is no index to disagree with, so there is nothing to fail on.
+    console.log('Not a git checkout; nothing to check.')
+    return
+  }
+
+  const files = tracked.split('\n').filter(Boolean)
+  if (files.length === 0) {
+    console.log(`No notes tracked in git. ${bucket || 'The bucket'} is the source of truth.`)
+    return
+  }
+
+  die(
+    `${files.length} note${files.length === 1 ? ' is' : 's are'} tracked in git:\n` +
+      `  ${files.join('\n  ')}\n\n` +
+      `The bucket is the only place a note lives. Untrack them with:\n` +
+      `  git rm --cached ${files.join(' ')}\n` +
+      `The files stay on disk, where npm run notes:pull maintains them.`,
+  )
 }
 
 function publish(bucket, files) {
@@ -241,11 +390,32 @@ function publish(bucket, files) {
 
   if (errors.length) die(`Refusing to publish:\n  ${errors.join('\n  ')}`)
 
+  // One listing answers "is this already what the bucket is serving" for the
+  // whole set. Skipping a byte-identical upload is an avoided no-op, not a
+  // safety rail: a publish that would change something always goes through.
+  const index = bucketIndex(bucket)
+  let published = 0
+
   for (const { file, slug } of uploads) {
+    const key = `${PREFIX}/${slug}.json`
+    if (index.get(key) === localMd5(file)) {
+      console.log(`Unchanged /notes/${slug}`)
+      continue
+    }
+
     // Short rather than immutable: a note can be republished under the same
     // name, and a minute of staleness is cheaper than never caching at all.
-    putObject(bucket, `${PREFIX}/${slug}.json`, file, 'public, max-age=60')
+    putObject(bucket, key, file, 'public, max-age=60')
     console.log(`Published /notes/${slug}`)
+    published += 1
+  }
+
+  // Nothing moved, so the manifest cannot have gone stale on our account —
+  // and rebuilding it reads every note in the bucket, which is not a cost to
+  // pay for a no-op. `notes:manifest` is still there to force it.
+  if (published === 0) {
+    console.log('Nothing changed; leaving the manifest alone.')
+    return
   }
 
   writeManifest(bucket)
@@ -261,8 +431,7 @@ function unpublish(bucket, slugs) {
   }
 
   for (const slug of slugs) {
-    // R2 keeps no versions, so this is final — which is why the repo holds a
-    // local copy of everything that has been published.
+    // R2 keeps no versions and nothing is tracked in git, so this is final.
     aws('s3api', 'delete-object', '--bucket', bucket, '--key', `${PREFIX}/${slug}.json`)
     console.log(`Unpublished /notes/${slug}`)
   }
@@ -272,6 +441,13 @@ function unpublish(bucket, slugs) {
 
 const [command, ...argv] = process.argv.slice(2)
 const { bucket, endpoint, rest } = parseArgs(argv)
+
+// check talks to git, not to R2, so it runs before the bucket and endpoint are
+// insisted on: a CI job that has neither still has an index to look at.
+if (command === 'check') {
+  check()
+  process.exit(0)
+}
 
 if (!bucket) {
   die('No bucket. Pass --bucket <name>, or set FRETBOOK_NOTES_BUCKET.')
@@ -294,6 +470,12 @@ switch (command) {
   case 'manifest':
     writeManifest(bucket)
     break
+  case 'pull':
+    pull(bucket)
+    break
   default:
-    die(`Usage: node scripts/notes.mjs <publish|unpublish|manifest> --bucket <name> [args]`)
+    die(
+      `Usage: node scripts/notes.mjs <publish|unpublish|manifest|pull|check> ` +
+        `--bucket <name> [args]`,
+    )
 }
