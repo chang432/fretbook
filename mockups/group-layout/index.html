@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Group layout mockup</title>
+<style>
+/*
+ * A standalone mockup of the refactored group layout. The variables, colours
+ * and staff geometry are copied from src/styles.css so what is drawn here can
+ * be read against the real sheet; everything new to the refactor is marked
+ * with a NEW comment.
+ */
+:root {
+  --cell-w: 36px;
+  --row-h: 34px;
+  --bar-w: calc(var(--cell-w) * 4);
+  --label-w: 30px;
+  --staff-air: 14px;
+
+  --paper: #fbf8f1;
+  --page: #ece7dc;
+  --ink: #16202b;
+  --string: #2f3a45;
+  --bar: #b9c2cc;
+  --grid: #dde3e9;
+  --barline: #a3aeb9;
+  --muted: #7d8894;
+  --accent: #a8492f;
+
+  /* NEW: one colour per group, taken in turn as groups are added. Each is
+     dark enough to carry paper-coloured text on the group's bar. */
+  --group-1: #a8492f;
+  --group-2: #3f6d5a;
+  --group-3: #3c5b85;
+  --group-4: #8a6a2f;
+
+  /* NEW: the spine down a grouped row's left side, and how far past it the
+     row is indented. The bar above and the spine below share this width, so
+     the two read as one bracket around the group. */
+  --spine-w: 6px;
+  --group-indent: 14px;
+
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 16px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+.app {
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 32px 10px 64px;
+}
+
+h1 {
+  margin: 0;
+  font: 600 26px/1.2 Georgia, 'Times New Roman', serif;
+}
+
+.caption {
+  max-width: 62ch;
+  margin: 8px 0 24px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.caption code {
+  font: 600 12px ui-monospace, Menlo, monospace;
+}
+
+button { font: inherit; }
+
+/* Sheet ---------------------------------------------------------------- */
+
+.sheet { margin-top: 16px; }
+
+.editor {
+  display: flex;
+  flex-direction: column;
+}
+
+/* NEW: a group on the sheet — the bar, then the rows it holds under it. The
+   group section that used to list every group above the staves is gone: a
+   group is now drawn where its rows are. */
+.group {
+  display: flex;
+  flex-direction: column;
+  margin-top: 12px;
+}
+
+/* The sheet opens flush with whatever stands first, and anything following a
+   group is pushed clear of it. */
+.editor > :first-child { margin-top: 0; }
+.editor > .group + .staff { margin-top: 12px; }
+
+/* NEW: the bar itself. One full row of the sheet's width, short but solid, so
+   it reads as a band across the page rather than as a chip sitting on it. */
+.group-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 4px 4px 0 0;
+  background: var(--group);
+  color: var(--paper);
+}
+
+/* The name, typed in place. Transparent until it is pointed at, so the bar
+   reads as a label rather than as a form. */
+.group-name {
+  flex: none;
+  min-width: 40px;
+  padding: 2px 5px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: inherit;
+  font: 600 12px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.group-name:hover,
+.group-name:focus {
+  border-color: rgb(251 248 241 / 55%);
+  background: rgb(251 248 241 / 12%);
+  outline: none;
+}
+
+.group-name::placeholder {
+  color: rgb(251 248 241 / 65%);
+  font-style: italic;
+}
+
+/* What the group holds. Quieter than the name — the rows below are the real
+   answer, this is only the count. */
+.group-count {
+  color: rgb(251 248 241 / 70%);
+  font: 500 11px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.04em;
+}
+
+/* NEW: the rows of the group, indented past the spine that runs down their
+   left side. The spine is the same width and colour as the bar above it, and
+   starts flush under it, so it reads as the bar turning the corner. */
+.group-body {
+  padding-left: var(--group-indent);
+  border-left: var(--spine-w) solid var(--group);
+  border-radius: 0 0 0 4px;
+  background: color-mix(in srgb, var(--group) 4%, transparent);
+}
+
+/* NEW: somewhere to add a group now that there is no strip of them. Drawn the
+   way the old "+" was — dashed, as a place to write rather than something
+   written — but at the bar's own full width. */
+.group-add {
+  height: 28px;
+  margin-top: 12px;
+  border: 1px dashed var(--bar);
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  font: 600 11px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 0 10px;
+}
+
+.group-add:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Staff ---------------------------------------------------------------- */
+
+.staff {
+  position: relative;
+  display: grid;
+  grid-template-columns: max-content minmax(0, max-content) max-content;
+  align-items: start;
+  justify-content: start;
+  padding-top: 32px;
+  border-top: 1px solid var(--bar);
+}
+
+/* NEW: inside a group the bar above is the rule that divides it from what came
+   before, so the first row of a group draws none of its own. */
+.group-body .staff:first-child { border-top: 0; }
+
+.row-head {
+  position: absolute;
+  z-index: 6;
+  top: 6px;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.row-head > * { pointer-events: auto; }
+
+.row-number {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--bar);
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  font: 600 13px/1 ui-monospace, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.row-name {
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font: 600 12px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.04em;
+}
+
+.row-number:hover,
+.row-name:hover { border-color: var(--accent); color: var(--accent); }
+
+/* NEW: the row's group chip no longer has to name the group — the spine beside
+   it already does — so it is only what the row is moved by, and it carries the
+   group's colour to tie it to the spine. */
+.row-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font: 600 11px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.04em;
+  opacity: 0;
+}
+
+.staff:hover .row-group,
+.row-group:focus-visible,
+.row-group.is-open { opacity: 1; }
+
+.row-group:hover { border-color: var(--accent); color: var(--accent); }
+
+.row-group::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--group, var(--bar));
+}
+
+/* The list of groups a row can be moved to, under the chip it was opened
+   from. Stands in for the real popover. */
+.group-picker {
+  position: absolute;
+  z-index: 20;
+  top: 34px;
+  left: 70px;
+  display: none;
+  flex-direction: column;
+  min-width: 150px;
+  padding: 4px;
+  border: 1px solid var(--bar);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 6px 18px rgb(22 32 43 / 14%);
+  pointer-events: auto;
+}
+
+.group-picker.is-open { display: flex; }
+
+.group-option {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink);
+  font: 600 11px/1 ui-monospace, Menlo, monospace;
+  text-align: left;
+}
+
+.group-option::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--swatch, transparent);
+  border: 1px solid var(--bar);
+}
+
+.group-option:hover { border-color: var(--accent); color: var(--accent); }
+.group-option.is-active { background: var(--page); }
+
+.staff-labels {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--staff-air);
+}
+
+.string-label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: var(--label-w);
+  height: var(--row-h);
+  padding-right: 10px;
+  color: var(--muted);
+  font: 600 13px ui-monospace, Menlo, monospace;
+}
+
+.staff-scroll {
+  min-width: 0;
+  padding: var(--staff-air) 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.staff-body {
+  position: relative;
+  width: max-content;
+  background-image:
+    repeating-linear-gradient(to right, var(--barline) 0 1px, transparent 1px var(--bar-w)),
+    repeating-linear-gradient(to right, var(--grid) 0 1px, transparent 1px var(--cell-w));
+  background-size: 100% calc(100% - var(--row-h));
+  background-position: 0 calc(var(--row-h) / 2);
+  background-repeat: no-repeat;
+}
+
+.staff-body::after {
+  content: '';
+  position: absolute;
+  top: calc(var(--row-h) / 2);
+  right: 0;
+  bottom: calc(var(--row-h) / 2);
+  width: 1px;
+  background: var(--barline);
+}
+
+.string-row {
+  position: relative;
+  display: flex;
+  height: var(--row-h);
+}
+
+.string-row::before {
+  content: '';
+  position: absolute;
+  inset: calc(50% - 1px) 0 auto;
+  height: 2px;
+  background: var(--string);
+}
+
+.cell {
+  position: relative;
+  z-index: 2;
+  width: var(--cell-w);
+  height: var(--row-h);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 600 17px/1 ui-monospace, Menlo, monospace;
+  text-align: center;
+  caret-color: var(--accent);
+}
+
+.cell--filled { background: radial-gradient(closest-side, var(--page) 74%, transparent 100%); }
+.cell:hover { background: radial-gradient(closest-side, rgb(168 73 47 / 10%) 74%, transparent 100%); }
+.cell:focus { background: radial-gradient(closest-side, var(--page) 78%, transparent 100%); outline: none; }
+
+.row-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: var(--staff-air) 0 0 8px;
+}
+
+.bar-button {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--bar);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--muted);
+  font: 600 13px/1 ui-monospace, Menlo, monospace;
+}
+
+.bar-button:hover { border-color: var(--accent); color: var(--accent); }
+
+.sheet-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.sheet-actions button {
+  padding: 7px 12px;
+  border: 1px solid var(--bar);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 14px;
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>Group layout — mockup</h1>
+  <p class="caption">
+    The <code>Groups</code> section above the staves is gone. A group is now a
+    thick bar across the full width of the sheet with its name typed into it,
+    and the rows it holds sit indented under it behind a vertical spine in the
+    group's own colour, running up into the bar. Type in a bar to rename a
+    group; hover a row and press its chip to move it between groups.
+  </p>
+
+  <main class="sheet">
+    <div class="editor" id="editor"></div>
+  </main>
+
+  <div class="sheet-actions">
+    <button type="button">+ New row</button>
+    <button type="button">− Remove row</button>
+  </div>
+</div>
+
+<script>
+const TUNING = ['e', 'B', 'G', 'D', 'A', 'E']
+const COLS = 12 // three bars of four
+
+// Two groups, each holding two rows. Colour is an index into the --group-N
+// variables, handed out in the order groups are created.
+const groups = [
+  { id: 'g1', name: 'Verse', colour: 1 },
+  { id: 'g2', name: 'Chorus', colour: 2 },
+]
+
+// The sheet's rows, in sheet order, each carrying the group it belongs to —
+// the same shape as `members` in src/utils/tab.js, keyed by row id. Notes are
+// [column, string, fret] so each row reads as its own piece of music.
+const rows = [
+  { id: 'r1', name: 'Open riff', group: 'g1',
+    notes: [[0, 5, '0'], [1, 5, '3'], [2, 4, '2'], [4, 3, '0'], [6, 4, '2'], [8, 5, '3'], [10, 5, '0']] },
+  { id: 'r2', name: 'Riff answered', group: 'g1',
+    notes: [[0, 4, '5'], [2, 3, '7'], [3, 3, '5'], [5, 2, '4'], [7, 3, '7'], [9, 4, '5'], [11, 4, '3']] },
+  { id: 'r3', name: 'Lift', group: 'g2',
+    notes: [[0, 2, '9'], [1, 1, '7'], [3, 0, '5'], [4, 1, '7'], [6, 2, '9'], [8, 1, '10'], [10, 0, '12']] },
+  { id: 'r4', name: 'Turnaround', group: 'g2',
+    notes: [[0, 3, '7'], [2, 2, '9'], [4, 2, '7'], [5, 1, '8'], [7, 0, '10'], [9, 1, '8'], [11, 2, '7']] },
+]
+
+const editor = document.getElementById('editor')
+// Which row's group list is open, by row id. Only ever one at a time.
+let picking = null
+
+const groupById = (id) => groups.find((group) => group.id === id) ?? null
+const colourOf = (group) => `var(--group-${group.colour})`
+const labelOf = (group) => group.name || `Group ${groups.indexOf(group) + 1}`
+
+const el = (tag, className, text) => {
+  const node = document.createElement(tag)
+  if (className) node.className = className
+  if (text !== undefined) node.textContent = text
+  return node
+}
+
+/**
+ * The sheet as blocks, top to bottom: a group stands where its first row
+ * stands and collects every row it holds, and an ungrouped row stands alone.
+ *
+ * This is what the new layout costs: a group used to be a collection whose
+ * rows could sit anywhere on the sheet, but a bar with a spine under it can
+ * only bracket rows that are next to each other, so grouping a row now moves
+ * it to its group.
+ */
+function blocks() {
+  const seen = new Set()
+  const out = []
+
+  for (const row of rows) {
+    if (!row.group) {
+      out.push({ kind: 'row', row })
+      continue
+    }
+    if (seen.has(row.group)) continue
+    seen.add(row.group)
+    out.push({ kind: 'group', group: groupById(row.group) })
+  }
+
+  return out
+}
+
+function render() {
+  editor.textContent = ''
+  // Row numbers follow what is drawn, as they do on the real sheet.
+  let number = 0
+
+  for (const block of blocks()) {
+    if (block.kind === 'row') {
+      editor.append(staff(block.row, ++number, null))
+      continue
+    }
+
+    const group = block.group
+    const held = rows.filter((row) => row.group === group.id)
+    const section = el('section', 'group')
+    section.style.setProperty('--group', colourOf(group))
+
+    const bar = el('div', 'group-bar')
+    const name = el('input', 'group-name')
+    name.value = group.name
+    name.placeholder = `Group ${groups.indexOf(group) + 1}`
+    name.maxLength = 24
+    name.setAttribute('aria-label', `Name of ${labelOf(group)}`)
+    // Wide enough for what is in it, so the bar does not hold an empty box.
+    const fit = () => { name.size = Math.max(6, name.value.length || name.placeholder.length) }
+    fit()
+    name.addEventListener('input', () => { group.name = name.value; fit() })
+    bar.append(name, el('span', 'group-count', `${held.length} row${held.length === 1 ? '' : 's'}`))
+
+    const body = el('div', 'group-body')
+    for (const row of held) body.append(staff(row, ++number, group))
+
+    section.append(bar, body)
+    editor.append(section)
+  }
+
+  const add = el('button', 'group-add', '+ New group')
+  add.type = 'button'
+  add.addEventListener('click', () => {
+    groups.push({ id: `g${groups.length + 1}`, name: '', colour: (groups.length % 4) + 1 })
+    render()
+  })
+  editor.append(add)
+}
+
+/** One row of the sheet: its head, the strings, and the bar controls. */
+function staff(row, number, group) {
+  const node = el('div', 'staff')
+  node.setAttribute('role', 'group')
+  node.setAttribute('aria-label', `Row ${number}`)
+
+  const head = el('div', 'row-head')
+  const num = el('button', 'row-number', String(number))
+  num.type = 'button'
+  const rowName = el('button', 'row-name', row.name)
+  rowName.type = 'button'
+
+  const chip = el('button', 'row-group', group ? 'Move' : 'No group')
+  chip.type = 'button'
+  chip.title = group ? `Move row ${number} out of ${labelOf(group)}` : `Put row ${number} in a group`
+  if (group) chip.style.setProperty('--group', colourOf(group))
+  if (picking === row.id) chip.classList.add('is-open')
+  chip.addEventListener('click', () => {
+    picking = picking === row.id ? null : row.id
+    render()
+  })
+
+  head.append(num, rowName, chip)
+  if (picking === row.id) head.append(picker(row))
+  node.append(head)
+
+  const labels = el('div', 'staff-labels')
+  for (const string of TUNING) labels.append(el('span', 'string-label', string))
+
+  const scroll = el('div', 'staff-scroll')
+  const body = el('div', 'staff-body')
+  const written = new Map(row.notes.map(([col, string, fret]) => [`${col}:${string}`, fret]))
+
+  TUNING.forEach((string, stringIndex) => {
+    const line = el('div', 'string-row')
+    for (let col = 0; col < COLS; col += 1) {
+      const fret = written.get(`${col}:${stringIndex}`) ?? ''
+      const cell = el('input', `cell${fret ? ' cell--filled' : ''}`)
+      cell.value = fret
+      cell.inputMode = 'numeric'
+      cell.autocomplete = 'off'
+      cell.setAttribute('aria-label', `String ${string}, position ${col + 1}`)
+      cell.addEventListener('input', () => {
+        cell.classList.toggle('cell--filled', cell.value !== '')
+      })
+      line.append(cell)
+    }
+    body.append(line)
+  })
+
+  scroll.append(body)
+
+  const bars = el('div', 'row-bars')
+  for (const glyph of ['↔', '+', '−']) {
+    const button = el('button', 'bar-button', glyph)
+    button.type = 'button'
+    bars.append(button)
+  }
+
+  node.append(labels, scroll, bars)
+  return node
+}
+
+/** The groups this row could be moved to, plus out of every group. */
+function picker(row) {
+  const list = el('div', 'group-picker is-open')
+  list.setAttribute('role', 'dialog')
+  list.setAttribute('aria-label', 'Which group this row is in')
+
+  for (const group of groups) {
+    const option = el('button', 'group-option', labelOf(group))
+    option.type = 'button'
+    option.style.setProperty('--swatch', colourOf(group))
+    if (row.group === group.id) option.classList.add('is-active')
+    option.addEventListener('click', () => {
+      row.group = row.group === group.id ? null : group.id
+      picking = null
+      render()
+    })
+    list.append(option)
+  }
+
+  const none = el('button', 'group-option', 'No group')
+  none.type = 'button'
+  if (!row.group) none.classList.add('is-active')
+  none.addEventListener('click', () => { row.group = null; picking = null; render() })
+  list.append(none)
+
+  return list
+}
+
+// Escape closes an open group list, as it does everywhere else on the sheet.
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && picking) {
+    picking = null
+    render()
+  }
+})
+
+render()
+</script>
+</body>
+</html>
