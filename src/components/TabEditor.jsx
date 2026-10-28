@@ -83,7 +83,6 @@ export default function TabEditor({
   onCopyColumn,
   onNudgeNote,
   onStatus,
-  copying,
   onPasteRange,
   pendingRemove,
   onCancelRemove,
@@ -422,7 +421,11 @@ export default function TabEditor({
   // Edit mode takes the sheet over, so everything aimed at a cell — the tie
   // being armed, the bar over the selected note, the row whose shift arrows
   // are out — is put away on the way in, and nothing is left held on the way
-  // out. Adjusted as the mode changes rather than in an effect, for the same
+  // out. A shift's anchors and the mode's own circles are the same control
+  // standing above the same staff for two different errands, which is why a
+  // shift cannot survive the way in either. The stretch picked out and any
+  // armed paste go the other way, on the way out: they belong to the mode.
+  // Adjusted as the mode changes rather than in an effect, for the same
   // reason the row count is above: it is state that has gone stale.
   const [wasEditing, setWasEditing] = useState(editing)
   if (wasEditing !== editing) {
@@ -432,17 +435,8 @@ export default function TabEditor({
     setFocused(null)
     setArming(false)
     setCursor(null)
-  }
-
-  // A shift's anchors and copy mode's circles are the same control standing
-  // above the same staff for two different errands, which is one strip too
-  // many to tell apart. So copy mode closes any shift that was out on its way
-  // in, and the button that opens one stands down for as long as it is on —
-  // between them there is never a shift open while copy mode is.
-  const [wasCopying, setWasCopying] = useState(copying)
-  if (wasCopying !== copying) {
-    setWasCopying(copying)
-    if (copying) setShiftRows(new Map())
+    setRange(null)
+    setPendingPaste(null)
   }
 
   const registerCell = useCallback((key) => (node) => {
@@ -615,11 +609,11 @@ export default function TabEditor({
     const cols = rowWidth(bars)
     const staffColumns = grid.slice(start, start + cols)
 
-    // The strips stand inside the scroller and push the strings down, so
-    // the string labels outside it have to come down by the same amount to
-    // stay level. Counted rather than special-cased: copy mode shows two,
-    // a shifting row one, and a row doing both shows all three.
-    const strips = editing ? 0 : (shiftRows.has(staff) ? 1 : 0) + (copying ? 2 : 0)
+    // The strips stand inside the scroller and push the strings down, so the
+    // string labels outside it have to come down by the same amount to stay
+    // level. Counted rather than special-cased: edit mode shows its two, and
+    // a row being shifted — which only happens outside the mode — shows one.
+    const strips = (editing ? 2 : 0) + (shiftRows.has(staff) ? 1 : 0)
 
     // Only a folded row says what it holds, so only a folded row is counted.
     const folded = isFolded(staff)
@@ -778,11 +772,13 @@ export default function TabEditor({
             />
           )}
 
-          {/* Copy mode's two strips: circles to pick a stretch out with,
-              and under them a paste button per position saying "start the
-              stretch here". Both ride inside the scroller so they stay
-              over their own positions when a long row is scrolled. */}
-          {!editing && copying && (
+          {/* Edit mode's two strips: circles to pick a stretch out with, and
+              under them a paste button per position saying "start the stretch
+              here". Both ride inside the scroller so they stay over their own
+              positions when a long row is scrolled, and both stand above the
+              press-sheet that covers the row — the strip band belongs to
+              them, the staff under it picks the row up. */}
+          {editing && (
             <>
               <PositionStrip
                 className="range-strip"
@@ -993,13 +989,8 @@ export default function TabEditor({
               type="button"
               className="bar-button"
               onClick={() => openShift(staff)}
-              disabled={copying}
               aria-expanded={false}
-              title={
-                copying
-                  ? 'Turn copy mode off to slide this row along'
-                  : "Slide this row's notes along"
-              }
+              title="Slide this row's notes along"
               aria-label={`Shift row ${label(staff)}'s notes`}
             >
               ↔

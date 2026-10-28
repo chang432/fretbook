@@ -256,7 +256,7 @@ button.link {
 
 /* Edit mode ------------------------------------------------------------ */
 
-/* Says what the two presses do, and stays up for as long as the mode does —
+/* Says what the mode's presses do, and stays up for as long as the mode does —
    the status line beside the buttons clears itself after a few seconds, which
    is right for something that has just happened and wrong for a mode. */
 .edit-hint {
@@ -265,10 +265,14 @@ button.link {
   font-size: 13px;
 }
 
-/* The transparent sheet laid over a staff while the order is being edited, so
+/* The transparent sheet laid over a staff while the sheet is being edited, so
    a row is one thing to press rather than a grid of cells. It is inset by a
    couple of pixels so its outline reads as around the row rather than as a
-   change to the rule between rows. */
+   change to the rule between rows.
+
+   It covers the strips above the staff as well, which are part of the same
+   mode and have their own presses to take — so they are lifted over it, the
+   way the row's name line is. */
 .row-select {
   position: absolute;
   inset: 2px;
@@ -959,8 +963,15 @@ button.link {
 
 /* One control per position, on the same column pitch as the staff below it, so
    each sits over the position it acts on. Shared by the shift anchors and by
-   copy mode's range circles and paste buttons. */
+   edit mode's range circles and paste buttons.
+
+   Above the press-sheet that edit mode lays over the row: the band a strip
+   stands in is the strip's, and only what is actually drawn in it takes a
+   press — the strip is as wide as its own staff, so the rest of the line
+   falls through to the row underneath, which picks the row up. */
 .position-strip {
+  position: relative;
+  z-index: 6;
   display: flex;
   align-items: center;
   width: max-content;

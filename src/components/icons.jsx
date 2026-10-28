@@ -54,32 +54,18 @@ export function NudgeIcon({ up = true }) {
 }
 
 /**
- * Two rows and a double-headed arrow beside them: the lines are what is being
- * reordered, the arrow the exchange. Edit mode is about the order things stand
- * in rather than about writing, so it is drawn as a swap and not as a pencil.
+ * A pencil: edit mode, which is the one way the sheet is worked on rather
+ * than written in — rows picked up and swapped, rows moved between groups,
+ * and a stretch of notes copied from one place to another. It was two
+ * buttons and two drawings, a swap and two sheets, until the two modes were
+ * made one.
  */
-export function SwapIcon() {
+export function PencilIcon() {
   return (
     <svg className="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M 6.4 4 H 14" />
-      <path d="M 6.4 12 H 14" />
-      <path d="M 3.2 3.2 V 12.8" />
-      <path d="M 1.4 5 L 3.2 3.2 L 5 5" />
-      <path d="M 1.4 11 L 3.2 12.8 L 5 11" />
-    </svg>
-  )
-}
-
-/**
- * Two sheets, one behind the other: copy mode, which picks a stretch of
- * positions up and writes it down again elsewhere.
- */
-export function CopyIcon() {
-  return (
-    <svg className="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-      <rect x="2.2" y="2.2" width="8" height="9.6" rx="1.4" />
-      <path d="M 5.8 14.2 A 1.4 1.4 0 0 1 4.4 12.8" />
-      <rect x="5.8" y="4.2" width="8" height="9.6" rx="1.4" />
+      <path d="M 3.6 10.4 L 10.4 3.6 L 12.4 5.6 L 5.6 12.4 Z" />
+      <path d="M 3.6 10.4 L 2.8 13.2 L 5.6 12.4" />
+      <path d="M 9.0 5.0 L 11.0 7.0" />
     </svg>
   )
 }

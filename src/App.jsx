@@ -3,7 +3,7 @@ import LiveMode from './components/LiveMode.jsx'
 import NoteLink from './components/NoteLink.jsx'
 import Popover from './components/Popover.jsx'
 import TabEditor from './components/TabEditor.jsx'
-import { CopyIcon, PresentIcon, SoundIcon, SwapIcon, UndoIcon } from './components/icons.jsx'
+import { PencilIcon, PresentIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
 import {
   DEFAULT_BPM,
   MAX_BPM,
@@ -123,10 +123,6 @@ export default function App({ published = null }) {
   // instead, so two of them can be swapped. Not saved with the sheet — it is
   // a way of handling the page, not a property of the song.
   const [editing, setEditing] = useState(false)
-  // Whether copy mode is on: the strips above every staff that pick a stretch
-  // of positions out and write it down again elsewhere. Not saved with the
-  // session — it is an errand, not a property of the song.
-  const [copying, setCopying] = useState(false)
   const [confirmingClear, setConfirmingClear] = useState(false)
   // Row whose minus button is armed, waiting for a second press.
   const [pendingRemove, setPendingRemove] = useState(null)
@@ -521,32 +517,21 @@ export default function App({ published = null }) {
   }
 
   /**
-   * Turn edit mode on or off. It takes the sheet over — cells stop accepting
-   * type, and a press picks the row out rather than putting the cursor in it —
-   * so anything half-armed underneath is put away rather than left waiting for
-   * a press that can no longer reach it.
+   * Turn edit mode on or off. It is the one mode the sheet has: the whole of
+   * working on a sheet rather than writing in it — picking a row up to swap
+   * it, sending a row to a group, deleting a row, and picking a stretch of
+   * notes out to write down again elsewhere.
+   *
+   * It takes the sheet over — cells stop accepting type, and a press picks
+   * the row out rather than putting the cursor in it — so anything half-armed
+   * underneath is put away rather than left waiting for a press that can no
+   * longer reach it.
    */
   const toggleEditing = () => {
     const next = !editing
     setEditing(next)
     disarmRemovals()
-    // The two modes both take the sheet over and would draw over each other,
-    // so reaching for one puts the other away.
-    if (next) setCopying(false)
     setStatus(next ? 'Edit mode on' : '')
-  }
-
-  /**
-   * Turn copy mode on or off. It adds two strips above every staff — circles
-   * to pick a stretch of positions out with, and a paste button per position —
-   * and leaves writing alone underneath, since nothing it does competes with
-   * the cursor.
-   */
-  const toggleCopying = () => {
-    const next = !copying
-    setCopying(next)
-    if (next) setEditing(false)
-    setStatus(next ? 'Copy mode on' : '')
   }
 
   /**
@@ -890,30 +875,15 @@ export default function App({ published = null }) {
             type="button"
             className={`icon-button${editing ? ' is-on' : ''}`}
             aria-pressed={editing}
-            aria-label={editing ? 'Finish editing the order' : 'Edit the order'}
+            aria-label={editing ? 'Finish editing' : 'Edit the sheet'}
             onClick={toggleEditing}
             title={
               editing
-                ? 'Editing the order — press two rows to swap them, or a group to move one in'
-                : 'Reorder the rows'
+                ? 'Edit mode — swap rows, move one into a group, or copy a stretch of notes'
+                : 'Rearrange the rows and copy notes about'
             }
           >
-            <SwapIcon />
-          </button>
-          <button
-            type="button"
-            className={`icon-button${copying ? ' is-on' : ''}`}
-            aria-pressed={copying}
-            aria-label={copying ? 'Finish copying' : 'Copy and paste notes'}
-            onClick={toggleCopying}
-            disabled={editing}
-            title={
-              copying
-                ? 'Copy mode — press two positions to pick a stretch out, then a paste button'
-                : 'Copy a stretch of notes and paste it elsewhere'
-            }
-          >
-            <CopyIcon />
+            <PencilIcon />
           </button>
           <button
             type="button"
@@ -980,14 +950,10 @@ export default function App({ published = null }) {
           Press a row, then press another, and the two exchange places — a row
           swapped into a group joins it. Press a group&rsquo;s bar instead to put the
           held row in that group, or to take it out again. The bin at the end of
-          a row deletes that row. Writing is off until this is turned back off.
-        </p>
-      )}
-
-      {copying && (
-        <p className="edit-hint">
-          Press two circles on one row to pick out a stretch, then a paste button to
-          write it down starting there. A stretch cannot span two rows.
+          a row deletes that row. Above each staff, press two circles to pick a
+          stretch of notes out — one row at a time — then a paste button to
+          write it down starting there. Writing is off until this is turned
+          back off.
         </p>
       )}
 
@@ -1083,7 +1049,6 @@ export default function App({ published = null }) {
           onCopyColumn={handleCopyColumn}
           onNudgeNote={handleNudgeNote}
           onStatus={setStatus}
-          copying={copying}
           onPasteRange={handlePasteRange}
           pendingRemove={pendingRemove}
           onCancelRemove={() => setPendingRemove(null)}

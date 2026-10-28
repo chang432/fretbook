@@ -130,12 +130,15 @@ read as one bracket around the group.
 
 ### Reordering the sheet
 
-The **two rows and an arrow** in the toolbar turn on edit mode, which is where
-the sheet is rearranged rather than written in. Press a row, then press
-another, and the two exchange places. It is also the one place a row joins or
-leaves a group: while a row is held, **every group's bar becomes somewhere to
-put it** — *Put here* on the groups it could join, *Take out* on the one it is
-already in.
+The **pencil** in the toolbar turns on edit mode, which is where the sheet is
+worked on rather than written in — the one mode it has. Everything that
+rearranges a sheet lives there: swapping rows, moving a row between groups,
+deleting a row, and copying a stretch of notes from one place to another.
+
+Press a row, then press another, and the two exchange places. It is also the
+one place a row joins or leaves a group: while a row is held, **every group's
+bar becomes somewhere to put it** — *Put here* on the groups it could join,
+*Take out* on the one it is already in.
 
 - The first press picks something up and holds it, drawn in the accent colour.
   The second says what to swap it with. Pressing the same one again, or
@@ -233,9 +236,10 @@ from the keyboard.
 
 ### Copying a stretch of notes
 
-The **two sheets** in the toolbar turn on copy mode, which puts two strips above
-every staff: a row of circles to pick a stretch out with, and under them one
-paste button per position saying *start it here*.
+Edit mode puts two strips above every staff: a row of circles to pick a stretch
+out with, and under them one paste button per position saying *start it here*.
+They stand above the sheet that covers each row, so the strip band takes its
+own presses and the staff under it still picks the row up.
 
 - Press two circles on the same row and everything between them highlights —
   the two ends solid, the positions they carry weaker. Pressing a third circle
@@ -263,13 +267,17 @@ paste button per position saying *start it here*.
   them and waits — `Pasting here writes over 5 notes — press again to paste` —
   and goes through on the second press. The arming lapses when you look away,
   the same as the bar-removal button.
-- Copy mode and reordering both take the sheet over, so turning one on puts the
-  other away. Writing stays on underneath copy mode: the strips sit above the
-  staff and nothing they do competes with the cursor.
-- **Shifting a row is off while copy mode is on.** A shift's anchors and copy
+- **Writing is off while the mode is on**, as it is for everything else edit
+  mode does: a press on a row means *this row*, not *this position*. Nothing
+  here needs the cursor — a stretch is picked out and written down with
+  presses alone.
+- A stretch picked out is forgotten when the mode is turned off. It belongs to
+  the mode rather than to the sheet, the same as a row left held.
+- **Shifting a row happens outside the mode.** A shift's anchors and the
   mode's circles are the same control above the same staff for two different
-  errands, which is one strip too many to tell apart — so copy mode closes any
-  shift that was out, and the row's **↔** stands down until it is turned off.
+  errands, which is one strip too many to tell apart — so the row's **↔**,
+  like the rest of its bar controls, stands down for as long as the mode is
+  on, and any shift that was out closes on the way in.
 
 ### Playing it live
 
@@ -422,7 +430,7 @@ src/
   components/GroupBar.jsx   one group's bar across the sheet, and the name typed into it
   components/StaffOverlay.jsx the SVG arcs and symbols over one staff line
   components/MarkBar.jsx    the rewind, tie and symbol buttons floating over the selected position
-  components/PositionStrip.jsx one control per position above a staff, shared by the shift anchors and copy mode
+  components/PositionStrip.jsx one control per position above a staff, shared by the shift anchors and edit mode's strips
   components/LiveMode.jsx   the full-screen player: playhead, scrolling tab, transport
   components/Popover.jsx    the anchored panel behind the export, group and tempo menus
   components/icons.jsx      the drawn symbols on the buttons that carry no words
