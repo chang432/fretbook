@@ -12,13 +12,19 @@ npm run dev      # http://localhost:5173
 npm run build    # static output in dist/
 npm run preview  # serve dist/ the way the server does
 npm run lint
+
+npm run stack       # the whole thing in Docker, as the VPS runs it
+npm run stack:logs  # follow both containers
+npm run stack:down  # stop them
 ```
 
 The published notes come from a private R2 bucket rather than from the repo,
 read by the backend over the S3 API — so `/notes` is empty under a bare
-`npm run dev` until something is serving `/api`. Bring the stack up beside it
-(`cd docker/app && docker compose up`) and the dev server proxies to it.
-Everything else — which is most of the app — works without any of that.
+`npm run dev` until something is serving `/api`. `npm run stack` brings that up
+in Docker on :8080 and the dev server proxies to it; the script checks the
+credentials first and tells you how many notes came back, since a stack without
+them comes up perfectly well and simply shows nothing. Everything else — which
+is most of the app — works without any of it.
 
 ## Writing tab
 

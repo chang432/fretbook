@@ -236,10 +236,13 @@ To see `/notes` under `npm run dev`, the backend has to be running too, since
 that is what reads the bucket now:
 
 ```bash
-cd docker/app && docker compose up --build   # reads its own git-ignored .env
-npm run dev                                  # 5173, proxying /api to 8080
+npm run stack    # builds and starts both containers on :8080
+npm run dev      # 5173, proxying /api to 8080
 ```
 
-`docker/app/.env` wants the same four values the VPS gets —
+`npm run stack` wants the same four values the VPS gets —
 `FRETBOOK_NOTES_BUCKET`, `FRETBOOK_R2_ENDPOINT`, `AWS_ACCESS_KEY_ID`,
-`AWS_SECRET_ACCESS_KEY` — and is git-ignored.
+`AWS_SECRET_ACCESS_KEY` — in the git-ignored `docker/app/.env`, or exported in
+the shell, which compose and the script both prefer. It writes the file for you
+to fill in the first time, and refuses to start on a half-filled one rather
+than leaving you with a silently empty `/notes`.

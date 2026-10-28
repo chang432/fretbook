@@ -206,9 +206,11 @@ a step.
 `npm run dev`, bring the stack up alongside it:
 
 ```bash
-cd docker/app && docker compose up --build    # backend on /api, web on :8080
-npm run dev                                   # 5173, proxying /api to 8080
+npm run stack    # backend on /api, web on :8080
+npm run dev      # 5173, proxying /api to 8080
 ```
 
-The stack needs the same three values in its own environment; compose reads
-them from `docker/app/.env`, which is git-ignored.
+`scripts/stack.sh` is that command: it checks the daemon and the credentials
+before starting anything, waits for `/api/health`, and then reports how many
+notes `/api/notes` actually returned — because a stack with no bucket behind it
+comes up exactly as happily as one with.
