@@ -214,3 +214,8 @@ npm run dev      # 5173, proxying /api to 8080
 before starting anything, waits for `/api/health`, and then reports how many
 notes `/api/notes` actually returned — because a stack with no bucket behind it
 comes up exactly as happily as one with.
+
+`npm run deploy:local` is the longer version of the same thing: the phases CI
+runs, a smoke test that includes fetching a note out of the bucket, and then a
+tail of both containers that flags errors and notices restarts. Both share
+`scripts/lib/stack.sh`, which is where the preflight and the probes live.
