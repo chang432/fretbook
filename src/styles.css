@@ -454,62 +454,95 @@ button.link {
   text-transform: uppercase;
 }
 
-/* Indented past the string labels so a slot stands over the bars it names. */
-.group-slots {
+/* The groups themselves, indented past the string labels so the strip starts
+   where the bars below it do. They wrap: a sheet can hold more groups than
+   one line has room for. */
+.group-list {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-left: var(--label-w);
 }
 
-/* One position in the song. Empty ones are quiet dashed outlines — somewhere
-   to write rather than something written. */
-.group-slot {
-  /* Wide enough for a bare group number; a repeat count grows it rather than
-     being squeezed in beside one. */
-  min-width: 32px;
+/* One group: what it is called, what it holds, and a row to put in it. Drawn
+   as a box rather than as a bare line of text, since a group is a thing on
+   the sheet that rows belong to. */
+.group-chip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   height: 28px;
-  padding: 0 5px;
+  padding: 0 4px;
+  border: 1px solid var(--bar);
+  border-radius: 7px;
+  background: var(--paper);
+}
+
+/* The name, which is also the way in to changing it. */
+.group-name {
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: var(--ink);
+  font: 600 12px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.04em;
+}
+
+/* Which rows the group holds, by where they stand on the page. Quieter than
+   the name: the name is the group, these are only what is in it today. */
+.group-rows {
+  padding: 0 4px;
+  color: var(--muted);
+  font: 500 11px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.04em;
+}
+
+/* Adds a row to this group, at the bottom of the sheet. */
+.group-add-row {
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: var(--muted);
+  font: 600 11px/1 ui-monospace, Menlo, monospace;
+}
+
+/* Another group, past the last of them. Dashed, the way somewhere to write
+   is drawn rather than something written. */
+.group-add {
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border-style: dashed;
   border-radius: 7px;
   background: none;
   color: var(--muted);
-  font: 600 13px/1 ui-monospace, Menlo, monospace;
-  font-variant-numeric: tabular-nums;
+  font: 400 16px/1 ui-monospace, Menlo, monospace;
 }
 
-/* How many times over the slot plays its group. Quieter than the number it
-   follows: the group is what is played, the count only how often. */
-.group-repeat {
-  margin-left: 1px;
-  font-weight: 500;
-  opacity: 0.5;
-}
-
-.group-slot.is-filled {
-  border-style: solid;
-  background: var(--paper);
-  color: var(--ink);
-}
-
-.group-slot:hover:not(:disabled),
-.group-slot.is-open {
+.group-name:hover:not(:disabled),
+.group-add-row:hover:not(:disabled),
+.group-add:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);
 }
 
-/* Picked up in edit mode, waiting for the slot it swaps with. A slot is
-   already a small outlined box, so it only needs filling in — the staff rows
-   get the same accent as an outline, since filling one would hide the tab. */
-.group-slot.is-selected,
-.group-slot.is-selected:hover {
-  border-style: solid;
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
+/* Typing a group's name, in the chip's own place so the strip does not jump
+   as a name is written. */
+.group-name-input {
+  width: 120px;
+  padding: 3px 5px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 600 12px ui-monospace, Menlo, monospace;
 }
 
-/* The list of groups a slot can take, over how many times it plays one. */
+/* The small list that hangs under a chip: the groups a row can be put in,
+   under the chip on the row's own line, and the rows a group can hold, under
+   the chip in the strip. The same shape both ways round. */
 .group-picker {
   display: flex;
   flex-direction: column;
@@ -544,6 +577,15 @@ button.link {
   border-radius: 7px;
   font: 600 13px/1 ui-monospace, Menlo, monospace;
   font-variant-numeric: tabular-nums;
+}
+
+/* The row's name beside its number in the list, where it has one. Quieter
+   than the number: the number says which row it is, the name only what it is
+   called. */
+.group-option-name {
+  margin-left: 5px;
+  font-weight: 500;
+  opacity: 0.7;
 }
 
 .group-option.is-active {
@@ -669,6 +711,44 @@ button.link {
   color: var(--muted);
   font: 500 11px/1 ui-monospace, Menlo, monospace;
   letter-spacing: 0.04em;
+}
+
+/* Which group the row is in, on the row's own line. Shaped like the name
+   beside it — these two are both what the row is, as against what is written
+   in it — and outlined, since unlike a name it is always there to be pressed. */
+.row-group {
+  padding: 3px 6px;
+  border: 1px solid var(--bar);
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font: 600 11px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.04em;
+}
+
+.row-group:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* A row in no group is quieter still: it says where it could go, not where it
+   is, and only shows its outline once it is pointed at. */
+.row-group--none {
+  border-color: transparent;
+  opacity: 0.6;
+}
+
+.staff:hover .row-group--none {
+  border-color: var(--bar);
+  opacity: 1;
+}
+
+/* Neither the name nor the group takes a press while the order is being
+   edited, and neither swallows one: it belongs to the row underneath. */
+.row-group:disabled {
+  opacity: 1;
+  cursor: default;
+  pointer-events: none;
 }
 
 /* A row with no name asks for one only while it is pointed at or tabbed to,

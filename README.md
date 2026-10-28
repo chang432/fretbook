@@ -462,6 +462,6 @@ what **− Remove row** asks for; edit mode's per-row bin names one.
 
 TODO:
 - Groups need refactor so that rows can be grouped into sub groups 
-- Rows need custom name
 - Mb create new arrangement section, that arranges certain groups, and groups section exist purely for grouping rows. 
-- Add undo button
+- Once undo button is added, disable remove section confirmation 
+- Add guitar fretboard popup where you can play notes on the fretboard and it plays out loud. 

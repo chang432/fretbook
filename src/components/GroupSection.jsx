@@ -1,191 +1,185 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Popover from './Popover.jsx'
-import { MAX_GROUP_REPEAT, MIN_GROUP_SLOTS } from '../utils/tab.js'
+import { MAX_GROUP_NAME, groupLabel, groupOfRow, rowName, rowsInGroup } from '../utils/tab.js'
 
 /**
- * The list of groups a slot can be given, under the slot it was opened from,
- * and — once one has been chosen — how many times over it is played there.
- */
-function GroupPicker({ anchor, groups, current, repeat, onPick, onSetRepeat, onClose }) {
-  return (
-    <Popover anchor={anchor} className="group-picker" label="Choose a group" onClose={onClose}>
-      <div className="group-picker-section">
-        <span className="group-picker-title">Group</span>
-        <div className="group-picker-options">
-          {/* The ids rows actually carry, in the order the rows stand in —
-              which need not be 1, 2, 3 once rows have been reordered or
-              removed. */}
-          {groups.map((group) => (
-            <button
-              key={group}
-              type="button"
-              className={`group-option${current === group ? ' is-active' : ''}`}
-              aria-pressed={current === group}
-              onClick={() => onPick(group)}
-            >
-              {group + 1}
-            </button>
-          ))}
-          {current !== null && (
-            <button
-              type="button"
-              className="group-option group-option--clear"
-              onClick={() => onPick(null)}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Nothing to play twice until a group has been chosen, so the count
-          only appears once there is one. */}
-      {current !== null && (
-        <div className="group-picker-section">
-          <span className="group-picker-title">Repeat</span>
-          <div className="group-picker-options">
-            {Array.from({ length: MAX_GROUP_REPEAT }, (_, index) => index + 1).map((times) => (
-              <button
-                key={times}
-                type="button"
-                className={`group-option${repeat === times ? ' is-active' : ''}`}
-                aria-pressed={repeat === times}
-                aria-label={times === 1 ? 'Play once' : `Play ${times} times`}
-                onClick={() => onSetRepeat(times)}
-              >
-                x{times}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </Popover>
-  )
-}
-
-/**
- * The running order, above the staves: one slot per position in the song,
- * each naming the row played there and how many times over. Rows are the
- * groups — writing 1, 2, 1 here says to play the first row, then the second,
- * then the first again, and a slot reading 1x3 plays that row three times
- * before the next slot begins.
+ * The groups a sheet holds, above the staves: one chip each, saying what the
+ * group is called, which rows are in it, and opening the list of the sheet's
+ * rows to say which of them belong to it. The button past the last chip adds
+ * another group.
  *
- * In edit mode a press reorders the strip instead of writing in it: the slot
- * picked up and the next one pressed exchange places. Which slot is held is
- * kept by the editor rather than here, since a row and a slot are the same
- * gesture and only one of them can be held at a time.
+ * A group is a collection of rows, and which rows it holds is kept against
+ * the rows themselves — `members` in tab.js, keyed by row id — so this reads
+ * membership off the sheet rather than keeping any of its own. What it does
+ * keep is the half-typed name, which belongs to the box it is typed in.
  */
 export default function GroupSection({
-  structure,
   groups,
-  onSetGroup,
-  onSetRepeat,
+  members,
+  rowIds,
+  names,
   editing,
-  selectedSlot,
-  onChooseSlot,
-  onDropSelection,
+  onAddGroup,
+  onRenameGroup,
+  onSetRowGroup,
 }) {
-  // The slot whose list is open, carrying its element so the list can anchor
-  // to it without reaching back into the DOM.
-  const [open, setOpen] = useState(null)
+  // The group whose name is being typed, and what has been typed so far.
+  const [naming, setNaming] = useState(null)
+  const [draft, setDraft] = useState('')
+  // The group whose rows are being chosen, carrying the button the list hangs
+  // under. Null when no list is open; only ever one at a time.
+  const [picking, setPicking] = useState(null)
+  // Set by Escape, so the blur it causes closes the box instead of writing
+  // down what was abandoned in it — the bargain a row's name makes too.
+  const abandoning = useRef(false)
 
-  // The picker belongs to writing the running order, not to reordering it, so
-  // it is put away as the mode comes on rather than left hanging over a strip
-  // that no longer answers it.
-  const [wasEditing, setWasEditing] = useState(editing)
-  if (wasEditing !== editing) {
-    setWasEditing(editing)
-    setOpen(null)
+  const startNaming = (group) => {
+    setNaming(group.id)
+    setDraft(group.name)
   }
 
-  // Always one free slot past the end, and never so few that the strip reads
-  // as an accident rather than somewhere to write.
-  const slots = Math.max(MIN_GROUP_SLOTS, structure.length + 1)
-
-  const close = () => setOpen(null)
+  const finishNaming = (groupId) => {
+    setNaming(null)
+    if (abandoning.current) {
+      abandoning.current = false
+      return
+    }
+    onRenameGroup(groupId, draft)
+  }
 
   return (
-    <div className="group-section" role="group" aria-label="Song structure">
+    <div className="group-section" role="group" aria-label="Groups">
       <span className="group-title">Groups</span>
 
-      <div className="group-slots">
-        {Array.from({ length: slots }, (_, slot) => {
-          const entry = structure[slot] ?? null
-          const held = editing && selectedSlot === slot
-          // What this slot holds, for whichever of the two labels needs it.
-          const contents =
-            entry === null
-              ? 'empty'
-              : `group ${entry.group + 1}` +
-                (entry.repeat > 1 ? ` played ${entry.repeat} times` : '')
+      <div className="group-list">
+        {groups.map((group, index) => {
+          const held = rowsInGroup(members, rowIds, group.id)
+          // A group nobody has named still answers to where it stands, so
+          // there is always something to call it in a button or a sentence.
+          const label = group.name || `Group ${index + 1}`
 
           return (
-            <button
-              key={slot}
-              type="button"
-              className={[
-                'group-slot',
-                entry === null ? '' : 'is-filled',
-                open?.slot === slot ? 'is-open' : '',
-                held ? 'is-selected' : '',
-              ]
-                .filter(Boolean)
-                .join(' ')}
-              aria-pressed={editing ? held : undefined}
-              aria-label={
-                editing
-                  ? selectedSlot === null || held
-                    ? `Position ${slot + 1}, ${contents}`
-                    : `Swap position ${slot + 1} with position ${selectedSlot + 1}`
-                  : entry === null
-                    ? `Position ${slot + 1}, empty — choose a group`
-                    : `Position ${slot + 1}, ${contents}`
-              }
-              title={
-                editing
-                  ? selectedSlot === null
-                    ? 'Pick this position up, then press another to swap the two'
-                    : held
-                      ? 'Put this position back down'
-                      : `Swap this position with position ${selectedSlot + 1}`
-                  : undefined
-              }
-              aria-haspopup={editing ? undefined : 'dialog'}
-              aria-expanded={editing ? undefined : open?.slot === slot}
-              onKeyDown={editing ? onDropSelection : undefined}
-              onClick={(event) =>
-                editing
-                  ? onChooseSlot(slot)
-                  : setOpen(open?.slot === slot ? null : { slot, element: event.currentTarget })
-              }
-            >
-              {entry === null ? '' : entry.group + 1}
-              {/* Once through is the ordinary case and says nothing worth the
-                  room, so only a real repeat is written out. */}
-              {entry !== null && entry.repeat > 1 && (
-                <span className="group-repeat">x{entry.repeat}</span>
+            <div className="group-chip" key={group.id}>
+              {naming === group.id ? (
+                <input
+                  className="group-name-input"
+                  value={draft}
+                  autoFocus
+                  maxLength={MAX_GROUP_NAME}
+                  placeholder={`Group ${index + 1}`}
+                  aria-label={`Name of ${label}`}
+                  onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      event.currentTarget.blur()
+                    } else if (event.key === 'Escape') {
+                      event.preventDefault()
+                      // Nothing else on the page acts on the same press.
+                      event.stopPropagation()
+                      abandoning.current = true
+                      event.currentTarget.blur()
+                    }
+                  }}
+                  onBlur={() => finishNaming(group.id)}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="group-name"
+                  disabled={editing}
+                  onClick={() => startNaming(group)}
+                  title={group.name ? 'Rename this group' : 'Name this group'}
+                >
+                  {label}
+                </button>
               )}
-            </button>
+
+              {/* What the group holds, by where those rows stand on the page.
+                  A group is a collection and not a place, so its rows need be
+                  neither next to each other nor in any particular order. */}
+              <span className="group-rows">
+                {held.length
+                  ? `${held.length === 1 ? 'row' : 'rows'} ${held.map((row) => row + 1).join(', ')}`
+                  : 'no rows yet'}
+              </span>
+
+              <button
+                type="button"
+                className="group-add-row"
+                disabled={editing}
+                aria-haspopup="dialog"
+                aria-expanded={picking?.id === group.id}
+                onClick={(event) =>
+                  setPicking(
+                    picking?.id === group.id
+                      ? null
+                      : { id: group.id, label, element: event.currentTarget },
+                  )
+                }
+                title={`Choose which rows are in ${label}`}
+              >
+                + Row
+              </button>
+            </div>
           )
         })}
+
+        <button
+          type="button"
+          className="group-add"
+          disabled={editing}
+          onClick={onAddGroup}
+          title="Add another group"
+          aria-label="Add another group"
+        >
+          +
+        </button>
       </div>
 
-      {!editing && open && (
-        <GroupPicker
-          anchor={open.element}
-          groups={groups}
-          current={structure[open.slot]?.group ?? null}
-          repeat={structure[open.slot]?.repeat ?? 1}
-          onPick={(group) => {
-            onSetGroup(open.slot, group)
-            close()
-          }}
-          onSetRepeat={(times) => {
-            onSetRepeat(open.slot, times)
-            close()
-          }}
-          onClose={close}
-        />
+      {/* The sheet's rows, under the chip the list was opened from: the ones
+          already in the group are filled in, and pressing one either puts it
+          in the group or takes it out again. A row is in one group at most,
+          so taking it from another is the same press — which is why what it
+          would do is spelled out on each one rather than left to be guessed. */}
+      {picking && (
+        <Popover
+          anchor={picking.element}
+          className="group-picker"
+          label={`Rows in ${picking.label}`}
+          onClose={() => setPicking(null)}
+        >
+          <div className="group-picker-section">
+            <span className="group-picker-title">Rows</span>
+            <div className="group-picker-options">
+              {rowIds.map((rowId, rowIndex) => {
+                const was = groupOfRow(members, rowId)
+                const inThis = was === picking.id
+                const name = rowName(names, rowId)
+
+                return (
+                  <button
+                    key={rowId}
+                    type="button"
+                    className={`group-option${inThis ? ' is-active' : ''}`}
+                    aria-pressed={inThis}
+                    title={
+                      inThis
+                        ? `Take row ${rowIndex + 1} out of ${picking.label}`
+                        : was === null
+                          ? `Add row ${rowIndex + 1} to ${picking.label}`
+                          : `Move row ${rowIndex + 1} from ${groupLabel(groups, was)} to ${picking.label}`
+                    }
+                    onClick={() => onSetRowGroup(rowIndex, inThis ? null : picking.id)}
+                  >
+                    {rowIndex + 1}
+                    {name && <span className="group-option-name">{name}</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </Popover>
       )}
     </div>
   )

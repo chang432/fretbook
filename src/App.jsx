@@ -14,11 +14,15 @@ import {
   clampBpm,
   copyColumn,
   createGrid,
+  addGroup,
   createGroups,
+  createRowIds,
   createRows,
   downloadFile,
   fitGrid,
   fromJson,
+  groupLabel,
+  groupOfRow,
   isGridEmpty,
   isSameTie,
   lastBarNoteCount,
@@ -32,12 +36,11 @@ import {
   removeRow,
   rowName,
   rowNoteCount,
-  setGroupRepeat,
-  setGroupSlot,
+  setGroupName,
+  setRowGroup,
   setRowName,
   shiftLoss,
   shiftRow,
-  swapGroupSlots,
   swapRows,
   tiesClash,
   tieTouches,
@@ -98,22 +101,24 @@ export default function App({ published = null }) {
   const [memo, setMemo] = useState(saved?.memo ?? '')
   // Rows carry their own length in bars, so they lead and the grid follows.
   const [rows, setRows] = useState(() => saved?.rows ?? createRows())
-  // One group id per row, in row order. A row's id is its name rather than
-  // its place, so it travels with the row when the sheet is rearranged.
-  const [groups, setGroups] = useState(() => saved?.groups ?? createGroups(saved?.rows?.length))
-  // The names rows have been given, keyed by group id — so a name travels
-  // with its row the way the id does. Rows nobody has named are absent.
+  // One id per row, in row order. A row's id is its name rather than its
+  // place, so it travels with the row when the sheet is rearranged.
+  const [rowIds, setRowIds] = useState(() => saved?.rowIds ?? createRowIds(saved?.rows?.length))
+  // The names rows have been given, keyed by row id — so a name travels with
+  // its row the way the id does. Rows nobody has named are absent.
   const [names, setNames] = useState(() => saved?.names ?? {})
+  // The groups the sheet holds, in the order the strip shows them, and which
+  // group each row is in — kept against the row id, so a row carries its
+  // group around the page with it. A sheet always has at least one group.
+  const [groups, setGroups] = useState(() => saved?.groups ?? createGroups())
+  const [members, setMembers] = useState(() => saved?.members ?? {})
   const [grid, setGrid] = useState(() => fitGrid(saved?.grid ?? [], saved?.rows ?? createRows()))
   const [ties, setTies] = useState(() => saved?.ties ?? [])
   const [marks, setMarks] = useState(() => saved?.marks ?? [])
-  // The running order above the staves: one slot per position in the song,
-  // holding the row played there and how many times over.
-  const [structure, setStructure] = useState(() => saved?.structure ?? [])
   const [status, setStatus] = useState('')
-  // Edit mode: the sheet stops taking type and a press picks a row or a group
-  // slot up instead, so two of them can be swapped. Not saved with the sheet —
-  // it is a way of handling the page, not a property of the song.
+  // Edit mode: the sheet stops taking type and a press picks a row up
+  // instead, so two of them can be swapped. Not saved with the sheet — it is
+  // a way of handling the page, not a property of the song.
   const [editing, setEditing] = useState(false)
   // Whether copy mode is on: the strips above every staff that pick a stretch
   // of positions out and write it down again elsewhere. Not saved with the
@@ -142,8 +147,8 @@ export default function App({ published = null }) {
   const audioRef = useRef(null)
 
   const sheet = useMemo(
-    () => ({ grid, rows, groups, names, ties, marks, structure }),
-    [grid, rows, groups, names, ties, marks, structure],
+    () => ({ grid, rows, rowIds, names, groups, members, ties, marks }),
+    [grid, rows, rowIds, names, groups, members, ties, marks],
   )
   const asciiTab = useMemo(() => toAsciiTab(sheet, STANDARD_TUNING), [sheet])
   const empty = useMemo(() => isGridEmpty(grid), [grid])
@@ -196,12 +201,13 @@ export default function App({ published = null }) {
    */
   const applySheet = useCallback((next) => {
     if (next.rows) setRows(next.rows)
-    if (next.groups) setGroups(next.groups)
+    if (next.rowIds) setRowIds(next.rowIds)
     if (next.names) setNames(next.names)
+    if (next.groups) setGroups(next.groups)
+    if (next.members) setMembers(next.members)
     if (next.grid) setGrid(next.grid)
     if (next.ties) setTies(next.ties)
     if (next.marks) setMarks(next.marks)
-    if (next.structure) setStructure(next.structure)
     if (next.title !== undefined) setTitle(next.title)
     if (next.bpm !== undefined) setBpm(next.bpm)
     if (next.memo !== undefined) setMemo(next.memo)
@@ -224,29 +230,29 @@ export default function App({ published = null }) {
     setStatus(`Undid ${entry.label}`)
   }
 
-  /** The number in a row's circle — its group id, counting from one. */
-  const rowLabel = (rowIndex) => groups[rowIndex] + 1
+  /** The number in a row's circle — where the row stands on the page. */
+  const rowLabel = (rowIndex) => rowIndex + 1
 
   /**
    * Name a row, or clear its name by passing an empty one. The name is kept
-   * against the row's group id rather than its place, so it stays with the
-   * row when the sheet is reordered and goes when the row does.
+   * against the row's own id rather than its place, so it stays with the row
+   * when the sheet is reordered and goes when the row does.
    *
    * A press that leaves the name as it was — opening the box and closing it
    * again, or retyping the same name — changes nothing and costs no undo.
    */
   const handleRenameRow = (rowIndex, name) => {
-    const id = groups[rowIndex]
+    const id = rowIds[rowIndex]
     const next = setRowName(names, id, name)
     const written = rowName(next, id)
     if (written === rowName(names, id)) return
 
-    remember(`naming group ${rowLabel(rowIndex)}`)
+    remember(`naming row ${rowLabel(rowIndex)}`)
     setNames(next)
     setStatus(
       written
-        ? `Group ${rowLabel(rowIndex)} is now "${written}"`
-        : `Group ${rowLabel(rowIndex)} has no name again`,
+        ? `Row ${rowLabel(rowIndex)} is now "${written}"`
+        : `Row ${rowLabel(rowIndex)} has no name again`,
     )
   }
 
@@ -262,7 +268,11 @@ export default function App({ published = null }) {
     setMemo(next)
   }
 
-  /** Append an empty row at the bottom and scroll down to it. */
+  /**
+   * Append an empty row at the bottom and scroll down to it. A new row starts
+   * outside every group: groups collect the rows that are already written,
+   * which is what their own lists are for.
+   */
   const handleAddRow = () => {
     remember('adding a row')
     const next = addRow(sheet)
@@ -270,70 +280,75 @@ export default function App({ published = null }) {
     // effect below rather than run here, where the page is still its old height.
     revealNewRow.current = true
     setRows(next.rows)
-    setGroups(next.groups)
+    setRowIds(next.rowIds)
     setGrid(next.grid)
     disarmRemovals()
   }
 
-  /** Put a group in one slot of the running order, or clear it with null. */
-  const handleSetGroup = useCallback(
-    (slot, group) => {
-      remember('a change to the running order')
-      setStructure((prev) => setGroupSlot(prev, slot, group))
-    },
-    [remember],
-  )
-
-  /** Say how many times one slot of the running order plays its group. */
-  const handleSetGroupRepeat = useCallback(
-    (slot, repeat) => {
-      remember('a change to the running order')
-      setStructure((prev) => setGroupRepeat(prev, slot, repeat))
-    },
-    [remember],
-  )
+  /** Add an empty group to the end of the strip. */
+  const handleAddGroup = () => {
+    remember('adding a group')
+    const next = addGroup(groups)
+    setGroups(next)
+    setStatus(`Added ${groupLabel(next, next[next.length - 1].id)}`)
+  }
 
   /**
-   * Exchange two rows, the tab written in them and all. The running order is
-   * not touched: its slots name groups by position, so the strip goes on
-   * saying what it said and the song changes with the rows. Reordering the
-   * strip is its own swap, and the two never reach into each other.
+   * Name a group, or clear its name by passing an empty one. A group with no
+   * name of its own is called after where it stands, so clearing one leaves
+   * it named rather than nameless.
+   */
+  const handleRenameGroup = (groupId, name) => {
+    const next = setGroupName(groups, groupId, name)
+    if (groupLabel(next, groupId) === groupLabel(groups, groupId)) return
+
+    remember(`naming ${groupLabel(groups, groupId)}`)
+    setGroups(next)
+    setStatus(`That group is now ${groupLabel(next, groupId)}`)
+  }
+
+  /** Put a row in a group, or take it out of the one it is in with null. */
+  const handleSetRowGroup = (rowIndex, groupId) => {
+    const id = rowIds[rowIndex]
+    if (groupOfRow(members, id) === groupId) return
+
+    remember(`moving row ${rowLabel(rowIndex)}`)
+    setMembers(setRowGroup(members, id, groupId))
+    setStatus(
+      Number.isInteger(groupId)
+        ? `Row ${rowLabel(rowIndex)} is in ${groupLabel(groups, groupId)}`
+        : `Row ${rowLabel(rowIndex)} is in no group`,
+    )
+  }
+
+  /**
+   * Exchange two rows, the tab written in them and all. Everything said about
+   * a row is kept against its id rather than its place, so the names and the
+   * groups travel with the music and nothing else has to be put right here.
    */
   const handleSwapRows = useCallback(
     (a, b) => {
-      remember(`swapping groups ${groups[a] + 1} and ${groups[b] + 1}`)
+      remember(`swapping rows ${a + 1} and ${b + 1}`)
       const next = swapRows(sheet, a, b)
       setRows(next.rows)
-      setGroups(next.groups)
+      setRowIds(next.rowIds)
       setGrid(next.grid)
       setTies(next.ties)
       setMarks(next.marks)
       disarmRemovals()
-      // Read straight off `groups` rather than through rowLabel, which is
-      // rebuilt each render and would keep this callback from being memoised.
-      setStatus(`Swapped groups ${groups[a] + 1} and ${groups[b] + 1}`)
+      setStatus(`Swapped rows ${a + 1} and ${b + 1}`)
     },
-    [sheet, groups, remember],
-  )
-
-  /** Exchange two positions of the running order, which reorders the song. */
-  const handleSwapGroupSlots = useCallback(
-    (a, b) => {
-      remember(`swapping positions ${a + 1} and ${b + 1} of the running order`)
-      setStructure((prev) => swapGroupSlots(prev, a, b))
-      setStatus(`Swapped positions ${a + 1} and ${b + 1} of the running order`)
-    },
-    [remember],
+    [sheet, remember],
   )
 
   /**
    * Take one row off the sheet, wherever it stands: the grid loses its run of
-   * columns, the rows below slide up, and the running order loses the slots
-   * that called for it. Both ways of deleting a row end up here, so the two
+   * columns, the rows below slide up, and the name and group the row was
+   * given go with it. Both ways of deleting a row end up here, so the two
    * buttons differ only in which row they name and how they ask first.
    */
   const applyRemoveRow = (rowIndex) => {
-    remember(`deleting group ${rowLabel(rowIndex)}`)
+    remember(`deleting row ${rowLabel(rowIndex)}`)
     applySheet(removeRow(sheet, rowIndex))
     disarmRemovals()
   }
@@ -348,13 +363,13 @@ export default function App({ published = null }) {
   const handleDeleteRow = (rowIndex) => {
     if (rows.length <= 1 || rowIndex < 0 || rowIndex >= rows.length) return
 
-    const group = rowLabel(rowIndex)
+    const row = rowLabel(rowIndex)
     const notes = rowNoteCount(grid, rows, rowIndex)
     applyRemoveRow(rowIndex)
     setStatus(
       notes > 0
-        ? `Deleted group ${group} — ${notes} note${notes === 1 ? '' : 's'}`
-        : `Deleted group ${group}`,
+        ? `Deleted row ${row} — ${notes} note${notes === 1 ? '' : 's'}`
+        : `Deleted row ${row}`,
     )
   }
 
@@ -373,7 +388,7 @@ export default function App({ published = null }) {
    * why this works off the whole sheet rather than four separate updates.
    */
   const handleAddBar = (rowIndex) => {
-    remember(`adding a bar to group ${rowLabel(rowIndex)}`)
+    remember(`adding a bar to row ${rowLabel(rowIndex)}`)
     const next = addBar(sheet, rowIndex)
     setRows(next.rows)
     setGrid(next.grid)
@@ -391,7 +406,7 @@ export default function App({ published = null }) {
    */
   const handleShiftRow = (rowIndex, step, anchor = null) => {
     const lost = shiftLoss(grid, rows, rowIndex, step, anchor)
-    remember(`shifting group ${rowLabel(rowIndex)}`)
+    remember(`shifting row ${rowLabel(rowIndex)}`)
     const next = shiftRow(sheet, rowIndex, step, anchor)
     setGrid(next.grid)
     setTies(next.ties)
@@ -399,7 +414,7 @@ export default function App({ published = null }) {
     disarmRemovals()
     if (lost.notes > 0) {
       setStatus(
-        `Shifted group ${rowLabel(rowIndex)} — ${lost.notes} note${lost.notes === 1 ? '' : 's'} ${
+        `Shifted row ${rowLabel(rowIndex)} — ${lost.notes} note${lost.notes === 1 ? '' : 's'} ${
           lost.overwritten ? 'written over' : 'fell off the end'
         }`,
       )
@@ -418,11 +433,11 @@ export default function App({ published = null }) {
     const notes = lastBarNoteCount(grid, rows, rowIndex)
     if (notes > 0 && pendingRemove !== rowIndex) {
       setPendingRemove(rowIndex)
-      setStatus(`Last bar of group ${rowLabel(rowIndex)} holds ${notes} note${notes === 1 ? '' : 's'} — press again to delete`)
+      setStatus(`Last bar of row ${rowLabel(rowIndex)} holds ${notes} note${notes === 1 ? '' : 's'} — press again to delete`)
       return
     }
 
-    remember(`deleting a bar from group ${rowLabel(rowIndex)}`)
+    remember(`deleting a bar from row ${rowLabel(rowIndex)}`)
     const next = removeBar(sheet, rowIndex)
     setRows(next.rows)
     setGrid(next.grid)
@@ -779,12 +794,13 @@ export default function App({ published = null }) {
     remember('clearing the sheet')
     applySheet({
       rows: fresh,
-      groups: createGroups(fresh.length),
+      rowIds: createRowIds(fresh.length),
       names: {},
+      groups: createGroups(),
+      members: {},
       grid: createGrid(totalColumns(fresh)),
       ties: [],
       marks: [],
-      structure: [],
       memo: '',
     })
     disarmRemovals()
@@ -849,8 +865,8 @@ export default function App({ published = null }) {
             onClick={toggleEditing}
             title={
               editing
-                ? 'Editing the order — press two rows or two groups to swap them'
-                : 'Reorder the rows and the running order'
+                ? 'Editing the order — press two rows to swap them'
+                : 'Reorder the rows'
             }
           >
             <SwapIcon />
@@ -932,9 +948,9 @@ export default function App({ published = null }) {
           mode that is still on. So the mode says what it is here instead. */}
       {editing && (
         <p className="edit-hint">
-          Press a row or a group, then press another, and the two exchange places.
-          The bin at the end of a row deletes that row. Writing is off until this
-          is turned back off.
+          Press a row, then press another, and the two exchange places. The bin
+          at the end of a row deletes that row. Writing is off until this is
+          turned back off.
         </p>
       )}
 
@@ -1001,8 +1017,8 @@ export default function App({ published = null }) {
             Start
           </button>
           <p className="live-menu-hint">
-            One position is one beat, so a bar is four. The song plays in the order the
-            Groups strip sets.
+            One position is one beat, so a bar is four. The sheet plays top to
+            bottom, a row at a time.
           </p>
         </Popover>
       )}
@@ -1011,20 +1027,21 @@ export default function App({ published = null }) {
         <TabEditor
           grid={grid}
           rows={rows}
-          groups={groups}
+          rowIds={rowIds}
           names={names}
+          groups={groups}
+          members={members}
           tuning={STANDARD_TUNING}
           ties={ties}
           marks={marks}
-          structure={structure}
           memo={memo}
           onMemoChange={handleMemoChange}
           editing={editing}
-          onSetGroup={handleSetGroup}
-          onSetGroupRepeat={handleSetGroupRepeat}
           onSwapRows={handleSwapRows}
           onRenameRow={handleRenameRow}
-          onSwapGroupSlots={handleSwapGroupSlots}
+          onAddGroup={handleAddGroup}
+          onRenameGroup={handleRenameGroup}
+          onSetRowGroup={handleSetRowGroup}
           onCellChange={handleCellChange}
           onCreateTie={createTie}
           onToggleMark={handleToggleMark}

@@ -71,36 +71,36 @@ export const createGrid = (columns) => Array.from({ length: columns }, createCol
 
 export const createRows = (count = INITIAL_ROWS) => Array(count).fill(DEFAULT_BARS)
 
-/* Group ids -------------------------------------------------------------
+/* Row ids ----------------------------------------------------------------
  *
- * A row's group id is its name rather than its place. It is the number in the
- * circle at the left of the row, it is what the running order calls for, and
- * it stays with the tab written in the row when that row is moved. That is
- * what lets the two orders be independent: the page can be rearranged without
- * the strip meaning anything different.
+ * A row's id is its name rather than its place: it is what the row's own name
+ * is written against, and what says which group the row is in. It stays with
+ * the tab written in the row when that row is moved, which is what lets the
+ * page be rearranged without anything said about a row meaning something
+ * different afterwards.
  *
- * Ids are held in a `groups` array parallel to `rows`, and are zero-based —
- * the same numbers the running order held back when a slot named a row by its
- * index, so every file written before ids existed reads back unchanged.
+ * Ids are held in a `rowIds` array parallel to `rows`, and are zero-based.
+ * Files written while a row was itself a group held the same list under the
+ * name `groups`, which is what their running order named rows by.
  */
 
 /** The ids a new sheet's rows carry: one per row, counting from zero. */
-export const createGroups = (count = INITIAL_ROWS) =>
+export const createRowIds = (count = INITIAL_ROWS) =>
   Array.from({ length: count }, (_, i) => i)
 
 /** A fresh id, past every one handed out so far. Ids are never reused. */
-export const nextGroupId = (groups) => (groups.length ? Math.max(...groups) + 1 : 0)
+export const nextRowId = (rowIds) => (rowIds.length ? Math.max(...rowIds) + 1 : 0)
 
-/** Where the row carrying this id sits, or -1 when no row does. */
-export const rowOfGroup = (groups, id) => groups.indexOf(id)
+/** Drop the entries of a map kept by row id whose row has gone. */
+const keptForRows = (map, rowIds) =>
+  Object.fromEntries(Object.entries(map ?? {}).filter(([id]) => rowIds.includes(Number(id))))
 
 /* Row names --------------------------------------------------------------
  *
  * A row can be given a name of its own — "Intro", "Chorus" — written beside
- * the number at the top of the row. Names are held against the group id and
- * not against the row's place, exactly as the id is: a named row keeps its
- * name wherever it is moved to, and a name is only ever lost with the row it
- * was given to.
+ * the number at the top of the row. Names are held against the row id and not
+ * against the row's place: a named row keeps its name wherever it is moved
+ * to, and a name is only ever lost with the row it was given to.
  *
  * `names` is therefore a plain object keyed by id, and holds only the rows
  * that have been named — an unnamed row is simply absent from it.
@@ -109,31 +109,34 @@ export const rowOfGroup = (groups, id) => groups.indexOf(id)
 /** Longest a row name can be: enough to name a section, not a sentence. */
 export const MAX_ROW_NAME = 24
 
+/**
+ * A name as it is kept: runs of whitespace squeezed out, the ends trimmed,
+ * and the whole capped — so a name is what it looks like where it is shown
+ * rather than whatever was typed around it. Shared by rows and by groups.
+ */
+const cleanName = (name, max) =>
+  String(name ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max)
+
 /** The name this group carries, or '' when it has none. */
 export const rowName = (names, id) => (typeof names?.[id] === 'string' ? names[id] : '')
 
 /**
- * Name a group, or clear its name by passing an empty one. Runs of whitespace
- * are squeezed out and the ends trimmed, so a name is what it looks like on
- * the row rather than whatever was typed around it. A cleared name is dropped
- * from the map outright rather than kept as an empty string, which is what
- * leaves a sheet nobody has named carrying nothing.
+ * Name a row, or clear its name by passing an empty one. A cleared name is
+ * dropped from the map outright rather than kept as an empty string, which is
+ * what leaves a sheet nobody has named carrying nothing.
  */
 export function setRowName(names, id, name) {
-  const trimmed = String(name ?? '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, MAX_ROW_NAME)
+  const trimmed = cleanName(name, MAX_ROW_NAME)
   const rest = { ...names }
   delete rest[id]
   return trimmed ? { ...rest, [id]: trimmed } : rest
 }
 
-/** Drop the names of groups no row carries any more. */
-export const clampRowNames = (names, groups) =>
-  Object.fromEntries(
-    Object.entries(names ?? {}).filter(([id]) => groups.includes(Number(id))),
-  )
+/** Drop the names of rows that are no longer on the sheet. */
+export const clampRowNames = (names, rowIds) => keptForRows(names, rowIds)
 
 /**
  * The sheet's written note — the paragraph above the running order, for what
@@ -177,112 +180,89 @@ export function rowAt(rows, col) {
   return -1
 }
 
-/** Append an empty row at the bottom. Nothing already written moves. */
-export function addRow({ rows, groups = createGroups(rows.length), grid, ties, marks }) {
+/**
+ * Append an empty row at the bottom. Nothing already written moves, and the
+ * row starts in no group: a group gathers rows that are already there.
+ */
+export function addRow({ rows, rowIds = createRowIds(rows.length), grid, ties, marks }) {
   return {
     rows: [...rows, DEFAULT_BARS],
-    // A name of its own, past every one already given out, so a slot naming
-    // a row that has since been removed never picks up the new one.
-    groups: [...groups, nextGroupId(groups)],
+    // An id of its own, past every one already given out, so nothing said
+    // about a row that has since been removed attaches itself to this one.
+    rowIds: [...rowIds, nextRowId(rowIds)],
     grid: [...grid, ...createGrid(rowWidth(DEFAULT_BARS))],
     ties,
     marks,
   }
 }
 
-/* Groups -----------------------------------------------------------------
+/* Groups ------------------------------------------------------------------
  *
- * A row is a group — a chunk of tab that can be played more than once. The
- * group section above the staves is the running order: `structure` is one slot
- * per position in the song, holding the row played there and how many times
- * over, or null where nothing has been chosen yet.
+ * A group is a collection of rows — a verse, a chorus, the four bars that
+ * come back later. A sheet holds a list of them, in the order the strip above
+ * the staves shows them, and each one can be given a name of its own; a sheet
+ * starts with a single empty group to put rows in.
  *
- * A slot can call for its group more than once so that a row played four times
- * is one slot saying so, rather than the same number written out four times.
+ * Which rows a group holds is kept the other way round, as one entry per row:
+ * `members` maps a row id to the group that row is in, and a row that has not
+ * been put in one is simply absent. Kept that way because a row is in at most
+ * one group, and because membership then travels with the row id exactly as
+ * the row's name does — reordering and renaming rows need no bookkeeping here
+ * at all, and deleting one is a single entry to drop.
  */
 
-/** Slots the group section shows even before anything has been put in them. */
-export const MIN_GROUP_SLOTS = 8
+/** Longest a group name can be: enough to name a section, not a sentence. */
+export const MAX_GROUP_NAME = 24
 
-/** The most times one slot can call for its group. */
-export const MAX_GROUP_REPEAT = 8
+/** The groups a new sheet starts with: one, empty and yet to be named. */
+export const createGroups = () => [{ id: 0, name: '' }]
 
-/** A slot never plays its group less than once, nor more than the strip shows. */
-const clampRepeat = (repeat) =>
-  Number.isInteger(repeat) ? Math.min(Math.max(repeat, 1), MAX_GROUP_REPEAT) : 1
+/** A fresh group id, past every one handed out so far. Ids are never reused. */
+export const nextGroupId = (groups) =>
+  groups.length ? Math.max(...groups.map((group) => group.id)) + 1 : 0
 
-/** A filled slot: the row played there, and how many times over. */
-const groupSlot = (group, repeat = 1) => ({ group, repeat: clampRepeat(repeat) })
+/** Add an empty group at the end of the list. */
+export const addGroup = (groups) => [...groups, { id: nextGroupId(groups), name: '' }]
 
-/**
- * One slot as it comes back from a file, or null where nothing is set. A bare
- * row index is a slot played once — all a file held before repeats existed.
- */
-export function readGroupSlot(entry) {
-  if (Number.isInteger(entry)) return entry >= 0 ? groupSlot(entry) : null
-  if (entry && Number.isInteger(entry.group) && entry.group >= 0) {
-    return groupSlot(entry.group, entry.repeat)
-  }
-  return null
-}
-
-/** One slot as a file holds it: a bare row index unless a repeat was set. */
-const writeGroupSlot = (entry) =>
-  entry ? (entry.repeat > 1 ? { group: entry.group, repeat: entry.repeat } : entry.group) : null
-
-/** Trailing blanks carry no meaning, so they never accumulate. */
-const trimStructure = (structure) => {
-  const kept = [...structure]
-  while (kept.length && kept[kept.length - 1] === null) kept.pop()
-  return kept
+/** Name a group, or clear its name by passing an empty one. */
+export function setGroupName(groups, id, name) {
+  const trimmed = cleanName(name, MAX_GROUP_NAME)
+  return groups.map((group) => (group.id === id ? { ...group, name: trimmed } : group))
 }
 
 /**
- * Put a group in a slot, or clear it with null. Choosing the group already
- * there keeps the repeat set on it; choosing a different one starts again at
- * once through, since the count belonged to the group it was set on.
+ * What a group is called: the name it was given, or where it stands in the
+ * list. A group nobody has named is still something to point at, so it
+ * answers to its place until it has a name of its own.
  */
-export function setGroupSlot(structure, slot, group) {
-  if (slot < 0) return structure
-  const next = [...structure]
-  while (next.length <= slot) next.push(null)
-  const was = next[slot]
-  next[slot] = group === null ? null : groupSlot(group, was?.group === group ? was.repeat : 1)
-  return trimStructure(next)
+export function groupLabel(groups, id) {
+  const at = groups.findIndex((group) => group.id === id)
+  return at < 0 ? '' : groups[at].name || `Group ${at + 1}`
 }
 
-/** Say how many times a slot plays its group. An empty slot has nothing to repeat. */
-export function setGroupRepeat(structure, slot, repeat) {
-  const was = structure[slot]
-  if (!was) return structure
-  const next = [...structure]
-  next[slot] = groupSlot(was.group, repeat)
-  return next
+/** The group this row is in, or null when it is in none. */
+export const groupOfRow = (members, rowId) =>
+  Number.isInteger(members?.[rowId]) ? members[rowId] : null
+
+/** Put a row in a group, or take it out of the one it is in with null. */
+export function setRowGroup(members, rowId, groupId) {
+  const rest = { ...members }
+  delete rest[rowId]
+  return Number.isInteger(groupId) ? { ...rest, [rowId]: groupId } : rest
 }
 
-/**
- * Exchange two slots of the running order — how the strip is reordered by
- * hand. A slot past the end of what has been written is empty, so swapping a
- * filled slot with one of those moves it there rather than trading anything.
- */
-export function swapGroupSlots(structure, a, b) {
-  if (a === b || a < 0 || b < 0) return structure
+/** The rows a group holds, as row indices, in the order they stand on the page. */
+export const rowsInGroup = (members, rowIds, groupId) =>
+  rowIds
+    .map((id, rowIndex) => (groupOfRow(members, id) === groupId ? rowIndex : -1))
+    .filter((rowIndex) => rowIndex >= 0)
 
-  const next = [...structure]
-  while (next.length <= Math.max(a, b)) next.push(null)
-  const held = readGroupSlot(next[a])
-  next[a] = readGroupSlot(next[b])
-  next[b] = held
-  return trimStructure(next)
-}
-
-/** Blank out slots calling for a group no row carries any more. */
-export const clampStructure = (structure, groups) =>
-  trimStructure(
-    structure.map((entry) => {
-      const slot = readGroupSlot(entry)
-      return slot && groups.includes(slot.group) ? slot : null
-    }),
+/** Drop memberships whose row, or whose group, has gone. */
+export const clampMembers = (members, rowIds, groups) =>
+  Object.fromEntries(
+    Object.entries(keptForRows(members, rowIds)).filter(([, groupId]) =>
+      groups.some((group) => group.id === groupId),
+    ),
   )
 
 /** Absolute columns of one row, as [from, past-the-end). The last by default. */
@@ -306,11 +286,11 @@ export function rowNoteCount(grid, rows, rowIndex = rows.length - 1) {
  * `removeBar`, a whole row wide. A sheet never drops below one row.
  */
 export function removeRow(
-  { rows, groups = createGroups(rows.length), names = {}, grid, ties, marks, structure = [] },
+  { rows, rowIds = createRowIds(rows.length), names = {}, members = {}, grid, ties, marks },
   rowIndex = rows.length - 1,
 ) {
   if (rows.length <= 1 || rowIndex < 0 || rowIndex >= rows.length) {
-    return { rows, groups, names, grid, ties, marks, structure }
+    return { rows, rowIds, names, members, grid, ties, marks }
   }
 
   const [at, end] = rowRange(rows, rowIndex)
@@ -318,21 +298,20 @@ export function removeRow(
   const inside = (col) => col >= at && col < end
   const shift = (col) => (col >= end ? col - width : col)
   const without = (list) => list.filter((_, i) => i !== rowIndex)
-  const kept = without(groups)
+  const kept = without(rowIds)
 
   return {
     rows: without(rows),
-    groups: kept,
+    rowIds: kept,
     grid: [...grid.slice(0, at), ...grid.slice(end)],
     // A tie with an end in the removed row has lost the note it was holding.
     ties: ties
       .filter((tie) => !inside(tie.from) && !inside(tie.to))
       .map((tie) => ({ ...tie, from: shift(tie.from), to: shift(tie.to) })),
     marks: marks.filter((mark) => !inside(mark.col)).map((mark) => ({ ...mark, col: shift(mark.col) })),
-    // The song can no longer call for a group that is gone, and neither the
-    // name it was given nor the slots that called for it outlive the row.
+    // Neither the name the row was given nor the group it was in outlives it.
     names: clampRowNames(names, kept),
-    structure: clampStructure(structure, kept),
+    members: keptForRows(members, kept),
   }
 }
 
@@ -345,15 +324,14 @@ export function removeRow(
  * Arcs and symbols are held in absolute columns, so they are carried across
  * with the notes they hang on rather than left behind pointing at them.
  *
- * The group ids travel with the tab, so the row keeps its name wherever it is
- * put — swap the first and third rows and their circles read 3 and 1. That is
- * what leaves the running order untouched: a slot calls for a group by name,
- * and the name has gone with the music rather than stayed with the place.
+ * The row ids travel with the tab, so everything said about a row — the name
+ * it was given, the group it is in — goes with the music rather than staying
+ * behind with the place on the page.
  */
-export function swapRows({ rows, groups = createGroups(rows.length), grid, ties, marks, structure = [] }, a, b) {
+export function swapRows({ rows, rowIds = createRowIds(rows.length), grid, ties, marks }, a, b) {
   const last = rows.length - 1
   if (a === b || a < 0 || b < 0 || a > last || b > last) {
-    return { rows, groups, grid, ties, marks, structure }
+    return { rows, rowIds, grid, ties, marks }
   }
 
   // Named by which comes first on the page, so the grid can be cut in order.
@@ -379,7 +357,7 @@ export function swapRows({ rows, groups = createGroups(rows.length), grid, ties,
 
   return {
     rows: exchange(rows),
-    groups: exchange(groups),
+    rowIds: exchange(rowIds),
     grid: [
       ...grid.slice(0, starts[upper]),
       ...grid.slice(starts[lower], lowerEnd),
@@ -391,7 +369,6 @@ export function swapRows({ rows, groups = createGroups(rows.length), grid, ties,
     // and the pair stays in order.
     ties: ties.map((tie) => ({ ...tie, from: moveCol(tie.from), to: moveCol(tie.to) })),
     marks: marks.map((mark) => ({ ...mark, col: moveCol(mark.col) })),
-    structure,
   }
 }
 
@@ -512,7 +489,7 @@ export function shiftLoss(grid, rows, rowIndex, step, anchor = null) {
  * right. What the block lands on is gone, as is anything pushed past the end
  * of the row, arcs and symbols included. Rows either side are untouched.
  */
-export function shiftRow({ rows, grid, ties, marks, structure }, rowIndex, step, anchor = null) {
+export function shiftRow({ rows, grid, ties, marks }, rowIndex, step, anchor = null) {
   const { start, end, from, to, landing, vacated } = shiftBlock(rows, rowIndex, step, anchor)
   const inBlock = (col) => col >= from && col <= to
   const inRow = (col) => col >= start && col <= end
@@ -551,7 +528,6 @@ export function shiftRow({ rows, grid, ties, marks, structure }, rowIndex, step,
     marks: marks
       .filter((mark) => (inBlock(mark.col) ? inRow(moved(mark.col)) : survives(mark.col)))
       .map((mark) => (inBlock(mark.col) ? { ...mark, col: moved(mark.col) } : mark)),
-    structure,
   }
 }
 
@@ -597,7 +573,7 @@ export function previousWrittenColumn(grid, col) {
  * and goes, the same as if that note had been erased.
  */
 export function copyColumn(sheet, fromCol, toCol) {
-  const { rows, grid, ties, marks, structure } = sheet
+  const { rows, grid, ties, marks } = sheet
   const valid = (col) => col >= 0 && col < grid.length
   if (!valid(fromCol) || !valid(toCol) || fromCol === toCol) return sheet
 
@@ -611,7 +587,6 @@ export function copyColumn(sheet, fromCol, toCol) {
         .filter((mark) => mark.col === fromCol)
         .map((mark) => ({ ...mark, col: toCol })),
     ],
-    structure,
   }
 }
 
@@ -681,7 +656,7 @@ export function pasteLoss(grid, rows, range, at) {
  * takes its arcs with it.
  */
 export function pasteRange(sheet, range, at) {
-  const { rows, grid, ties, marks, structure } = sheet
+  const { rows, grid, ties, marks } = sheet
   const { from, to } = range
   const step = at - from
   const last = at + rangeLength(range) - 1
@@ -702,7 +677,6 @@ export function pasteRange(sheet, range, at) {
     grid: grid.map((column, col) => (inTarget(col) ? copied[col - at] : column)),
     ties: [...ties.filter((tie) => !inTarget(tie.from) && !inTarget(tie.to)), ...movedTies],
     marks: [...marks.filter((mark) => !inTarget(mark.col)), ...movedMarks],
-    structure,
   }
 }
 
@@ -862,11 +836,12 @@ export function toJson(
   {
     grid,
     rows,
-    groups = createGroups(rows.length),
+    rowIds = createRowIds(rows.length),
     names = {},
+    groups = createGroups(),
+    members = {},
     ties = [],
     marks = [],
-    structure = [],
     bpm = DEFAULT_BPM,
     memo = '',
   },
@@ -878,28 +853,27 @@ export function toJson(
   return JSON.stringify(
     {
       format: 'fretboard-notebook',
-      version: 10,
+      version: 11,
       title,
       tuning,
-      // The note written above the running order — prose about the song,
-      // which is why it is kept whole rather than shaped on the way out.
+      // The note written above the groups — prose about the song, which is
+      // why it is kept whole rather than shaped on the way out.
       memo: readMemo(memo),
       // Playback tempo, in beats per minute — one grid column per beat.
       bpm: clampBpm(bpm),
       // One bar count per staff row; rows can differ in length.
       rows,
-      // One group id per staff row, in row order. A row's id is its name, so
+      // One id per staff row, in row order. A row's id is its name, so
       // reordering the rows reorders these with them.
+      rowIds,
+      // The names rows have been given, keyed by row id — only the rows that
+      // have one. Keyed by id rather than by place, since the name belongs to
+      // the row and not to the line it happens to be written on.
+      names: clampRowNames(names, rowIds),
+      // The groups the sheet holds, in the order the strip shows them.
       groups,
-      // The names rows have been given, keyed by group id — only the rows
-      // that have one. Keyed by id rather than by place for the same reason
-      // the running order is: the name belongs to the row, not to the line it
-      // happens to be written on.
-      names: clampRowNames(names, groups),
-      // The running order: one slot per position in the song, holding the
-      // group played there — as a bare id, or as `{ group, repeat }` where the
-      // slot calls for it more than once. Null where nothing is set.
-      structure: structure.map(writeGroupSlot),
+      // Which group each row is in, keyed by row id. Rows in none are absent.
+      members: clampMembers(members, rowIds, groups),
       // Emitted high-string-first, the same order as `tuning`.
       columns: grid.slice(0, totalColumns(rows)),
       ties,
@@ -967,20 +941,26 @@ export function fromJson(text) {
 
   const rows = readRows(data.rows, columns.length)
   if (!rows) return null
-  const groups = readGroups(data.groups, rows.length)
+  // Files written while a row was itself a group held the row ids under
+  // `groups`, where the list of groups now lives.
+  const legacyIds = Array.isArray(data.groups) && data.groups.every(Number.isInteger)
+  const rowIds = readRowIds(legacyIds ? data.groups : data.rowIds, rows.length)
+  const groups = readGroups(legacyIds ? null : data.groups)
   return {
     title: typeof data.title === 'string' ? data.title : '',
     grid: columns,
     rows,
-    groups,
+    rowIds,
     // A file written before rows could be named simply has none.
-    names: readRowNames(data.names, groups),
+    names: readRowNames(data.names, rowIds),
+    groups,
+    // A file written before groups held rows has put none of them anywhere,
+    // and its running order, if it had one, is not a thing any more.
+    members: readMembers(data.members, rowIds, groups),
     // A file written before live mode existed simply plays at the default.
     bpm: clampBpm(data.bpm),
     // A file written before the note existed (version 9 and earlier) has none.
     memo: readMemo(data.memo),
-    // A file written before groups existed simply has no running order.
-    structure: clampStructure(Array.isArray(data.structure) ? data.structure : [], groups),
     ties,
     marks,
   }
@@ -993,27 +973,61 @@ export function fromJson(text) {
  * A short, damaged or duplicated list is topped up the same way rather than
  * leaving two rows answering to one name.
  */
-function readGroups(raw, rowCount) {
+function readRowIds(raw, rowCount) {
   const kept = []
   const list = Array.isArray(raw) ? raw : []
   for (let i = 0; i < rowCount; i += 1) {
     const id = list[i]
-    kept.push(Number.isInteger(id) && id >= 0 && !kept.includes(id) ? id : nextGroupId(kept))
+    kept.push(Number.isInteger(id) && id >= 0 && !kept.includes(id) ? id : nextRowId(kept))
   }
   return kept
 }
 
 /**
- * Row names from a file, keyed by group id. Anything that is not a name a row
+ * The groups from a file: whatever of the list is well formed, and always at
+ * least one, since a sheet with nowhere to put a row has nothing to show in
+ * the strip. Ids are taken as written where they can be, so the memberships
+ * read beside them still point at the right group.
+ */
+function readGroups(raw) {
+  const kept = []
+  for (const group of Array.isArray(raw) ? raw : []) {
+    if (!group || typeof group !== 'object') continue
+    const id =
+      Number.isInteger(group.id) && group.id >= 0 && !kept.some((other) => other.id === group.id)
+        ? group.id
+        : nextGroupId(kept)
+    kept.push({ id, name: cleanName(group.name, MAX_GROUP_NAME) })
+  }
+  return kept.length ? kept : createGroups()
+}
+
+/**
+ * Which group each row is in, keyed by row id. An entry naming a row or a
+ * group the file does not hold is dropped rather than left pointing at
+ * nothing.
+ */
+function readMembers(raw, rowIds, groups) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const kept = Object.entries(raw).reduce((all, [key, value]) => {
+    const rowId = Number(key)
+    if (!Number.isInteger(rowId) || !Number.isInteger(value)) return all
+    return { ...all, [rowId]: value }
+  }, {})
+  return clampMembers(kept, rowIds, groups)
+}
+
+/**
+ * Row names from a file, keyed by row id. Anything that is not a name a row
  * here can carry is dropped: an id no row has, a value that is not a string,
  * a name that is empty once trimmed. Passing each one through `setRowName`
  * leaves the map holding exactly what the editor would have written.
  */
-function readRowNames(raw, groups) {
+function readRowNames(raw, rowIds) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
   return Object.entries(raw).reduce((kept, [key, value]) => {
     const id = Number(key)
-    if (!Number.isInteger(id) || !groups.includes(id) || typeof value !== 'string') return kept
+    if (!Number.isInteger(id) || !rowIds.includes(id) || typeof value !== 'string') return kept
     return setRowName(kept, id, value)
   }, {})
 }

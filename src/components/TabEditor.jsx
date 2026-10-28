@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import GroupSection from './GroupSection.jsx'
 import MarkBar from './MarkBar.jsx'
+import Popover from './Popover.jsx'
 import MemoSection from './MemoSection.jsx'
 import PositionStrip from './PositionStrip.jsx'
 import StaffOverlay from './StaffOverlay.jsx'
@@ -10,6 +11,8 @@ import {
   MARK_ZIGZAG,
   MAX_ROW_NAME,
   STRING_COUNT,
+  groupLabel,
+  groupOfRow,
   isSameTie,
   makeRange,
   makeTie,
@@ -41,17 +44,18 @@ const COPY_KEY = 'r'
 export default function TabEditor({
   grid,
   rows,
-  groups,
+  rowIds,
   names,
-  structure,
+  groups,
+  members,
   memo,
   onMemoChange,
   editing,
-  onSetGroup,
-  onSetGroupRepeat,
   onSwapRows,
-  onSwapGroupSlots,
   onRenameRow,
+  onAddGroup,
+  onRenameGroup,
+  onSetRowGroup,
   tuning,
   ties,
   marks,
@@ -86,10 +90,9 @@ export default function TabEditor({
   // until its own close button is pressed — writing in another row, or opening
   // a second row's arrows, leaves it exactly as it was.
   const [shiftRows, setShiftRows] = useState(() => new Map())
-  // What edit mode has picked up and is waiting to swap: which kind of thing
-  // it is — a staff row or a slot of the running order — and which one. Null
-  // between swaps, and whenever the mode is not on.
-  const [selected, setSelected] = useState(null)
+  // The row edit mode has picked up and is waiting to swap, by its place on
+  // the page. Null between swaps, and whenever the mode is not on.
+  const [selectedRow, setSelectedRow] = useState(null)
   // Copy mode's stretch of positions. `to` is null between the first press and
   // the second, which is the state the strip draws as one circle filled and
   // nothing carried yet. Null when nothing is picked out.
@@ -97,6 +100,9 @@ export default function TabEditor({
   // The paste button waiting on a second press because the first would have
   // written over notes, as an absolute column. Null when nothing is armed.
   const [pendingPaste, setPendingPaste] = useState(null)
+  // The row whose group is being chosen, carrying the button the list hangs
+  // under. Null when no list is open.
+  const [groupMenu, setGroupMenu] = useState(null)
   // The row whose name is being typed, and what has been typed so far. Null
   // when no box is open; only ever one at a time.
   const [naming, setNaming] = useState(null)
@@ -104,7 +110,7 @@ export default function TabEditor({
   // Set by Escape, so the blur that follows it closes the box instead of
   // writing down what was abandoned in it.
   const abandoning = useRef(false)
-  // The rows folded away to their name line, by group id rather than by
+  // The rows folded away to their name line, by row id rather than by
   // place, so a row stays folded wherever it is moved to. A fold is a way of
   // handling the page rather than anything about the song, so it is not saved
   // with the sheet.
@@ -112,18 +118,21 @@ export default function TabEditor({
 
   const valueAt = (col, stringIndex) => grid[col]?.[stringIndex] ?? ''
 
-  /** The number in a row's circle — its group id, counting from one. */
-  const label = (rowIndex) => groups[rowIndex] + 1
+  /** The number in a row's circle — where the row stands on the page. */
+  const label = (rowIndex) => rowIndex + 1
 
   /** The name this row has been given, or '' when it has none. */
-  const nameOf = (rowIndex) => rowName(names, groups[rowIndex])
+  const nameOf = (rowIndex) => rowName(names, rowIds[rowIndex])
 
   /** True while this row is folded away to its name line. */
-  const isFolded = (rowIndex) => foldedRows.has(groups[rowIndex])
+  const isFolded = (rowIndex) => foldedRows.has(rowIds[rowIndex])
+
+  /** The group this row is in, or null when it is in none. */
+  const groupOf = (rowIndex) => groupOfRow(members, rowIds[rowIndex])
 
   /** How a row is spoken of: its number, and its name where it has one. */
   const rowTitle = (rowIndex) =>
-    nameOf(rowIndex) ? `Group ${label(rowIndex)} — ${nameOf(rowIndex)}` : `Group ${label(rowIndex)}`
+    nameOf(rowIndex) ? `Row ${label(rowIndex)} — ${nameOf(rowIndex)}` : `Row ${label(rowIndex)}`
 
   /** Open the name box on a row, with whatever it is called already in it. */
   const startNaming = (rowIndex) => {
@@ -161,7 +170,7 @@ export default function TabEditor({
    * thing to put in order than a sheet of staves.
    */
   const toggleFold = (rowIndex) => {
-    const id = groups[rowIndex]
+    const id = rowIds[rowIndex]
     if (foldedRows.has(id)) {
       setFoldedRows((prev) => {
         const next = new Set(prev)
@@ -331,41 +340,36 @@ export default function TabEditor({
   if (rowCount !== rows.length) {
     setRowCount(rows.length)
     setShiftRows((prev) => new Map([...prev].filter(([row]) => row < rows.length)))
-    // A range pointing into a row that has gone would paste from nowhere.
+    // A range pointing into a row that has gone would paste from nowhere,
+    // and a group menu hanging under one would name different tab.
     setRange((prev) => (prev && prev.row < rows.length ? prev : null))
+    setGroupMenu(null)
     setPendingPaste(null)
     // A held row is held by position, so deleting any row leaves what is held
     // naming different tab. It is put back down rather than quietly re-aimed.
-    setSelected((prev) => (prev?.kind === 'row' ? null : prev))
+    setSelectedRow(null)
   }
 
   /**
-   * The two presses edit mode runs on: the first picks something up, the
-   * second says what to exchange it with, and pressing the same thing again
-   * puts it back down. A row and a group slot are different kinds of thing
-   * with nothing to trade, so reaching for one lets go of the other rather
-   * than trying to swap across them.
+   * The two presses edit mode runs on: the first picks a row up, the second
+   * says which row to exchange it with, and pressing the same row again puts
+   * it back down.
    */
-  const choose = (kind, index) => {
-    if (selected?.kind !== kind) {
-      setSelected({ kind, index })
+  const chooseRow = (rowIndex) => {
+    if (selectedRow === null) {
+      setSelectedRow(rowIndex)
       return
     }
-    if (selected.index !== index) {
-      if (kind === 'row') onSwapRows(selected.index, index)
-      else onSwapGroupSlots(selected.index, index)
-    }
-    setSelected(null)
+    if (selectedRow !== rowIndex) onSwapRows(selectedRow, rowIndex)
+    setSelectedRow(null)
   }
 
   /** Put down whatever is held, the same as pressing it a second time. */
   const dropOnEscape = (event) => {
     if (event.key !== 'Escape') return
     event.preventDefault()
-    setSelected(null)
+    setSelectedRow(null)
   }
-
-  const selectedRow = selected?.kind === 'row' ? selected.index : null
 
   // Edit mode takes the sheet over, so everything aimed at a cell — the tie
   // being armed, the bar over the selected note, the row whose shift arrows
@@ -375,7 +379,8 @@ export default function TabEditor({
   const [wasEditing, setWasEditing] = useState(editing)
   if (wasEditing !== editing) {
     setWasEditing(editing)
-    setSelected(null)
+    setSelectedRow(null)
+    setGroupMenu(null)
     setShiftRows(new Map())
     setFocused(null)
     setArming(false)
@@ -560,14 +565,14 @@ export default function TabEditor({
       <MemoSection memo={memo} onChange={onMemoChange} />
 
       <GroupSection
-        structure={structure}
         groups={groups}
-        onSetGroup={onSetGroup}
-        onSetRepeat={onSetGroupRepeat}
+        members={members}
+        rowIds={rowIds}
+        names={names}
         editing={editing}
-        selectedSlot={selected?.kind === 'slot' ? selected.index : null}
-        onChooseSlot={(slot) => choose('slot', slot)}
-        onDropSelection={dropOnEscape}
+        onAddGroup={onAddGroup}
+        onRenameGroup={onRenameGroup}
+        onSetRowGroup={onSetRowGroup}
       />
 
       {rows.map((bars, staff) => {
@@ -607,7 +612,7 @@ export default function TabEditor({
                 onClick={() => toggleFold(staff)}
                 aria-expanded={!folded}
                 title={folded ? 'Show this row' : 'Fold this row away'}
-                aria-label={`Group ${label(staff)}`}
+                aria-label={`Row ${label(staff)}`}
               >
                 {label(staff)}
               </button>
@@ -619,7 +624,7 @@ export default function TabEditor({
                   autoFocus
                   maxLength={MAX_ROW_NAME}
                   placeholder="Name this row"
-                  aria-label={`Name of group ${label(staff)}`}
+                  aria-label={`Name of row ${label(staff)}`}
                   onChange={(event) => setNameDraft(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') {
@@ -658,6 +663,25 @@ export default function TabEditor({
                 )
               )}
 
+              {/* Which group the row is in, and the way to put it in another.
+                  A row in none says so rather than showing nothing: the chip
+                  is how a row is moved, so it has to be there to be pressed. */}
+              <button
+                type="button"
+                className={`row-group${groupOf(staff) === null ? ' row-group--none' : ''}`}
+                disabled={editing}
+                aria-haspopup="dialog"
+                aria-expanded={groupMenu?.row === staff}
+                onClick={(event) =>
+                  setGroupMenu(
+                    groupMenu?.row === staff ? null : { row: staff, element: event.currentTarget },
+                  )
+                }
+                title="Which group this row is in"
+              >
+                {groupOf(staff) === null ? 'No group' : groupLabel(groups, groupOf(staff))}
+              </button>
+
               {/* A row put away still says what is in it, so the sheet can be
                   read down its folded rows. */}
               {folded && (
@@ -677,19 +701,19 @@ export default function TabEditor({
                 type="button"
                 className={`row-select${selectedRow === staff ? ' is-selected' : ''}`}
                 aria-pressed={selectedRow === staff}
-                onClick={() => choose('row', staff)}
+                onClick={() => chooseRow(staff)}
                 onKeyDown={dropOnEscape}
                 title={
                   selectedRow === null
                     ? 'Pick this row up, then press another to swap the two'
                     : selectedRow === staff
                       ? 'Put this row back down'
-                      : `Swap this row with group ${label(selectedRow)}`
+                      : `Swap this row with row ${label(selectedRow)}`
                 }
                 aria-label={
                   selectedRow === null || selectedRow === staff
-                    ? `Group ${label(staff)}`
-                    : `Swap group ${label(staff)} with group ${label(selectedRow)}`
+                    ? `Row ${label(staff)}`
+                    : `Swap row ${label(staff)} with row ${label(selectedRow)}`
                 }
               />
             )}
@@ -709,7 +733,7 @@ export default function TabEditor({
               {!editing && shiftRows.has(staff) && (
                 <PositionStrip
                   className="anchor-strip"
-                  label={`Shift anchor for group ${label(staff)}`}
+                  label={`Shift anchor for row ${label(staff)}`}
                   start={start}
                   cols={cols}
                   cell={(col, indexInStaff) => {
@@ -732,7 +756,7 @@ export default function TabEditor({
                       title: selected
                         ? 'Shift the whole row again'
                         : 'Shift this position and everything to its right',
-                      'aria-label': `Anchor group ${label(staff)}'s shift at position ${indexInStaff + 1}`,
+                      'aria-label': `Anchor row ${label(staff)}'s shift at position ${indexInStaff + 1}`,
                     }
                   }}
                 />
@@ -746,7 +770,7 @@ export default function TabEditor({
                 <>
                   <PositionStrip
                     className="range-strip"
-                    label={`Copy range for group ${label(staff)}`}
+                    label={`Copy range for row ${label(staff)}`}
                     start={start}
                     cols={cols}
                     cell={(col, indexInStaff) => {
@@ -767,13 +791,13 @@ export default function TabEditor({
                           range?.row === staff && range.to === null
                             ? 'Press again to mark the end of the stretch'
                             : 'Mark one end of the stretch to copy',
-                        'aria-label': `Copy from position ${indexInStaff + 1} of group ${label(staff)}`,
+                        'aria-label': `Copy from position ${indexInStaff + 1} of row ${label(staff)}`,
                       }
                     }}
                   />
                   <PositionStrip
                     className="paste-strip"
-                    label={`Paste into group ${label(staff)}`}
+                    label={`Paste into row ${label(staff)}`}
                     start={start}
                     cols={cols}
                     cell={(col, indexInStaff) => ({
@@ -787,7 +811,7 @@ export default function TabEditor({
                           : rangeReady
                             ? 'Paste the copied stretch starting here'
                             : 'Pick out a stretch to copy first',
-                      'aria-label': `Paste starting at position ${indexInStaff + 1} of group ${label(staff)}`,
+                      'aria-label': `Paste starting at position ${indexInStaff + 1} of row ${label(staff)}`,
                       children: <PasteIcon width={12} height={12} />,
                     })}
                   />
@@ -894,7 +918,7 @@ export default function TabEditor({
                       ? 'The sheet keeps at least one row'
                       : 'Delete this row — Undo takes it back'
                   }
-                  aria-label={`Delete group ${label(staff)}`}
+                  aria-label={`Delete row ${label(staff)}`}
                 >
                   <TrashIcon />
                 </button>
@@ -920,7 +944,7 @@ export default function TabEditor({
                     onKeyDown={closeShiftOnEscape(staff)}
                     aria-expanded
                     title="Done shifting this row"
-                    aria-label={`Hide group ${label(staff)}'s shift controls`}
+                    aria-label={`Hide row ${label(staff)}'s shift controls`}
                   >
                     ×
                   </button>
@@ -933,7 +957,7 @@ export default function TabEditor({
                     onClick={() => shift(staff, -1)}
                     onKeyDown={closeShiftOnEscape(staff)}
                     title="Move this row's notes one position left"
-                    aria-label={`Move group ${label(staff)}'s notes left`}
+                    aria-label={`Move row ${label(staff)}'s notes left`}
                   >
                     ←
                   </button>
@@ -943,7 +967,7 @@ export default function TabEditor({
                     onClick={() => shift(staff, 1)}
                     onKeyDown={closeShiftOnEscape(staff)}
                     title="Move this row's notes one position right"
-                    aria-label={`Move group ${label(staff)}'s notes right`}
+                    aria-label={`Move row ${label(staff)}'s notes right`}
                   >
                     →
                   </button>
@@ -960,7 +984,7 @@ export default function TabEditor({
                       ? 'Turn copy mode off to slide this row along'
                       : "Slide this row's notes along"
                   }
-                  aria-label={`Shift group ${label(staff)}'s notes`}
+                  aria-label={`Shift row ${label(staff)}'s notes`}
                 >
                   ↔
                 </button>
@@ -970,7 +994,7 @@ export default function TabEditor({
                 className="bar-button"
                 onClick={() => onAddBar(staff)}
                 title={`Add a bar to this row (${bars} so far)`}
-                aria-label={`Add a bar to group ${label(staff)}`}
+                aria-label={`Add a bar to row ${label(staff)}`}
               >
                 +
               </button>
@@ -985,7 +1009,7 @@ export default function TabEditor({
                     ? 'Press again to delete this bar and the notes in it'
                     : `Remove the last bar of this row (${bars} so far)`
                 }
-                aria-label={`Remove the last bar of group ${label(staff)}`}
+                aria-label={`Remove the last bar of row ${label(staff)}`}
               >
                 −
               </button>
@@ -1008,6 +1032,50 @@ export default function TabEditor({
           moves={nudgeMoves(focused.col, focused.string)}
           onNudge={(step) => nudge(focused.col, focused.string, step)}
         />
+      )}
+
+      {/* The groups a row can be put in, under the chip it was opened from.
+          Rendered here rather than in the row so that a long sheet is not a
+          page of hidden menus — only the open one exists. */}
+      {groupMenu && (
+        <Popover
+          anchor={groupMenu.element}
+          className="group-picker"
+          label={`Group for row ${label(groupMenu.row)}`}
+          onClose={() => setGroupMenu(null)}
+        >
+          <div className="group-picker-section">
+            <span className="group-picker-title">Group</span>
+            <div className="group-picker-options">
+              {groups.map((group, index) => (
+                <button
+                  key={group.id}
+                  type="button"
+                  className={`group-option${groupOf(groupMenu.row) === group.id ? ' is-active' : ''}`}
+                  aria-pressed={groupOf(groupMenu.row) === group.id}
+                  onClick={() => {
+                    onSetRowGroup(groupMenu.row, group.id)
+                    setGroupMenu(null)
+                  }}
+                >
+                  {group.name || `Group ${index + 1}`}
+                </button>
+              ))}
+              {groupOf(groupMenu.row) !== null && (
+                <button
+                  type="button"
+                  className="group-option group-option--clear"
+                  onClick={() => {
+                    onSetRowGroup(groupMenu.row, null)
+                    setGroupMenu(null)
+                  }}
+                >
+                  None
+                </button>
+              )}
+            </div>
+          </div>
+        </Popover>
       )}
     </div>
   )

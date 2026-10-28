@@ -53,7 +53,7 @@ const LiveRun = memo(function LiveRun({ run, name, grid, ties, marks, simpleMode
           the player wrote it down for — and one that has not is called by its
           number, the way the row itself is. */}
       {!simpleMode && (
-        <span className="live-run-label">{name || `Group ${run.group + 1}`}</span>
+        <span className="live-run-label">{name || `Row ${run.row + 1}`}</span>
       )}
       <StaffOverlay
         ties={ties}
@@ -89,11 +89,11 @@ const LiveStrip = memo(function LiveStrip({ runs, names, grid, ties, marks, simp
     <div className="live-strip">
       {runs.map((run) => (
         <LiveRun
-          key={run.slot}
+          key={run.row}
           run={run}
-          // Resolved here rather than in the run: a name is the row's, and
-          // the same row played three times is three runs of one name.
-          name={rowName(names, run.group)}
+          // Resolved here rather than in the run: the run carries the row's
+          // id, and what that row is called is the sheet's business.
+          name={rowName(names, run.rowId)}
           grid={grid}
           ties={ties}
           marks={marks}
