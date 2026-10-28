@@ -67,11 +67,12 @@ listing is how the manifest is rebuilt.
 
 ## Publishing
 
-```bash
-export FRETBOOK_R2_ENDPOINT=https://<account id>.r2.cloudflarestorage.com
-export FRETBOOK_NOTES_BUCKET=fretbook-notes-dev     # or pass --bucket
-export AWS_PROFILE=r2                                # the R2 token, not your AWS keys
+Local setup is one git-ignored file — `cp .env.example .env.local` and fill in
+the endpoint and the `r2` profile. A shell variable overrides it, and
+`--bucket` overrides both; with nothing said, every command means
+**`fretbook-notes-dev`**, and prints the bucket it used as its first line.
 
+```bash
 npm run notes:publish   -- notes/passionfruit_by_drake.json
 npm run notes:publish   -- notes/*.json              # seed a fresh bucket
 npm run notes:unpublish -- passionfruit_by_drake     # the name, not a path
@@ -273,10 +274,19 @@ Pull first, in that order: `notes/` is a mirror of whichever bucket was pulled
 last, so publishing out of it without looking is how one environment quietly
 overwrites the other.
 
-### 7. Locally (optional)
+### 7. Locally
 
 ```bash
 cp .env.example .env.local      # already git-ignored
 ```
 
-Point it at the dev bucket to see the published notes under `npm run dev`.
+Three values, and the only local setup there is:
+
+| | |
+|---|---|
+| `VITE_NOTES_BASE_URL` | the dev bucket's `pub-….r2.dev`, so `npm run dev` shows the published notes |
+| `FRETBOOK_R2_ENDPOINT` | the account endpoint the notes commands publish and pull through |
+| `AWS_PROFILE` | `r2`, the token from step 4 |
+
+The bucket is not among them: the commands default to `fretbook-notes-dev`, and
+production is named when it is meant.

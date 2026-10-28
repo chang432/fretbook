@@ -363,15 +363,25 @@ dev and prod read different buckets — and the browser reads them straight out
 of it, so publishing is a command rather than a deploy:
 
 ```bash
-export FRETBOOK_R2_ENDPOINT=https://<account id>.r2.cloudflarestorage.com
-export FRETBOOK_NOTES_BUCKET=fretbook-notes-dev     # or pass --bucket
-export AWS_PROFILE=r2                                # the R2 token's credentials
+cp .env.example .env.local      # once: the R2 endpoint and the token's profile
 
 npm run notes:publish   -- notes/tie_that_binds_by_drake.json
 npm run notes:unpublish -- tie_that_binds_by_drake
 npm run notes:manifest                               # rebuild the index only
 npm run notes:pull                                   # refresh the local cache
 ```
+
+**A bare command means the dev bucket.** Local work is dev work, so that is the
+default; production has to be named, either for one command or for a shell:
+
+```bash
+npm run notes:publish -- --bucket fretbook-notes-prod notes/*.json
+export FRETBOOK_NOTES_BUCKET=fretbook-notes-prod
+```
+
+Every command prints the bucket it acted on as its first line, with `(default)`
+when nothing asked for one — so a forgotten override shows up in the output
+rather than in the consequences.
 
 ```
 notes/tie_that_binds_by_drake.json   →   /notes/tie_that_binds_by_drake

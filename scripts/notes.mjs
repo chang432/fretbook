@@ -11,11 +11,17 @@
  *   notes.json            the manifest /notes lists
  *   notes/<name>.json     one note, the editor's own JSON export
  *
- *   npm run notes:publish   -- --bucket fretbook-notes-dev notes/*.json
- *   npm run notes:unpublish -- --bucket fretbook-notes-dev passionfruit_by_drake
- *   npm run notes:manifest  -- --bucket fretbook-notes-dev
- *   npm run notes:pull      -- --bucket fretbook-notes-dev
+ *   npm run notes:publish   -- notes/*.json
+ *   npm run notes:unpublish -- passionfruit_by_drake
+ *   npm run notes:manifest
+ *   npm run notes:pull
  *   npm run notes:check
+ *
+ * **A bare command means the dev bucket.** Local work is dev work, so that is
+ * the default, and production has to be asked for by name — the mistake worth
+ * making hard is the one that cannot be taken back, and nothing here can be.
+ * Every command prints the bucket it acted on, so a forgotten override is
+ * visible in the first line of output rather than in the consequences.
  *
  * The local `notes/` folder is a **cache of the bucket**, not a copy worth
  * keeping: it is git-ignored, `pull` mirrors it onto whatever the bucket holds,
@@ -26,9 +32,14 @@
  * R2 speaks the S3 API, so this drives the ordinary AWS CLI pointed at the
  * account's R2 endpoint (`--endpoint`, or FRETBOOK_R2_ENDPOINT — see
  * docs/notes-r2-storage.md for where the endpoint and its credentials come
- * from). The bucket can likewise come from FRETBOOK_NOTES_BUCKET, which is the
- * easier way to avoid publishing to the wrong environment by muscle memory.
- * Credentials are the CLI's own; nothing here reads or stores one.
+ * from). The bucket can likewise come from FRETBOOK_NOTES_BUCKET, to point a
+ * whole shell at production without repeating `--bucket`.
+ *
+ * Both are read out of **.env.local** when it is there, which is the same
+ * git-ignored file Vite reads VITE_NOTES_BASE_URL from — so one file is all the
+ * local setup there is, and a shell variable still wins over it when you want
+ * one command to go somewhere else. Credentials are the CLI's own; nothing
+ * here reads or stores one.
  *
  * Two things the build used to do are done here instead, because this is now
  * the only moment a note is looked at:
@@ -64,6 +75,19 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 /** The cache `pull` mirrors the bucket into. Named after the bucket's prefix. */
 const NOTES_DIR = join(ROOT, PREFIX)
+
+/** What a command means when it is not told otherwise. See the header. */
+const DEFAULT_BUCKET = 'fretbook-notes-dev'
+
+// The same .env.local Vite reads, so the endpoint and a bucket override can be
+// written down once instead of exported into every shell. It does not overwrite
+// a variable that is already set, which is the precedence we want: a flag beats
+// a shell variable beats this file beats the default. Guarded because the file
+// is optional and because loadEnvFile arrived in Node 20.12.
+const ENV_FILE = join(ROOT, '.env.local')
+if (typeof process.loadEnvFile === 'function' && existsSync(ENV_FILE)) {
+  process.loadEnvFile(ENV_FILE)
+}
 
 /**
  * Every call is a single small object, so this uses the low-level `s3api`
@@ -345,7 +369,7 @@ function check() {
 
   const files = tracked.split('\n').filter(Boolean)
   if (files.length === 0) {
-    console.log(`No notes tracked in git. ${bucket || 'The bucket'} is the source of truth.`)
+    console.log('No notes tracked in git; the bucket is the source of truth.')
     return
   }
 
@@ -440,25 +464,28 @@ function unpublish(bucket, slugs) {
 }
 
 const [command, ...argv] = process.argv.slice(2)
-const { bucket, endpoint, rest } = parseArgs(argv)
+const { bucket: asked, endpoint, rest } = parseArgs(argv)
 
-// check talks to git, not to R2, so it runs before the bucket and endpoint are
-// insisted on: a CI job that has neither still has an index to look at.
+// check talks to git, not to R2, so it runs before a bucket or an endpoint is
+// worked out: a CI job that has neither still has an index to look at.
 if (command === 'check') {
   check()
   process.exit(0)
 }
 
-if (!bucket) {
-  die('No bucket. Pass --bucket <name>, or set FRETBOOK_NOTES_BUCKET.')
-}
+const bucket = asked || DEFAULT_BUCKET
 
 if (!endpoint) {
   die(
     'No R2 endpoint. Pass --endpoint https://<account id>.r2.cloudflarestorage.com, ' +
-      'or set FRETBOOK_R2_ENDPOINT.',
+      'set FRETBOOK_R2_ENDPOINT, or write it into .env.local.',
   )
 }
+
+// First line of every run. Naming the bucket unprompted is what makes the
+// default safe to have: there is no quiet difference between the command that
+// touches dev and the one that touches production.
+console.log(`Bucket: ${bucket}${asked ? '' : ' (default)'}`)
 
 switch (command) {
   case 'publish':
