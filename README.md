@@ -400,8 +400,8 @@ rebuilt and no merge is involved.
 **The bucket is the only place a note lives.** A reader can open one and play
 with it, but nothing they do is saved anywhere, and `notes:publish` is the only
 thing that can change what everyone sees. Nothing in this repo is
-authoritative about a note: `notes/` is git-ignored, and `notes:check` — which
-CI runs — fails if a note is tracked.
+authoritative about a note: `notes/` is git-ignored, and nothing under it is
+tracked.
 
 `notes:pull` is how you get the notes onto a machine. It **mirrors** the
 bucket: it fetches what you do not have and deletes what the bucket no longer

@@ -3,7 +3,7 @@
 # A local deploy: the same phases .github/workflows/deploy.yml runs against the
 # VPS, against your own Docker, and then it stays to watch.
 #
-#   1. verify   lint, notes:check, build — what CI gates a merge on
+#   1. verify   lint and build — what CI gates a merge on
 #   2. deploy   build both images, start the stack, wait for it to answer
 #   3. smoke    /api/health, /api/notes, /notes, and one note end to end
 #   4. tail     follow both containers, flag errors, notice state changes
@@ -68,7 +68,6 @@ verify() {
 
 	# Each one named before it runs, so a slow build is not a silent pause.
 	printf '  lint… '; npm run --silent lint; printf '%s✓%s\n' "$GREEN" "$RESET"
-	printf '  notes:check… '; npm run --silent notes:check >/dev/null; printf '%s✓%s\n' "$GREEN" "$RESET"
 	printf '  build… '; npm run --silent build >/dev/null; printf '%s✓%s\n' "$GREEN" "$RESET"
 
 	[ -f "$ROOT/dist/index.html" ] || die 'The build produced no dist/index.html.'

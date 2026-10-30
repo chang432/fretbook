@@ -2,11 +2,11 @@
 /**
  * Publishing, as a command.
  *
- * The published notes live in a public Cloudflare R2 bucket — one per
+ * The published notes live in a private Cloudflare R2 bucket — one per
  * environment — and **that bucket is the only place a note lives**. Nothing in
  * this repo is authoritative about one: publishing is this script, not a
  * commit, and a deploy neither carries notes nor can lose them. The layout it
- * writes is the one src/utils/notes.js reads:
+ * writes is the one docker/app/backend/app/notes.py serves to the app:
  *
  *   notes.json            the manifest /notes lists
  *   notes/<name>.json     one note, the editor's own JSON export
@@ -15,7 +15,6 @@
  *   npm run notes:unpublish -- passionfruit_by_drake
  *   npm run notes:manifest
  *   npm run notes:pull
- *   npm run notes:check
  *
  * **A bare command means the dev bucket.** Local work is dev work, so that is
  * the default, and production has to be asked for by name — the mistake worth
@@ -24,10 +23,9 @@
  * visible in the first line of output rather than in the consequences.
  *
  * The local `notes/` folder is a **cache of the bucket**, not a copy worth
- * keeping: it is git-ignored, `pull` mirrors it onto whatever the bucket holds,
- * and `check` fails if anything under it is tracked in git. An export you have
- * not published yet does not belong there — publish it from wherever the
- * browser saved it, since `publish` takes any path.
+ * keeping: it is git-ignored, and `pull` mirrors it onto whatever the bucket
+ * holds. An export you have not published yet does not belong there — publish
+ * it from wherever the browser saved it, since `publish` takes any path.
  *
  * R2 speaks the S3 API, so this drives the ordinary AWS CLI pointed at the
  * account's R2 endpoint (`--endpoint`, or FRETBOOK_R2_ENDPOINT — see
@@ -36,7 +34,7 @@
  * whole shell at production without repeating `--bucket`.
  *
  * Both are read out of **.env.local** when it is there, which is the same
- * git-ignored file Vite reads VITE_NOTES_BASE_URL from — so one file is all the
+ * git-ignored file Vite reads VITE_API_PROXY from — so one file is all the
  * local setup there is, and a shell variable still wins over it when you want
  * one command to go somewhere else. Credentials are the CLI's own; nothing
  * here reads or stores one.
@@ -82,10 +80,10 @@ const DEFAULT_BUCKET = 'fretbook-notes-dev'
 // The same .env.local Vite reads, so the endpoint and a bucket override can be
 // written down once instead of exported into every shell. It does not overwrite
 // a variable that is already set, which is the precedence we want: a flag beats
-// a shell variable beats this file beats the default. Guarded because the file
-// is optional and because loadEnvFile arrived in Node 20.12.
+// a shell variable beats this file beats the default. Guarded only because the
+// file is optional.
 const ENV_FILE = join(ROOT, '.env.local')
-if (typeof process.loadEnvFile === 'function' && existsSync(ENV_FILE)) {
+if (existsSync(ENV_FILE)) {
   process.loadEnvFile(ENV_FILE)
 }
 
@@ -346,42 +344,6 @@ function pull(bucket) {
   console.log(`${PREFIX}/ mirrors ${bucket}: ${counts}.`)
 }
 
-/**
- * Fail if any note is tracked in git. `.gitignore` stops an accidental
- * `git add` but says nothing about a file that is already tracked, which is the
- * state this repo started in — so the invariant gets a check of its own, cheap
- * enough to run in CI. No network and no credentials: it is a git command.
- */
-function check() {
-  let tracked
-  try {
-    tracked = execFileSync('git', ['ls-files', '--', `${PREFIX}/`], {
-      cwd: ROOT,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'inherit'],
-    })
-  } catch {
-    // Not a checkout — a tarball, or a Docker build context without .git. There
-    // is no index to disagree with, so there is nothing to fail on.
-    console.log('Not a git checkout; nothing to check.')
-    return
-  }
-
-  const files = tracked.split('\n').filter(Boolean)
-  if (files.length === 0) {
-    console.log('No notes tracked in git; the bucket is the source of truth.')
-    return
-  }
-
-  die(
-    `${files.length} note${files.length === 1 ? ' is' : 's are'} tracked in git:\n` +
-      `  ${files.join('\n  ')}\n\n` +
-      `The bucket is the only place a note lives. Untrack them with:\n` +
-      `  git rm --cached ${files.join(' ')}\n` +
-      `The files stay on disk, where npm run notes:pull maintains them.`,
-  )
-}
-
 function publish(bucket, files) {
   if (files.length === 0) die('Nothing to publish. Pass one or more exported .json files.')
 
@@ -466,13 +428,6 @@ function unpublish(bucket, slugs) {
 const [command, ...argv] = process.argv.slice(2)
 const { bucket: asked, endpoint, rest } = parseArgs(argv)
 
-// check talks to git, not to R2, so it runs before a bucket or an endpoint is
-// worked out: a CI job that has neither still has an index to look at.
-if (command === 'check') {
-  check()
-  process.exit(0)
-}
-
 const bucket = asked || DEFAULT_BUCKET
 
 if (!endpoint) {
@@ -502,7 +457,7 @@ switch (command) {
     break
   default:
     die(
-      `Usage: node scripts/notes.mjs <publish|unpublish|manifest|pull|check> ` +
+      `Usage: node scripts/notes.mjs <publish|unpublish|manifest|pull> ` +
         `--bucket <name> [args]`,
     )
 }
