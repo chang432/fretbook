@@ -836,6 +836,22 @@ export function pasteRange(sheet, range, at) {
 export const isGridEmpty = (grid) =>
   grid.every((column) => column.every((cell) => cell === ''))
 
+/**
+ * Whether anything has actually been written on a sheet: a note, a row or
+ * group name, a title, a memo.
+ *
+ * The layout by itself does not count. The editor saves on every keystroke,
+ * so a page that was only ever opened leaves a saved sheet behind anyway, and
+ * the rows and groups it came up with say that the editor was once open — not
+ * that anyone wrote anything in it.
+ */
+export const isSheetWritten = ({ grid = [], names = {}, groups = [], title = '', memo = '' }) =>
+  !isGridEmpty(grid) ||
+  title.trim() !== '' ||
+  memo.trim() !== '' ||
+  Object.values(names).some((name) => name) ||
+  groups.some((group) => group.name)
+
 /** Index of the last column holding a note, or -1 when the grid is empty. */
 export const lastUsedColumn = (grid) => {
   for (let col = grid.length - 1; col >= 0; col -= 1) {

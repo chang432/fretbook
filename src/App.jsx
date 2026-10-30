@@ -20,6 +20,7 @@ import {
   removeGroup,
   isGridEmpty,
   isSameTie,
+  isSheetWritten,
   lastBarNoteCount,
   makeTie,
   markAt,
@@ -64,11 +65,21 @@ const EXPORTS = [
   { key: 'clipboard', name: 'Copy', hint: 'ASCII tab to the clipboard' },
 ]
 
-/** Load the last session so a page refresh never loses written-down fingerings. */
+/**
+ * Load the last session so a page refresh never loses written-down fingerings.
+ *
+ * A saved sheet with nothing written in it is treated as nothing saved. The
+ * autosave below runs the moment the editor opens, so merely visiting the page
+ * once leaves a sheet in storage — and restoring that would hand back the
+ * layout the editor happened to start on then, in place of the blank page it
+ * starts on now. Only work is worth keeping; an empty page is the same empty
+ * page wherever it comes from.
+ */
 function loadSaved() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? fromJson(raw) : null
+    const sheet = raw ? fromJson(raw) : null
+    return sheet && isSheetWritten(sheet) ? sheet : null
   } catch {
     return null
   }
