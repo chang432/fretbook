@@ -50,7 +50,7 @@ import {
 } from './utils/tab.js'
 import { HISTORY_LIMIT, nextUndoLabel, popHistory, pushHistory } from './utils/history.js'
 import { NOTES_PATH } from './utils/route.js'
-import { publishNote, updateNote } from './utils/notes.js'
+import { deleteNote, publishNote, updateNote } from './utils/notes.js'
 import { renderTabToPngBlob } from './utils/renderPng.js'
 import { cellFrequency, createAudioEngine } from './utils/audio.js'
 
@@ -147,9 +147,12 @@ export default function App({ published = null }) {
   const [showText, setShowText] = useState(false)
   // The Export button's element while its menu is open, so the menu can anchor.
   const [exportMenu, setExportMenu] = useState(null)
-  // The Publish or Update button's element while its panel is open, the same
-  // way — the two are the same panel asking for different things.
-  const [publishMenu, setPublishMenu] = useState(null)
+  // The open write panel, as the button it hangs under and which of the three
+  // presses it is — they are one panel asking for different things.
+  const [writeMenu, setWriteMenu] = useState(null)
+  // Set once this page's note has been taken down, which leaves the sheet on
+  // screen with nothing behind it: there is no note left to update or delete.
+  const [deleted, setDeleted] = useState(false)
   const [audioOn, setAudioOn] = useState(false)
   const fileInputRef = useRef(null)
   // Deliberately not restored from a saved session: a page should not be able
@@ -808,26 +811,52 @@ export default function App({ published = null }) {
   }
 
   /**
-   * Write the sheet to this environment's bucket — as a new note at
-   * /notes/<slug>, or over the published note this page is showing. The body
-   * is the same JSON the Export menu writes to a file, so what a reader opens
-   * is what Export → JSON file would have handed to `notes:publish`.
+   * Open one of the write panels under the button that asked for it, or put
+   * that panel away if it is the one already open.
+   */
+  const openWrite = (mode, anchor) => {
+    setWriteMenu((open) => (open?.mode === mode ? null : { mode, anchor }))
+  }
+
+  /** What each of the three presses does, and what it leaves behind. */
+  const writes = {
+    publish: {
+      send: (slug) => publishNote(slug, json),
+      said: 'Published',
+    },
+    update: {
+      send: (slug, password) => updateNote(slug, json, password),
+      said: 'Updated',
+      // What was sent is what the note holds now, so it becomes the thing a
+      // further change is measured against: Update goes dead again until the
+      // sheet moves away from it.
+      then: () => setOpenedAs(json),
+    },
+    delete: {
+      send: (slug, password) => deleteNote(slug, password),
+      said: 'Deleted',
+      then: () => setDeleted(true),
+    },
+  }
+
+  /**
+   * Write to this environment's bucket: a new note at /notes/<slug>, this
+   * sheet over the published note the page is showing, or that note gone. What
+   * goes up is the same JSON the Export menu writes to a file, so what a
+   * reader opens is what Export → JSON file would have handed to
+   * `notes:publish`.
    *
    * The panel reports the refusals itself, since what it asked for — a name, a
    * password — is what most of them are about; the status line is for the
    * press that worked.
    */
   const writeSheet = async (slug, password) => {
-    const result = published
-      ? await updateNote(slug, json, password)
-      : await publishNote(slug, json)
+    const write = writes[writeMenu?.mode ?? 'publish']
+    const result = await write.send(slug, password)
     if (!result.ok) return result
 
-    setStatus(`${published ? 'Updated' : 'Published'} /notes/${slug}`)
-    // What was sent is what the note holds now, so it becomes the thing a
-    // further change is measured against: Update goes dead again until the
-    // sheet moves away from it.
-    if (published) setOpenedAs(json)
+    setStatus(`${write.said} /notes/${slug}`)
+    write.then?.()
     return result
   }
 
@@ -900,35 +929,55 @@ export default function App({ published = null }) {
               instead of to the disk — so it stands with Export rather than
               with the buttons that change the sheet.
 
-              On a published note it is Update instead, which writes this sheet
-              over that one: the same press, aimed at the note already open
-              rather than at a new name, and asking for a password because it
-              is the one thing here that destroys something. It is dead until
-              the sheet differs from the note as it was opened, so a stray
-              press cannot rewrite a note with itself. */}
+              A published note carries the two that act on it instead: Update,
+              which writes this sheet over that one, and Delete, which takes it
+              down. Both ask for a password, since between them they are
+              everything here that destroys something, and both go dead once
+              the note is gone. Update is dead until the sheet differs from the
+              note as it was opened too, so a stray press cannot rewrite a note
+              with itself. */}
           {published ? (
-            <button
-              type="button"
-              className={publishMenu ? 'danger' : ''}
-              onClick={(event) => setPublishMenu(publishMenu ? null : event.currentTarget)}
-              disabled={!changed}
-              aria-haspopup="dialog"
-              aria-expanded={!!publishMenu}
-              title={
-                changed
-                  ? `Write this sheet over /notes/${published.slug} — needs the password`
-                  : 'Nothing has been changed on this note yet'
-              }
-            >
-              Update
-            </button>
+            <>
+              <button
+                type="button"
+                className={writeMenu?.mode === 'update' ? 'danger' : ''}
+                onClick={(event) => openWrite('update', event.currentTarget)}
+                disabled={!changed || deleted}
+                aria-haspopup="dialog"
+                aria-expanded={writeMenu?.mode === 'update'}
+                title={
+                  deleted
+                    ? 'This note has been taken down'
+                    : changed
+                      ? `Write this sheet over /notes/${published.slug} — needs the password`
+                      : 'Nothing has been changed on this note yet'
+                }
+              >
+                Update
+              </button>
+              <button
+                type="button"
+                className={writeMenu?.mode === 'delete' ? 'danger' : ''}
+                onClick={(event) => openWrite('delete', event.currentTarget)}
+                disabled={deleted}
+                aria-haspopup="dialog"
+                aria-expanded={writeMenu?.mode === 'delete'}
+                title={
+                  deleted
+                    ? 'This note has been taken down'
+                    : `Take /notes/${published.slug} down for good — needs the password`
+                }
+              >
+                Delete
+              </button>
+            </>
           ) : (
             <button
               type="button"
-              onClick={(event) => setPublishMenu(publishMenu ? null : event.currentTarget)}
+              onClick={(event) => openWrite('publish', event.currentTarget)}
               disabled={empty}
               aria-haspopup="dialog"
-              aria-expanded={!!publishMenu}
+              aria-expanded={!!writeMenu}
               title="Put this sheet in the published notes, at a URL anyone can open"
             >
               Publish
@@ -1051,12 +1100,13 @@ export default function App({ published = null }) {
         </Popover>
       )}
 
-      {publishMenu && (
+      {writeMenu && (
         <PublishMenu
-          anchor={publishMenu}
+          anchor={writeMenu.anchor}
+          mode={writeMenu.mode}
           note={published?.slug ?? null}
           defaultSlug={fileStem}
-          onClose={() => setPublishMenu(null)}
+          onClose={() => setWriteMenu(null)}
           onWrite={writeSheet}
         />
       )}

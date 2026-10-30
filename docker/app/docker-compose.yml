@@ -34,20 +34,19 @@ services:
       # this is the end that knows which bucket that means.
       #
       # The token here wants Object Read & Write: the backend serves the
-      # notes and is also what publishes one, since a sheet uploaded from the
-      # editor is written by this process (PUT /api/notes/<slug> — see
-      # docs/notes-upload-from-app.md). It never deletes, and a name already
-      # taken is refused rather than overwritten, so the one thing that route
-      # can do to the bucket is add a note. boto3 reads the AWS_* pair
-      # itself.
+      # notes and is also what writes them, since a sheet published, updated or
+      # taken down from the editor goes through this process (see
+      # docs/notes-upload-from-app.md). Only the open route needs no password,
+      # and it can do nothing but add a note — a name already taken is refused
+      # rather than overwritten. boto3 reads the AWS_* pair itself.
       FRETBOOK_NOTES_BUCKET: ${FRETBOOK_NOTES_BUCKET:-}
       FRETBOOK_R2_ENDPOINT: ${FRETBOOK_R2_ENDPOINT:-}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
-      # The password the Update button on a published note asks for — the one
-      # route that writes over a note rather than adding one. Left empty, that
-      # route answers 503 and the rest of the stack is unaffected, so a
-      # deployment opts into updating by setting this.
+      # The password the Update and Delete buttons on a published note ask
+      # for — the two routes that write over a note or remove it rather than
+      # adding one. Left empty, they answer 503 and the rest of the stack is
+      # unaffected, so a deployment opts into being editable by setting this.
       FRETBOOK_PUBLISH_PASSWORD: ${FRETBOOK_PUBLISH_PASSWORD:-}
     # Not published on the host — only caddy needs to reach it.
     expose:

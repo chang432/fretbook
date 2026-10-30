@@ -11,16 +11,17 @@ The keys are the ones scripts/notes.mjs writes, unchanged:
     notes.json            the manifest /notes lists
     notes/<name>.json     one note, the editor's own JSON export
 
-    GET  /api/notes          the manifest
-    GET  /api/notes/<slug>   one note
-    PUT  /api/notes/<slug>   publish the sheet in the body under that name
-    POST /api/notes/<slug>   replace that note — password required
+    GET    /api/notes          the manifest
+    GET    /api/notes/<slug>   one note
+    PUT    /api/notes/<slug>   publish the sheet in the body under that name
+    POST   /api/notes/<slug>   replace that note — password required
+    DELETE /api/notes/<slug>   take that note down — password required
 
 The manifest is read and rewritten as an object rather than rebuilt by listing
-the bucket, so the token this holds needs GetObject and PutObject and still no
-list and no delete — `notes:manifest` stays the thing that rebuilds it from
-what is actually there, and remains the repair tool when two uploads land at
-once and one read-modify-write of the manifest loses the other's line.
+the bucket, so the token this holds needs GetObject, PutObject and DeleteObject
+and still no list — `notes:manifest` stays the thing that rebuilds it from what
+is actually there, and remains the repair tool when two writes land at once and
+one read-modify-write of the manifest loses the other's line.
 
 **PUT is open: anyone who can open the site can publish.** What keeps that from
 being a bucket anyone can rewrite is that a name is claimed once — an upload
@@ -32,13 +33,14 @@ are a body limit, an envelope check so a reader never meets a note the editor
 cannot open, and a cap on how fast uploads are accepted; see
 docs/notes-upload-from-app.md for what they are and are not worth.
 
-**POST is not open.** It is the one route that can destroy something — it
-writes over a note that is already there, and R2 keeps no versions — so it
-carries a password, in a header, compared against FRETBOOK_PUBLISH_PASSWORD.
-Without that variable the route answers 503 rather than letting an empty
-password through, and wrong guesses are capped separately from uploads. The
-two routes are kept apart rather than made one: PUT can only add a note and
-POST can only replace one, so neither can quietly do the other's job.
+**POST and DELETE are not open.** They are the two routes that destroy
+something — one writes over a note that is already there, the other takes it
+down, and R2 keeps no versions either way — so both carry a password, in a
+header, compared against FRETBOOK_PUBLISH_PASSWORD. Without that variable they
+answer 503 rather than letting an empty password through, and wrong guesses are
+capped separately from uploads. The three are kept apart rather than made one
+route in three moods: PUT can only add a note, POST can only replace one and
+DELETE can only remove one, so none can quietly do another's job.
 """
 
 from __future__ import annotations
@@ -264,21 +266,22 @@ def note(slug: str):
 # which is the one thing here that cannot be taken back by trying again.
 
 
-def _taken(key: str) -> bool | None:
-    """Whether something already sits at that key — True, False, or None when
-    R2 could not be asked.
+def _exists(key: str) -> bool | None:
+    """Whether something sits at that key — True, False, or None when R2 could
+    not be asked.
 
-    Asked straight rather than through the TTL cache: "is this name free" is
-    the one question a minute-old answer must not be given to, since the answer
-    decides whether bytes are written over somebody's note.
+    Asked straight rather than through the TTL cache: whether a note is there
+    is the one question a minute-old answer must not be given to, since it
+    decides whether somebody's note is written over or taken down.
     """
     try:
         _s3().head_object(Bucket=_bucket(), Key=key)
         return True
     except ClientError as error:
         status = error.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
-        # 404 is the name being free. Anything else — a denied token, a bucket
-        # that is not there — is not evidence that it is, so it is neither.
+        # 404 is nothing being there. Anything else — a denied token, a
+        # bucket that is not there — is not evidence either way, so it is
+        # neither.
         return False if status == 404 else None
     except BotoCoreError:
         return None
@@ -324,6 +327,24 @@ def _count(window: deque[float]):
         window.append(time.monotonic())
 
 
+def _delete(key: str) -> bool:
+    """One object removed.
+
+    R2 keeps no versions and nothing else holds a copy, so this is as final as
+    a write over one. S3 treats deleting what is not there as success, which is
+    why the routes check first rather than reading the answer back out of this.
+    """
+    try:
+        _s3().delete_object(Bucket=_bucket(), Key=key)
+    except (BotoCoreError, ClientError):
+        return False
+
+    # Nothing is there now, which the cached copy of this key does not know.
+    with _lock:
+        _cache.pop(key, None)
+    return True
+
+
 def _within(window: deque[float], per_minute: int) -> bool:
     """Count one event against a window, or refuse it."""
     if _full(window, per_minute):
@@ -336,7 +357,7 @@ def _manifest_entries() -> list[dict]:
     """The manifest as a list of entries, dropping anything that is not one.
 
     Read straight rather than through the cache, for the same reason as
-    `_taken`: this copy is about to be written back, and rewriting a minute-old
+    `_exists`: this copy is about to be written back, and rewriting a minute-old
     one would drop whatever was published in between.
     """
     body = _fetch(MANIFEST)
@@ -357,19 +378,32 @@ def _manifest_entries() -> list[dict]:
     return [entry for entry in listed if isinstance(entry, dict) and entry.get("slug")]
 
 
-def _list_note(slug: str, title: str) -> bool:
-    """Add one note to the manifest, in the order /notes lists them."""
-    entries = [entry for entry in _manifest_entries() if entry.get("slug") != slug]
-    entries.append({"slug": slug, "title": title})
+def _save_manifest(entries: list[dict]) -> bool:
+    """Write the manifest, in the order /notes lists it."""
     # Title then slug, the order scripts/notes.mjs sorts into, so a manifest
     # this writes and one that command rebuilds list the same notes the same
     # way round.
     entries.sort(key=lambda entry: (str(entry.get("title") or ""), str(entry.get("slug"))))
 
     body = f"{json.dumps(entries, indent=2, ensure_ascii=False)}\n".encode()
-    # no-cache, unlike a note: this is the object that has to reflect a publish
+    # no-cache, unlike a note: this is the object that has to reflect a write
     # immediately.
     return _put(MANIFEST, body, "no-cache")
+
+
+def _without(slug: str) -> list[dict]:
+    """The manifest's entries, minus that note's."""
+    return [entry for entry in _manifest_entries() if entry.get("slug") != slug]
+
+
+def _list_note(slug: str, title: str) -> bool:
+    """Add one note to the manifest, replacing the line it already has."""
+    return _save_manifest([*_without(slug), {"slug": slug, "title": title}])
+
+
+def _unlist_note(slug: str) -> bool:
+    """Take one note out of the manifest."""
+    return _save_manifest(_without(slug))
 
 
 def _sheet_title(data) -> str | None:
@@ -487,7 +521,7 @@ def publish(slug: str):
         return jsonify(error="too many notes published just now — try again shortly"), 429
 
     key = f"{PREFIX}/{slug}.json"
-    taken = _taken(key)
+    taken = _exists(key)
     if taken is None:
         return jsonify(error="the notes bucket cannot be reached"), 503
     if taken:
@@ -544,7 +578,7 @@ def update(slug: str):
         return jsonify(error="too many notes published just now — try again shortly"), 429
 
     key = f"{PREFIX}/{slug}.json"
-    there = _taken(key)
+    there = _exists(key)
     if there is None:
         return jsonify(error="the notes bucket cannot be reached"), 503
     if not there:
@@ -559,3 +593,48 @@ def update(slug: str):
     listed = _list_note(slug, title or slug)
 
     return jsonify(slug=slug, title=title, path=f"/notes/{slug}", listed=listed), 200
+
+
+
+@notes.delete("/notes/<slug>")
+def unpublish(slug: str):
+    """Take the note at /notes/<slug> down.
+
+    The same password as POST, for the same reason: R2 keeps no versions, the
+    repo tracks no notes, and `notes/` is a cache — so the object this removes
+    was the only copy of it there was. `npm run notes:publish` is what puts a
+    note back, from whatever the browser saved.
+
+    200 and both the object and its line in the manifest are gone. 404 if
+    there was nothing there, rather than the success S3 would report for
+    deleting what does not exist: a name typed wrong should say so.
+    """
+    if unconfigured := _unconfigured():
+        return unconfigured
+
+    if not NOTE_NAME.match(slug):
+        return jsonify(error="not a note name"), 400
+
+    if refused := _wrong_password():
+        return refused
+
+    if not _within(_accepted, UPLOADS_PER_MINUTE):
+        return jsonify(error="too many notes written just now — try again shortly"), 429
+
+    key = f"{PREFIX}/{slug}.json"
+    there = _exists(key)
+    if there is None:
+        return jsonify(error="the notes bucket cannot be reached"), 503
+    if not there:
+        return jsonify(error="no such note"), 404
+
+    if not _delete(key):
+        return jsonify(error="the note could not be taken down"), 503
+
+    # The note is gone either way: it stops answering the moment the object
+    # does. A manifest that did not get written leaves a line pointing at
+    # nothing, which `notes:manifest` clears — worth saying rather than
+    # reporting as a failed delete and inviting a second press.
+    listed = _unlist_note(slug)
+
+    return jsonify(slug=slug, path=f"/notes/{slug}", unlisted=listed), 200

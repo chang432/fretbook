@@ -62,11 +62,12 @@ name: Build, verify and deploy to the VPS
 #                      (docs/notes-upload-from-app.md). It can be the same
 #                      token a laptop publishes with, or its own — either can
 #                      then be rolled without the other.
-#   PUBLISH_PASSWORD   The password the Update button on a published note
-#                      asks for, which is the only way to write over one.
-#                      Optional: without it that button answers 503 and
-#                      everything else works, so it is how an environment
-#                      opts into being updatable from a browser.
+#   PUBLISH_PASSWORD   The password the Update and Delete buttons on a
+#                      published note ask for, which is the only way to write
+#                      over one or take it down. Optional: without it those
+#                      buttons answer 503 and everything else works, so it is
+#                      how an environment opts into being editable from a
+#                      browser.
 #
 # Nothing is needed to read the code: the repo is public, so the VPS clones it
 # anonymously.

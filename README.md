@@ -361,9 +361,9 @@ staves are never included. A JSON export keeps every row, blank ones and all —
 rows are yours to add, so a file records the sheet exactly as you left it.
 
 **Publish**, beside it, is the same JSON sent somewhere instead of saved: it
-puts the sheet in the published notes, at a URL anyone can open — and on a
-published note that button is **Update**, which writes the sheet back over it
-with the password. See below.
+puts the sheet in the published notes, at a URL anyone can open — and a
+published note carries **Update** and **Delete** there instead, both of which
+want the password. See below.
 
 ## Publishing notes
 
@@ -378,29 +378,31 @@ this environment's bucket. It is live at `/notes/<name>` as soon as the press
 finishes, and `/notes` lists it. Nothing is rebuilt, nothing is merged, and
 there is no file in between.
 
-Two things that button cannot do, deliberately:
+**It cannot publish over a note**, deliberately: a name that is taken is
+refused and you are asked for another. R2 keeps no versions, so a write over a
+note destroys it, and that refusal is the one guard that matters on a route
+anyone can reach.
 
-- **It cannot publish over a note.** A name that is taken is refused, and you
-  are asked for another. R2 keeps no versions, so a write over a note destroys
-  it, and this is the one guard that matters against a route anyone can reach.
-- **It cannot take a note down.** Nothing in the app deletes.
+Changing a note, and taking one down, are the two buttons a **published note**
+carries instead — and the two that ask for a password:
 
-**Update**, on a published note, is how a note is revised — the same press
-aimed at the note in front of you, and the only one that asks for a password.
-Open `/notes/<name>`, change the sheet, press Update, type the password: that
-sheet replaces the note, title and all. The button is dead until something has
-actually changed, and what it writes over is gone, so the panel says as much
-before it asks for anything.
+| On `/notes/<name>` | What it does |
+| --- | --- |
+| **Update** | Writes the sheet in front of you over that note, title and all. Dead until something has actually changed |
+| **Delete** | Takes the note down: the object and its line in the index. The link stops working |
+
+Both are final — nothing else holds a copy — so each panel says what it is
+about to do before it asks for anything. The only way back from a delete is
+**Export → JSON file** and `notes:publish` again.
 
 The password is one secret per environment, `FRETBOOK_PUBLISH_PASSWORD` on the
 backend, sent in a header and stored nowhere in the browser. Without it set,
-Update answers 503 and the rest of the site is unaffected — so an environment
-opts into being editable.
+both buttons answer 503 and the rest of the site is unaffected — so an
+environment opts into being editable.
 
-Taking a note down is the command below, from a machine with the token.
 [docs/notes-upload-from-app.md](docs/notes-upload-from-app.md) is what these
 routes give up, and who can reach them: publishing is open to **anyone who can
-open the site**, updating is not.
+open the site**, changing and removing are not.
 
 The commands are the other way in, and still the only one that can replace or
 remove:
@@ -492,10 +494,10 @@ src/
   components/MarkBar.jsx    the rewind, tie and symbol buttons floating over the selected position
   components/PositionStrip.jsx one control per position above a staff, shared by the shift anchors and edit mode's strips
   components/Popover.jsx    the anchored panel behind the export and publish menus
-  components/PublishMenu.jsx the name a sheet is published under or the password it is updated with, and the press that writes it
+  components/PublishMenu.jsx the name a sheet is published under or the password it is changed with, and the press that writes it
   components/icons.jsx      the drawn symbols on the buttons that carry no words
   utils/tab.js              grid, tie and mark model; ASCII/JSON; downloads
-  utils/notes.js            the published notes: the /api calls that fetch them, and the two that write one
+  utils/notes.js            the published notes: the /api calls that fetch them, and the three that change one
   utils/audio.js            fret-to-pitch both ways, and the plucked-string synthesis
   utils/popover.js          where an anchored panel sits, kept inside the window
   utils/layout.js           staff geometry and the arc/symbol maths, shared by

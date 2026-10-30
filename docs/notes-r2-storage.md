@@ -54,9 +54,9 @@ the things the app does: **Publish** in the editor uploads the sheet to this
 environment's bucket, and the browser cannot sign that request any more than it
 can sign a read. That route is open and can only *add* a note — a name already
 taken is refused rather than overwritten — which is what makes an open write
-route tolerable against a bucket with no versioning. Writing over a note is the
-other route, **Update** on a published note, and it asks for
-`FRETBOOK_PUBLISH_PASSWORD`; nothing deletes.
+route tolerable against a bucket with no versioning. Writing over a note and
+taking one down are the other two — **Update** and **Delete** on a published
+note — and both ask for `FRETBOOK_PUBLISH_PASSWORD`.
 [notes-upload-from-app.md](notes-upload-from-app.md) is that argument, and what
 it gives up.
 
@@ -96,8 +96,10 @@ the endpoint and the `r2` profile. A shell variable overrides it, and
 
 Or from the editor: **Publish**, a name, and the sheet is in the bucket. Same
 bytes, same keys, same manifest — the backend writes it instead of the `aws`
-CLI. A revision is **Update** on the published note itself, with the password;
-unpublishing is only here.
+CLI. A revision is **Update** on the published note itself and taking it down
+is **Delete** beside it, both with the password — so these commands are the way
+in from a terminal, and the way in at all on an environment that has no
+password set.
 
 ```bash
 npm run notes:publish   -- notes/passionfruit_by_drake.json
@@ -211,7 +213,7 @@ Settings → Secrets and variables → Actions:
 | Variable | `R2_ENDPOINT` | `https://<account id>.r2.cloudflarestorage.com` |
 | Secret | `R2_ACCESS_KEY_ID` | the **read & write** token from step 4 |
 | Secret | `R2_SECRET_ACCESS_KEY` | the same token's secret |
-| Secret | `PUBLISH_PASSWORD` | optional — what **Update** on a published note asks for. Unset, that button answers 503 and nothing else changes |
+| Secret | `PUBLISH_PASSWORD` | optional — what **Update** and **Delete** on a published note ask for. Unset, those buttons answer 503 and nothing else changes |
 
 **The next deploy fails fast if any is missing** — deliberately, since the
 alternative is a stack that comes up with a silently empty `/notes`.

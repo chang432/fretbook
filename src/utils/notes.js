@@ -8,10 +8,11 @@
  * docs/notes-via-s3-client.md, and docker/app/backend/app/notes.py for the end
  * that speaks S3.
  *
- *   GET  /api/notes          the manifest /notes lists, as [{ slug, title }]
- *   GET  /api/notes/<slug>   one note, the editor's own JSON export
- *   PUT  /api/notes/<slug>   publish the sheet in the body under that name
- *   POST /api/notes/<slug>   replace that note — password required
+ *   GET    /api/notes          the manifest /notes lists, as [{ slug, title }]
+ *   GET    /api/notes/<slug>   one note, the editor's own JSON export
+ *   PUT    /api/notes/<slug>   publish the sheet in the body under that name
+ *   POST   /api/notes/<slug>   replace that note — password required
+ *   DELETE /api/notes/<slug>   take that note down — password required
  *
  * Same origin, so there is no CORS rule, no bucket URL to inline at build time,
  * and no difference between the dev and prod bundles. Under `npm run dev` the
@@ -87,7 +88,19 @@ export async function updateNote(slug, json, password) {
 }
 
 /**
- * One write to the bucket, through the backend.
+ * Take the note at `/notes/<slug>` down.
+ *
+ * As final as `updateNote`, and the same password: the object it removes was
+ * the only copy of that note there was. Re-publishing it is `notes:publish`
+ * from whatever the browser saved, which is not nothing but is not this page.
+ */
+export async function deleteNote(slug, password) {
+  return write('DELETE', slug, null, { 'X-Fretbook-Password': password })
+}
+
+/**
+ * One write to the bucket, through the backend. `json` is null for the write
+ * that sends nothing.
  *
  * Resolves to `{ ok: true, note }`, or `{ ok: false, error }` with something
  * worth putting in front of the reader. A name that is taken is the one
@@ -95,12 +108,14 @@ export async function updateNote(slug, json, password) {
  * `taken` instead of only in words.
  */
 async function write(method, slug, json, headers = {}) {
+  const sending = json !== null
+
   let response
   try {
     response = await fetch(noteUrl(slug), {
       method,
-      headers: { 'Content-Type': 'application/json', ...headers },
-      body: json,
+      headers: sending ? { 'Content-Type': 'application/json', ...headers } : headers,
+      body: sending ? json : undefined,
     })
   } catch {
     // Offline, or nothing answering the origin at all.
@@ -134,7 +149,7 @@ async function write(method, slug, json, headers = {}) {
     ok: false,
     taken: response.status === 409,
     wrongPassword: response.status === 401,
-    error: sentence(said) || FAILURES[response.status] || 'Could not publish that sheet',
+    error: sentence(said) || FAILURES[response.status] || 'That did not go through',
   }
 }
 
@@ -145,7 +160,7 @@ const sentence = (text) => (text ? `${text[0].toUpperCase()}${text.slice(1)}` : 
 const FAILURES = {
   400: 'That sheet is not something the editor could open again',
   401: 'That password is not right',
-  404: 'There is no note at that name to update',
+  404: 'There is no note at that name',
   409: 'That name is taken',
   413: 'That sheet is too large to publish',
   429: 'Too many notes published just now — try again shortly',

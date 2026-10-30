@@ -4,14 +4,19 @@
 bucket, at a URL anyone can open, without a laptop, a terminal or an export
 file in between.
 
+**Update** and **Delete**, on a published note, write that sheet back over the
+note or take it down. Those two are the presses that need a password.
+
 ```
-browser ──► PUT /api/notes/<name>     the editor's own JSON export as the body
+browser ──► PUT    /api/notes/<name>   publish: the export as the body, open
+        ├─► POST   /api/notes/<name>   update: the same, plus a password header
+        └─► DELETE /api/notes/<name>   unpublish: the password, no body
                 │  same origin, so no CORS
                 ▼
         Caddy handle /api/*  ──►  Flask + boto3  ──►  R2 (private)
-                                      │  HeadObject   is the name free?
-                                      │  PutObject    notes/<name>.json
-                                      └─ PutObject    notes.json, rewritten
+                                      │  HeadObject        is the name free, or there?
+                                      │  Put/DeleteObject  notes/<name>.json
+                                      └─ PutObject         notes.json, rewritten
 ```
 
 It is the same hop `GET /api/notes/<slug>` already was, in the other
@@ -33,13 +38,13 @@ can delete. That is now **Object Read & Write**, which is the real cost of this
 feature and the thing to weigh if it ever goes wrong.
 
 What is left of the argument is a narrower claim: the **open** route can add a
-note and nothing else, and the route that can do more is not open.
+note and nothing else, and the routes that can do more are not open.
 
 | | |
 |---|---|
 | A name is claimed once | PUT onto an existing key is refused with 409, not written over it |
 | Writing over one takes the password | POST, and only POST, replaces a note |
-| Nothing is deleted | there is no delete route, and the backend never calls `DeleteObject` |
+| Taking one down takes the password | DELETE, and only DELETE, removes one |
 | The manifest is read and rewritten | not rebuilt by listing, so no `ListBucket` is needed either |
 
 That 409 is doing most of the work. **R2 has no object versioning**, the repo
@@ -47,8 +52,9 @@ tracks no notes, and `notes/` is a cache rather than a copy — so a write over 
 note destroys it, with nothing to restore from
 ([notes-pull-from-r2.md](notes-pull-from-r2.md)). Refusing a taken name is what
 keeps the open route from being able to do that; the password is what stands in
-front of the route that can. Taking a note down is still
-`npm run notes:unpublish` from a machine that holds the token on purpose.
+front of the two that can. `npm run notes:unpublish` still does the same job
+from a machine that holds the token, and is the way to it on an environment
+with no password set.
 
 ## Who can publish
 
@@ -71,13 +77,18 @@ guess cap, the field in the panel — are all written, and would only need
 calling from the other route. Cloudflare's own rate limiting in front of the
 site is the other half of the same answer.
 
-## Updating a note
+## Updating a note, and taking one down
 
 `POST /api/notes/<slug>` replaces the note at that name with the sheet in the
-body. It is deliberately a second route rather than the first one in a second
-mood: **PUT can only add a note and POST can only replace one**, so neither can
-quietly do the other's job, and a mistyped name cannot publish a stray copy —
-POST answers 404 when there is no note there.
+body. `DELETE /api/notes/<slug>` removes it, object and manifest line together.
+They are deliberately separate routes rather than one in three moods: **PUT can
+only add a note, POST can only replace one, DELETE can only remove one**, so
+none can quietly do another's job, and a mistyped name cannot publish a stray
+copy — both of the password ones answer 404 when there is no note there, rather
+than the success S3 reports for deleting what does not exist.
+
+They share the password because they are the same kind of act: what they touch
+does not survive them.
 
 | Guard | What it is |
 |---|---|
@@ -85,7 +96,7 @@ POST answers 404 when there is no note there.
 | No password set | 503, rather than an empty password that happens to match — an environment opts into being updatable |
 | 5 wrong a minute | per worker, checked *before* the comparison, since a cap applied after a guess has been tested caps nothing |
 | A header, not a URL | a query string is logged by every hop that sees it |
-| Everything PUT has | the same body limit, envelope check and upload cap |
+| Everything PUT has | POST takes the same body limit, envelope check and write cap; DELETE has no body and takes the cap |
 
 The password goes over HTTPS to the site's own origin, is **never stored by the
 browser** — not in `localStorage`, not between panels — and is typed for the
@@ -97,15 +108,20 @@ Checking the cap before the comparison means a minute of sustained guessing
 also locks the owner out for the rest of that minute. That is the cheaper half
 of the trade, and the window clears itself.
 
-The button is **Update** rather than Publish on a published note, and it is
-dead until the sheet differs from the note as it was opened, so a stray press
-cannot rewrite a note with itself. The panel says what it is about to do before
-it asks for anything: *this replaces the published note; there are no versions
-to go back to*.
+A published note carries **Update** and **Delete** where the editor carries
+Publish. Update is dead until the sheet differs from the note as it was opened,
+so a stray press cannot rewrite a note with itself, and both go dead once the
+note is gone. Each panel says what it is about to do before it asks for
+anything: *this replaces the published note; there are no versions to go back
+to*, or *this takes the note down for good*.
 
-It is visible to every reader, not only to whoever holds the password. The
-password is the control; hiding the button is not. A reader who presses it
-learns only that these notes can be updated by someone.
+They are visible to every reader, not only to whoever holds the password. The
+password is the control; hiding the buttons is not. A reader who presses one
+learns only that these notes can be edited by someone.
+
+A delete leaves the sheet on screen with nothing behind it, and the receipt
+points at `/notes` rather than at a note that is not there any more. That is
+also the only way back from one: **Export → JSON file**, then `notes:publish`.
 
 ## The manifest
 
@@ -121,7 +137,7 @@ At this app's rate of publishing, that is a race that will not happen; the
 repair for it existed before this change, which is why it is acceptable at all.
 
 An update rewrites the same line rather than adding one, so a title changed in
-the editor follows the note into `/notes`.
+the editor follows the note into `/notes`; a delete takes the line out.
 
 A write of either kind also drops its own two keys from the backend's
 60-second cache, so a note is listed and readable immediately rather than
@@ -153,7 +169,7 @@ still not dear.
 
 | Item | Free each month | Rate past it | This change |
 |---|---|---|---|
-| Class A (writes) | 1,000,000 | $4.50 / million | 2 per publish or update (the note, the manifest) → **$0.00** |
+| Class A (writes) | 1,000,000 | $4.50 / million | 2 per publish, update or delete (the note, the manifest) → **$0.00** |
 | Class B (reads) | 10,000,000 | $0.36 / million | 1 HeadObject + 1 GetObject per publish → **$0.00** |
 | Standard storage | 10 GB-month | $0.015 / GB-month | a note is tens of KB; 10,000 of them is < 500 MB → **$0.00** |
 | Egress | unlimited — R2 charges none | — | **$0.00** |
@@ -172,6 +188,10 @@ so this is: create a new token with permission **Object Read & Write**, scoped
 to `fretbook-notes-dev` and `fretbook-notes-prod`; update the two repository
 secrets below; redeploy; then delete the old read-only token.
 
+That permission covers `DeleteObject` as well as `PutObject`, so the Delete
+button needs nothing further than this step — and if a delete ever answers 503
+where a publish works, the token is the first thing to look at.
+
 The laptop's existing read-write token is unaffected — keep it where it is.
 Using one token for both ends works and is one fewer thing to hold, but keeping
 them separate means either can be rolled without the other noticing.
@@ -189,16 +209,16 @@ Settings → Secrets and variables → Actions:
 leaves a site where `/notes` reads fine and **Publish** answers 503 — a note
 that could not be written, rather than a stack that will not come up.
 
-### 3. Set a publish password, if the Update button should work
+### 3. Set a publish password, if Update and Delete should work
 
 Repository secret `PUBLISH_PASSWORD`, under Settings → Secrets and variables →
 Actions. `deploy.yml` passes it into the stack's env file as
 `FRETBOOK_PUBLISH_PASSWORD`.
 
-It is **optional, and the deploy does not fail without it**: unset, the Update
-button answers 503 and everything else works, which is the right default for an
+It is **optional, and the deploy does not fail without it**: unset, Update and
+Delete answer 503 and everything else works, which is the right default for an
 environment nobody edits notes on. Make it long and random — it is the one
-secret in front of the one route that can destroy a note, and the cap on
+secret in front of the two routes that can destroy a note, and the cap on
 guessing is 5 a minute per worker, not a wall.
 
 ### 4. Decide whether dev and production should both be open
@@ -210,7 +230,7 @@ asking for before the site is somewhere findable.
 ### 5. Locally
 
 `docker/app/.env` needs a token that can write — the `r2` profile's own will
-do — plus `FRETBOOK_PUBLISH_PASSWORD` if the Update button should work there:
+do — plus `FRETBOOK_PUBLISH_PASSWORD` if Update and Delete should work there:
 
 ```bash
 eval "$(aws configure export-credentials --profile r2 --format env)"
