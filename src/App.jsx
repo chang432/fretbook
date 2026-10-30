@@ -8,11 +8,8 @@ import {
   addBar,
   addRow,
   copyColumn,
-  createGrid,
   addGroup,
-  createGroups,
-  createRowIds,
-  createRows,
+  createSheet,
   downloadFile,
   fitGrid,
   fromJson,
@@ -46,7 +43,6 @@ import {
   slugify,
   toAsciiTab,
   toJson,
-  totalColumns,
 } from './utils/tab.js'
 import { HISTORY_LIMIT, nextUndoLabel, popHistory, pushHistory } from './utils/history.js'
 import { NOTES_PATH } from './utils/route.js'
@@ -91,29 +87,31 @@ function loadSaved() {
 export default function App({ published = null }) {
   // Read the note, or localStorage, once and lazily, and seed the state below
   // from whichever it was.
-  const [saved] = useState(() => published?.sheet ?? loadSaved())
-  const [title, setTitle] = useState(saved?.title ?? '')
+  // Nothing published and nothing saved means a blank page, which is a sheet
+  // of its own rather than an absence: `createSheet` says what it holds.
+  const [saved] = useState(() => published?.sheet ?? loadSaved() ?? createSheet())
+  const [title, setTitle] = useState(saved.title ?? '')
   // The note written above the running order: prose about the sheet — a
   // tuning, a capo, what to listen for. Called a memo here because "note"
   // already means a fret on a string, and a published sheet besides.
-  const [memo, setMemo] = useState(saved?.memo ?? '')
+  const [memo, setMemo] = useState(saved.memo ?? '')
   // Rows carry their own length in bars, so they lead and the grid follows.
-  const [rows, setRows] = useState(() => saved?.rows ?? createRows())
+  const [rows, setRows] = useState(saved.rows)
   // One id per row, in row order. A row's id is its name rather than its
   // place, so it travels with the row when the sheet is rearranged.
-  const [rowIds, setRowIds] = useState(() => saved?.rowIds ?? createRowIds(saved?.rows?.length))
+  const [rowIds, setRowIds] = useState(saved.rowIds)
   // The names rows have been given, keyed by row id — so a name travels with
   // its row the way the id does. Rows nobody has named are absent.
-  const [names, setNames] = useState(() => saved?.names ?? {})
+  const [names, setNames] = useState(saved.names)
   // The groups the sheet holds, and which group each row is in — kept against
   // the row id, so a row carries its group around the page with it. Where a
   // group stands is not kept at all: a group is drawn over the rows it holds,
   // so it stands where they do. A sheet always has at least one group.
-  const [groups, setGroups] = useState(() => saved?.groups ?? createGroups())
-  const [members, setMembers] = useState(() => saved?.members ?? {})
-  const [grid, setGrid] = useState(() => fitGrid(saved?.grid ?? [], saved?.rows ?? createRows()))
-  const [ties, setTies] = useState(() => saved?.ties ?? [])
-  const [marks, setMarks] = useState(() => saved?.marks ?? [])
+  const [groups, setGroups] = useState(saved.groups)
+  const [members, setMembers] = useState(saved.members)
+  const [grid, setGrid] = useState(() => fitGrid(saved.grid, saved.rows))
+  const [ties, setTies] = useState(saved.ties)
+  const [marks, setMarks] = useState(saved.marks)
   const [status, setStatus] = useState('')
   // Edit mode: the sheet stops taking type and a press picks a row up
   // instead, so two of them can be swapped. Not saved with the sheet — it is
@@ -782,19 +780,10 @@ export default function App({ published = null }) {
   }
 
   const clearAll = () => {
-    const fresh = createRows()
     remember('clearing the sheet')
-    applySheet({
-      rows: fresh,
-      rowIds: createRowIds(fresh.length),
-      names: {},
-      groups: createGroups(),
-      members: {},
-      grid: createGrid(totalColumns(fresh)),
-      ties: [],
-      marks: [],
-      memo: '',
-    })
+    // Clearing leaves the page as a blank one starts: the sheet's own note
+    // goes with it, while the title stays for the reader to change or keep.
+    applySheet({ ...createSheet(), memo: '' })
     disarmRemovals()
     setConfirmingClear(false)
     setStatus('Cleared')

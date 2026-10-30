@@ -25,7 +25,7 @@ export const COLS_PER_BAR = 4
 export const DEFAULT_BARS = 4
 
 /** Rows a new sheet starts with. */
-export const INITIAL_ROWS = 4
+export const INITIAL_ROWS = 1
 
 /** Highest fret accepted in a cell. */
 export const MAX_FRET = 24
@@ -301,6 +301,34 @@ export const clampMembers = (members, rowIds, groups) =>
       groups.some((group) => group.id === groupId),
     ),
   )
+
+/* A blank sheet ---------------------------------------------------------- */
+
+/**
+ * The sheet a blank page starts on: one empty row, inside the one group a new
+ * sheet carries. A row standing in a group from the start is what makes the
+ * group the thing rows are written into rather than something to be set up
+ * first, and the one row is where the writing begins.
+ *
+ * Both the editor's opening sheet and the one Clear leaves behind come from
+ * here, so "blank" cannot come to mean two different things.
+ */
+export function createSheet() {
+  const rows = createRows()
+  const rowIds = createRowIds(rows.length)
+  const groups = createGroups()
+
+  return {
+    rows,
+    rowIds,
+    names: {},
+    groups,
+    members: Object.fromEntries(rowIds.map((id) => [id, groups[0].id])),
+    grid: createGrid(totalColumns(rows)),
+    ties: [],
+    marks: [],
+  }
+}
 
 /** Absolute columns of one row, as [from, past-the-end). The last by default. */
 export const rowRange = (rows, rowIndex = rows.length - 1) => {
