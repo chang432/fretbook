@@ -71,7 +71,7 @@ export const nextRowId = (rowIds) => (rowIds.length ? Math.max(...rowIds) + 1 : 
 
 /** Drop the entries of a map kept by row id whose row has gone. */
 const keptForRows = (map, rowIds) =>
-  Object.fromEntries(Object.entries(map ?? {}).filter(([id]) => rowIds.includes(Number(id))))
+  Object.fromEntries(Object.entries(map).filter(([id]) => rowIds.includes(Number(id))))
 
 /* Row names --------------------------------------------------------------
  *
@@ -98,8 +98,8 @@ const cleanName = (name, max) =>
     .trim()
     .slice(0, max)
 
-/** The name this group carries, or '' when it has none. */
-export const rowName = (names, id) => (typeof names?.[id] === 'string' ? names[id] : '')
+/** The name this row carries, or '' when it has none. */
+export const rowName = (names, id) => (typeof names[id] === 'string' ? names[id] : '')
 
 /**
  * Name a row, or clear its name by passing an empty one. A cleared name is
@@ -160,9 +160,10 @@ export function rowAt(rows, col) {
 
 /**
  * Append an empty row at the bottom. Nothing already written moves, and the
- * row starts in no group: a group gathers rows that are already there.
+ * row lands in no group — which is why this is not the whole of adding a row:
+ * `addRowToGroup` below is, and it is the only caller.
  */
-export function addRow({ rows, rowIds = createRowIds(rows.length), grid, ties, marks }) {
+function appendRow({ rows, rowIds, grid, ties, marks }) {
   return {
     rows: [...rows, DEFAULT_BARS],
     // An id of its own, past every one already given out, so nothing said
@@ -226,7 +227,7 @@ export function groupLabel(groups, id) {
 
 /** The group this row is in, or null when it is in none. */
 export const groupOfRow = (members, rowId) =>
-  Number.isInteger(members?.[rowId]) ? members[rowId] : null
+  Number.isInteger(members[rowId]) ? members[rowId] : null
 
 /** Put a row in a group, or take it out of the one it is in with null. */
 export function setRowGroup(members, rowId, groupId) {
@@ -289,7 +290,7 @@ export function removeGroup(groups, members, groupId) {
   return {
     groups: groups.filter((group) => group.id !== groupId),
     members: Object.fromEntries(
-      Object.entries(members ?? {}).filter(([, id]) => id !== groupId),
+      Object.entries(members).filter(([, id]) => id !== groupId),
     ),
   }
 }
@@ -351,7 +352,7 @@ export function rowNoteCount(grid, rows, rowIndex = rows.length - 1) {
  * `removeBar`, a whole row wide. A sheet never drops below one row.
  */
 export function removeRow(
-  { rows, rowIds = createRowIds(rows.length), names = {}, members = {}, grid, ties, marks },
+  { rows, rowIds, names, members, grid, ties, marks },
   rowIndex = rows.length - 1,
 ) {
   if (rows.length <= 1 || rowIndex < 0 || rowIndex >= rows.length) {
@@ -398,7 +399,7 @@ export function removeRow(
  * given, the group it is in — goes with the music rather than staying behind
  * with the place on the page.
  */
-export function reorderRows({ rows, rowIds = createRowIds(rows.length), grid, ties, marks }, order) {
+export function reorderRows({ rows, rowIds, grid, ties, marks }, order) {
   // Anything but one place per row would lose or duplicate a row's columns.
   if (!Array.isArray(order) || order.length !== rows.length) {
     return { rows, rowIds, grid, ties, marks }
@@ -438,11 +439,7 @@ export function reorderRows({ rows, rowIds = createRowIds(rows.length), grid, ti
  * group it has left. Anything else would carry a row out of its bracket and
  * leave the group drawn over a row that is not in it.
  */
-export function swapRows(
-  { rows, rowIds = createRowIds(rows.length), members = {}, grid, ties, marks },
-  a,
-  b,
-) {
+export function swapRows({ rows, rowIds, members, grid, ties, marks }, a, b) {
   const last = rows.length - 1
   if (a === b || a < 0 || b < 0 || a > last || b > last) {
     return { rows, rowIds, members, grid, ties, marks }
@@ -479,7 +476,7 @@ export function swapRows(
  * which is what it has to be called by afterwards.
  */
 export function moveRowTo(sheet, from, to, groupId = null) {
-  const { rows, rowIds = createRowIds(rows.length), members = {} } = sheet
+  const { rows, rowIds, members } = sheet
   if (from < 0 || from >= rows.length || to < 0 || to > rows.length) {
     return { ...sheet, members, at: from }
   }
@@ -509,7 +506,7 @@ export function moveRowTo(sheet, from, to, groupId = null) {
  * it is: that row is where the group now stands.
  */
 export function putRowInGroup(sheet, rowIndex, groupId) {
-  const { rows, rowIds = createRowIds(rows.length), members = {} } = sheet
+  const { rows, rowIds, members } = sheet
   if (rowIndex < 0 || rowIndex >= rows.length) return { ...sheet, members, at: rowIndex }
 
   // The group whose run the move is about: the one being joined, or — when
@@ -522,6 +519,23 @@ export function putRowInGroup(sheet, rowIndex, groupId) {
   // place the row already stands in.
   const to = run.length ? run[run.length - 1] + 1 : rowIndex
   return moveRowTo(sheet, rowIndex, to, groupId)
+}
+
+/**
+ * Add an empty row to the end of a group — the one way the sheet grows, since
+ * a row is written inside a group rather than beside one.
+ *
+ * The row is appended and then gathered to the end of that group's run, which
+ * is `putRowInGroup`'s business: a group's rows stand next to each other, so
+ * where the new row lands is decided by where the group already is. A group
+ * holding nothing yet takes it where that group stands, at the end.
+ *
+ * Hands back the sheet and the place the new row ended up in, which is what
+ * it has to be called by afterwards.
+ */
+export function addRowToGroup(sheet, groupId) {
+  const grown = { ...sheet, ...appendRow(sheet) }
+  return putRowInGroup(grown, grown.rows.length - 1, groupId)
 }
 
 /** Grow the grid so it exactly covers `rows`, keeping what is already written. */
@@ -744,7 +758,7 @@ export function copyColumn(sheet, fromCol, toCol) {
 
 /* Copying a range ---------------------------------------------------------
  *
- * Copy mode picks out a stretch of positions on one staff line and writes it
+ * Range copy picks out a stretch of positions on one staff line and writes it
  * down again starting wherever a paste button is pressed. A range never spans
  * two rows: the sheet is one flat run of columns, so a stretch that crossed a
  * row break would read as continuous here while looking like two unrelated
@@ -845,7 +859,7 @@ export const isGridEmpty = (grid) =>
  * the rows and groups it came up with say that the editor was once open — not
  * that anyone wrote anything in it.
  */
-export const isSheetWritten = ({ grid = [], names = {}, groups = [], title = '', memo = '' }) =>
+export const isSheetWritten = ({ grid, names, groups, title, memo }) =>
   !isGridEmpty(grid) ||
   title.trim() !== '' ||
   memo.trim() !== '' ||
@@ -940,7 +954,7 @@ export const tiesClash = (a, b) =>
  * aligned. Ties fill the gap between their two notes with `~`, and a marked
  * note carries its symbol's letter (`7w`).
  */
-export function toAsciiTab({ grid, rows, ties = [], marks = [] }, tuning = STANDARD_TUNING) {
+export function toAsciiTab({ grid, rows, ties, marks }, tuning = STANDARD_TUNING) {
   // Tokens are resolved up front because a mark changes how wide a column is.
   const tokens = grid.map((column, col) =>
     column.map((cell, stringIndex) => {
@@ -1001,17 +1015,7 @@ export function toAsciiTab({ grid, rows, ties = [], marks = [] }, tuning = STAND
 
 /** Machine-readable export that can round-trip back into the editor. */
 export function toJson(
-  {
-    grid,
-    rows,
-    rowIds = createRowIds(rows.length),
-    names = {},
-    groups = createGroups(),
-    members = {},
-    ties = [],
-    marks = [],
-    memo = '',
-  },
+  { grid, rows, rowIds, names, groups, members, ties, marks, memo },
   tuning = STANDARD_TUNING,
   title = '',
 ) {
@@ -1079,7 +1083,7 @@ export function fromJson(text) {
 
   // Ties are dropped unless both ends land on a real note, so a hand-edited
   // file can never leave an arc hanging off nothing.
-  const candidates = (Array.isArray(data.ties) ? data.ties : [])
+  const candidates = data.ties
     .filter(
       (tie) =>
         tie &&
@@ -1102,7 +1106,7 @@ export function fromJson(text) {
   )
 
   // Same rule for marks: a symbol with no note under it is meaningless.
-  const marks = (Array.isArray(data.marks) ? data.marks : [])
+  const marks = data.marks
     .filter(
       (mark) =>
         mark &&
@@ -1155,7 +1159,6 @@ export function fromJson(text) {
  * nothing.
  */
 function readMembers(raw, rowIds, groups) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
   const kept = Object.entries(raw).reduce((all, [key, value]) => {
     const rowId = Number(key)
     if (!Number.isInteger(rowId) || !Number.isInteger(value)) return all
@@ -1171,7 +1174,6 @@ function readMembers(raw, rowIds, groups) {
  * leaves the map holding exactly what the editor would have written.
  */
 function readRowNames(raw, rowIds) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
   return Object.entries(raw).reduce((kept, [key, value]) => {
     const id = Number(key)
     if (!Number.isInteger(id) || !rowIds.includes(id) || typeof value !== 'string') return kept

@@ -6,7 +6,7 @@ import { PencilIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
 import {
   STANDARD_TUNING,
   addBar,
-  addRow,
+  addRowToGroup,
   copyColumn,
   addGroup,
   createSheet,
@@ -50,6 +50,11 @@ import { NOTES_PATH } from './utils/route.js'
 import { renderTabToPngBlob } from './utils/renderPng.js'
 import { cellFrequency, createAudioEngine } from './utils/audio.js'
 
+// The one slot this browser keeps its sheet in. The suffix namespaces the
+// *slot* — one key holding one JSON export — and not the sheet format inside
+// it: `fromJson` refuses anything but the current SHEET_VERSION, so a bumped
+// format needs no new key. Move this only if the slot's own shape changes,
+// e.g. if the editor ever holds more than one sheet.
 const STORAGE_KEY = 'fretboard-notebook:v1'
 
 // A JSON file is parsed in memory before its contents can be validated. This
@@ -136,8 +141,6 @@ export default function App({ published = null }) {
   const [exportMenu, setExportMenu] = useState(null)
   const [audioOn, setAudioOn] = useState(false)
   const fileInputRef = useRef(null)
-  // Set when + New row is pressed, so the effect that scrolls to it knows to.
-  const revealNewRow = useRef(false)
   // Deliberately not restored from a saved session: a page should not be able
   // to start making noise before the reader has asked for it.
   const audioRef = useRef(null)
@@ -264,20 +267,16 @@ export default function App({ published = null }) {
   }
 
   /**
-   * Append an empty row at the bottom and scroll down to it. A new row starts
-   * outside every group: groups collect the rows that are already written,
-   * which is what their own lists are for.
+   * Add an empty row to the end of a group. A row is written inside a group,
+   * so a group is where one is asked for: the press is on that group's own
+   * button, at the foot of its rows, and the row appears directly above it.
    */
-  const handleAddRow = () => {
+  const handleAddRow = (groupId) => {
     remember('adding a row')
-    const next = addRow(sheet)
-    // The scroll has to wait for the row to be laid out, so it is left to the
-    // effect below rather than run here, where the page is still its old height.
-    revealNewRow.current = true
-    setRows(next.rows)
-    setRowIds(next.rowIds)
-    setGrid(next.grid)
+    const next = addRowToGroup(sheet, groupId)
+    applySheet(next)
     disarmRemovals()
+    setStatus(`Row ${next.at + 1} added to ${groupLabel(groups, groupId)}`)
   }
 
   /**
@@ -410,15 +409,6 @@ export default function App({ published = null }) {
         : `Deleted row ${row}`,
     )
   }
-
-  /** What − Remove row asks for: the bottom row, by the same one press. */
-  const handleRemoveRow = () => handleDeleteRow(rows.length - 1)
-
-  useEffect(() => {
-    if (!revealNewRow.current) return
-    revealNewRow.current = false
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
-  }, [rows])
 
   /**
    * Widen one row by a bar. All four pieces move together — the columns are
@@ -957,6 +947,7 @@ export default function App({ published = null }) {
           editing={editing}
           onSwapRows={handleSwapRows}
           onRenameRow={handleRenameRow}
+          onAddRow={handleAddRow}
           onAddGroup={handleAddGroup}
           onRenameGroup={handleRenameGroup}
           onSetRowGroup={handleSetRowGroup}
@@ -978,19 +969,6 @@ export default function App({ published = null }) {
           onDeleteRow={handleDeleteRow}
         />
       </main>
-
-      <div className="sheet-actions">
-        <button type="button" onClick={handleAddRow} disabled={editing}>
-          + New row
-        </button>
-        <button
-          type="button"
-          onClick={handleRemoveRow}
-          disabled={editing || rows.length <= 1}
-        >
-          − Remove row
-        </button>
-      </div>
 
       <section className="output">
         <button type="button" className="link" onClick={() => setShowText((v) => !v)}>

@@ -66,6 +66,7 @@ export default function TabEditor({
   editing,
   onSwapRows,
   onRenameRow,
+  onAddRow,
   onAddGroup,
   onRenameGroup,
   onSetRowGroup,
@@ -107,8 +108,8 @@ export default function TabEditor({
   // The row edit mode has picked up and is waiting to swap, by its place on
   // the page. Null between swaps, and whenever the mode is not on.
   const [selectedRow, setSelectedRow] = useState(null)
-  // Copy mode's stretch of positions. `to` is null between the first press and
-  // the second, which is the state the strip draws as one circle filled and
+  // The range copy's stretch of positions. `to` is null between the first press
+  // and the second, which is the state the strip draws as one circle filled and
   // nothing carried yet. Null when nothing is picked out.
   const [range, setRange] = useState(null)
   // The paste button waiting on a second press because the first would have
@@ -293,7 +294,7 @@ export default function TabEditor({
     setShiftRow(row, moved >= start && moved < start + rowWidth(rows[row]) ? moved : null)
   }
 
-  /* Copy mode ------------------------------------------------------------ */
+  /* Range copy ----------------------------------------------------------- */
 
   /** True once both ends are down, which is when a range can be pasted. */
   const rangeReady = range !== null && range.to !== null
@@ -1101,6 +1102,25 @@ export default function TabEditor({
     )
   }
 
+  /**
+   * Another row for this group, at the foot of the rows it already holds —
+   * the only way a row is added, so every group carries one. Dashed and
+   * quiet, the way `+ New group` is: somewhere to write rather than something
+   * written. It takes no press while the order is being edited, where a press
+   * means picking a row up.
+   */
+  const addRowButton = (groupId) => (
+    <button
+      type="button"
+      className="row-add"
+      disabled={editing}
+      onClick={() => onAddRow(groupId)}
+      title={`Add a row to ${groupLabel(groups, groupId)}`}
+    >
+      + New row
+    </button>
+  )
+
   return (
     <div className="editor">
       {/* Prose about the sheet, at the top of it and folded away until there
@@ -1142,6 +1162,7 @@ export default function TabEditor({
             {!isGroupFolded(block.group.id) && (
               <div className="group-body">
                 {editing ? rowsWithGaps(block.rows, block.group.id) : block.rows.map(staffOf)}
+                {addRowButton(block.group.id)}
               </div>
             )}
           </section>
@@ -1178,6 +1199,7 @@ export default function TabEditor({
             onDelete={onDeleteGroup}
             onDrop={dropHeldRow}
           />
+          <div className="group-body">{addRowButton(group.id)}</div>
         </section>
       ))}
 

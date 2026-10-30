@@ -20,7 +20,7 @@
   --staff-air: 14px;
 
   /* One strip of per-position controls above a staff — the shift anchors, or
-     copy mode's circles and paste buttons. Each one standing pushes the
+     the range copy's circles and paste buttons. Each one standing pushes the
      strings down by exactly this much. */
   --strip-h: 22px;
 
@@ -730,19 +730,19 @@ button.link {
   border-top: 0;
 }
 
-/* A group with no rows under it — none yet, or all of them folded away — is a
-   bar and nothing else, so it carries its own foot rather than ending on a
-   cut edge. */
-.group--empty .group-bar,
+/* A group whose rows are all folded away is a bar and nothing else, so it
+   carries its own foot rather than ending on a cut edge. A group holding no
+   rows yet still has a body — the press that gives it its first one. */
 .group--folded .group-bar {
   border-radius: 4px;
 }
 
-/* Another group, past the last of them. Dashed, the way somewhere to write is
-   drawn rather than something written, and at a bar's own width. */
-.group-add {
+/* Somewhere to write, drawn rather than written: another group past the last
+   of them, and another row at the foot of a group's own rows. Both dashed,
+   both at the full width of what they stand under. */
+.group-add,
+.row-add {
   height: 28px;
-  margin-top: 12px;
   padding: 0 10px;
   border-style: dashed;
   border-radius: 4px;
@@ -754,9 +754,28 @@ button.link {
   text-transform: uppercase;
 }
 
+.group-add {
+  margin-top: 12px;
+}
+
+/* Inside the group's body, where a button is not a block of its own. The room
+   below it is the group's foot, and matches the indent it stands in. */
+.row-add {
+  display: block;
+  width: calc(100% - var(--group-indent));
+  margin: 10px 0;
+}
+
 .group-add:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* The group's own colour, since this press adds to that group rather than to
+   the sheet at large. */
+.row-add:hover:not(:disabled) {
+  border-color: var(--group);
+  color: var(--group);
 }
 
 /* Staff --------------------------------------------------------------- */
@@ -1021,7 +1040,7 @@ button.link {
   flex-direction: column;
   /* Matches the scroller's padding so labels line up with their strings, plus
      one strip's worth for every strip standing inside the scroller — the shift
-     anchors, and copy mode's two. TabEditor counts them onto `--strips`. */
+     anchors, and the range copy's two. TabEditor counts them onto `--strips`. */
   margin-top: calc(var(--staff-air) + var(--strip-h) * var(--strips, 0));
 }
 
@@ -1053,7 +1072,7 @@ button.link {
 }
 
 /* The circle glyph, drawn on the cells that mark a position rather than act on
-   it — the shift anchors, and copy mode's two range ends. */
+   it — the shift anchors, and the range copy's two ends. */
 .position-dot::before {
   content: '';
   position: absolute;
@@ -1312,15 +1331,6 @@ button.link {
 .cell--tie-cursor,
 .cell--tie-target:hover {
   background: radial-gradient(closest-side, rgb(168 73 47 / 32%) 78%, transparent 100%);
-}
-
-/* Sheet actions -------------------------------------------------------- */
-
-.sheet-actions {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 24px;
 }
 
 /* Output -------------------------------------------------------------- */
