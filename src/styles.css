@@ -590,6 +590,156 @@ button.link {
   font-style: italic;
 }
 
+/* Arrangement --------------------------------------------------------- */
+
+/* Sits directly under the note and is built the same way — the heading is
+   the control — so the two read as one pair of things said about the sheet
+   before the staves start. */
+.arrangement-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 10px 0;
+  border-top: 1px solid var(--bar);
+}
+
+/* The order itself, read left to right and wrapping when it outgrows the
+   sheet's width. Indented past the string labels, where the note's box and
+   the bars start. */
+.arrangement-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% - var(--label-w));
+  margin: 6px 0 0;
+  margin-left: var(--label-w);
+  padding: 0;
+  list-style: none;
+}
+
+.arrangement-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* One group being played. Filled in the group's own colour, the way its bar
+   down the sheet is, so a block is recognised before it is read. */
+.arrangement-block {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 4px 0 9px;
+  border-radius: 4px;
+  background: var(--group);
+  color: var(--paper);
+}
+
+.arrangement-name {
+  font: 600 12px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* Takes this block out of the order. Set like the × on a group's bar, since
+   it is the same press on a smaller thing. */
+.arrangement-remove {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: rgb(251 248 241 / 65%);
+  font: 400 14px/1 ui-monospace, Menlo, monospace;
+}
+
+.arrangement-remove:hover:not(:disabled) {
+  border-color: rgb(251 248 241 / 55%);
+  background: rgb(251 248 241 / 16%);
+  color: var(--paper);
+}
+
+.arrangement-remove:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* What makes the blocks an order rather than a set. */
+.arrangement-arrow {
+  color: var(--muted);
+  font: 400 13px/1 ui-monospace, Menlo, monospace;
+}
+
+/* Somewhere to add to the order: a block's outline at a block's own height,
+   dashed, as the New group button at the foot of the sheet is drawn. */
+.arrangement-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 28px;
+  padding: 0;
+  border-style: dashed;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  font: 400 15px/1 ui-monospace, Menlo, monospace;
+}
+
+.arrangement-add:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The groups on offer, hanging under that block. */
+.arrangement-picker {
+  display: flex;
+  flex-direction: column;
+  width: 180px;
+  max-width: 100%;
+  padding: 5px;
+}
+
+.arrangement-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  font-size: 14px;
+  text-align: left;
+}
+
+.arrangement-option:hover:not(:disabled) {
+  background: var(--page);
+}
+
+/* Says which group a line is before the name is read, in the colour that
+   group is drawn in everywhere else. */
+.arrangement-swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--group);
+}
+
+.arrangement-none {
+  margin: 0;
+  padding: 7px 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 /* Groups -------------------------------------------------------------- */
 
 /* A group is drawn where its rows are: one bar across the full width of the

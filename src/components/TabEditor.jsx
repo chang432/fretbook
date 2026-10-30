@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import ArrangementSection from './ArrangementSection.jsx'
 import GroupBar from './GroupBar.jsx'
 import MarkBar from './MarkBar.jsx'
 import MemoSection from './MemoSection.jsx'
@@ -63,6 +64,9 @@ export default function TabEditor({
   members,
   memo,
   onMemoChange,
+  arrangement,
+  onAddToArrangement,
+  onRemoveFromArrangement,
   editing,
   onSwapRows,
   onRenameRow,
@@ -1127,6 +1131,20 @@ export default function TabEditor({
           is something to say. It takes no part in edit mode: a note is
           neither a row nor a group, so there is nothing for it to swap with. */}
       <MemoSection memo={memo} onChange={onMemoChange} />
+
+      {/* The running order, under the note and above the staves: what the
+          sheet's groups say about the shape of the song, which the staves
+          themselves cannot. It takes no part in edit mode either — a block
+          there is a group being played, not a row to swap — so its controls
+          stand down for as long as a row is being carried. */}
+      <ArrangementSection
+        groups={groups}
+        arrangement={arrangement}
+        tone={groupTone}
+        editing={editing}
+        onAdd={onAddToArrangement}
+        onRemove={onRemoveFromArrangement}
+      />
 
       {/* The sheet, top to bottom. A group is a bar across the page with the
           rows it holds indented under it behind a spine in the group's own

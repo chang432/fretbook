@@ -4,7 +4,7 @@ This inventory describes the application-owned structures in the current source 
 
 ## Sheet model
 
-The editor holds a sheet as `{ grid, rows, rowIds, names, groups, members, ties, marks }`. The title and memo are separate React state but are included in storage and exports. Helpers sometimes return a partial sheet containing only changed fields; `applySheet` merges those fields into state. New sheets start with one four-bar row, one unnamed group containing that row, and an empty grid.
+The editor holds a sheet as `{ grid, rows, rowIds, names, groups, members, arrangement, ties, marks }`. The title and memo are separate React state but are included in storage and exports. Helpers sometimes return a partial sheet containing only changed fields; `applySheet` merges those fields into state. New sheets start with one four-bar row, one unnamed group containing that row, and an empty grid.
 
 | Structure | Shape | Meaning and invariants |
 | --- | --- | --- |
@@ -14,12 +14,13 @@ The editor holds a sheet as `{ grid, rows, rowIds, names, groups, members, ties,
 | Row names | `{ [rowId]: string }` | Sparse object keyed by row ID (JSON object keys are strings). Empty names are absent; names are whitespace-normalized and limited to 24 characters. |
 | Groups | `{ id: number, name: string }[]` | Unique nonnegative group IDs and names; empty groups may exist. Editor-entered names are normalized and limited to 24 characters. |
 | Membership | `{ [rowId]: groupId }` | Sparse mapping: a missing row is ungrouped. References must name existing rows and groups. A group's member rows form a contiguous run in the current file format. |
+| Arrangement | `number[]` | The order the groups are played in, as group ids. Repeats are allowed — a group may appear more than once or not at all — and a block is addressed by its position, not by the group it names. Every id must name an existing group; `[]` means nothing has been arranged. |
 | Ties | `{ string: number, from: number, to: number }[]` | Arc between two occupied cells on one string, with ordered absolute column endpoints (`from < to`). A note can have at most one tie on each side. Import drops invalid endpoints and conflicting ties. |
 | Marks | `{ string: number, col: number, symbol: string }[]` | Symbol on an occupied cell, addressed by absolute column and string; currently `symbol` is `'zigzag'`. The editor toggles at most one mark per cell; import filters unsupported symbols and empty cells. |
 | Memo | `string` | Sheet-wide prose, limited to 4,000 characters on reading and export. |
 | Tuning | `string[]` | Export metadata, normally `['e', 'B', 'G', 'D', 'A', 'E']`. The editor and audio use standard tuning; `fromJson` requires an array but does not return or apply its contents. |
 
-Row reordering moves grid slices, IDs, ties and marks together; names are keyed by ID. Swapping rows assigns group membership according to the destination places. Moving a row into or out of a group changes membership and position. Ties and marks use absolute columns, so operations that add, remove, move, shift, or paste columns also adjust or remove affected annotations.
+Deleting a group drops its blocks from the arrangement along with its memberships. Row reordering moves grid slices, IDs, ties and marks together; names are keyed by ID. Swapping rows assigns group membership according to the destination places. Moving a row into or out of a group changes membership and position. Ties and marks use absolute columns, so operations that add, remove, move, shift, or paste columns also adjust or remove affected annotations.
 
 ## Saved and published JSON
 
@@ -37,13 +38,14 @@ Row reordering moves grid slices, IDs, ties and marks together; names are keyed 
   "names": {"0": "Intro"},
   "groups": [{"id": 0, "name": "Verse"}],
   "members": {"0": 0},
+  "arrangement": [0, 0],
   "columns": [["0", "", "", "", "", ""]],
   "ties": [],
   "marks": []
 }
 ```
 
-This illustrates the field shapes; a valid four-bar row needs **16** six-cell columns, not the single column shown. `columns` is called `grid` in memory. `fromJson` accepts only version 12, requires at least one column, row and group, checks unique IDs and contiguous memberships, and requires the number of columns to equal four times the sum of row bar counts. Imports are bounded to 10,000 columns and 1,000 rows; invalid cells are normalized, invalid references are dropped, and malformed overall sheets return `null`. The reader returns `{ title, grid, rows, rowIds, names, groups, members, memo, ties, marks }`.
+This illustrates the field shapes; a valid four-bar row needs **16** six-cell columns, not the single column shown. `columns` is called `grid` in memory. `fromJson` accepts only version 12, requires at least one column, row and group, checks unique IDs and contiguous memberships, and requires the number of columns to equal four times the sum of row bar counts. `arrangement` is the one optional field: it arrived after the format did, so a file without it reads as a sheet nobody has arranged, and blocks naming a group the file does not hold are dropped. Imports are bounded to 10,000 columns and 1,000 rows; invalid cells are normalized, invalid references are dropped, and malformed overall sheets return `null`. The reader returns `{ title, grid, rows, rowIds, names, groups, members, memo, ties, marks }`.
 
 The published manifest at `notes.json` is an array of `{ slug, title }`; its slug identifies `notes/<slug>.json` and `/notes/<slug>`. Slugs match `^[a-z0-9]+(?:[-_][a-z0-9]+)*$`. The publisher sorts the manifest by title and then slug. The backend checks that the manifest is a JSON array; the frontend filters entries without a slug. A note endpoint serves JSON bytes, and the frontend applies the full sheet parser. Backend error responses are `{ error: string }`.
 

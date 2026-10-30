@@ -8,6 +8,7 @@ import {
   STANDARD_TUNING,
   addBar,
   addRowToGroup,
+  addToArrangement,
   copyColumn,
   addGroup,
   createSheet,
@@ -30,6 +31,7 @@ import {
   pasteTarget,
   previousWrittenColumn,
   removeBar,
+  removeFromArrangement,
   removeRow,
   rowName,
   rowsInGroup,
@@ -127,6 +129,10 @@ export default function App({ published = null }) {
   // so it stands where they do. A sheet always has at least one group.
   const [groups, setGroups] = useState(saved.groups)
   const [members, setMembers] = useState(saved.members)
+  // The order the groups are played in, as group ids: the song's structure,
+  // which the staves themselves cannot say. Empty until it is written, and
+  // absent from sheets saved before it existed.
+  const [arrangement, setArrangement] = useState(saved.arrangement ?? [])
   const [grid, setGrid] = useState(() => fitGrid(saved.grid, saved.rows))
   const [ties, setTies] = useState(saved.ties)
   const [marks, setMarks] = useState(saved.marks)
@@ -151,8 +157,8 @@ export default function App({ published = null }) {
   const audioRef = useRef(null)
 
   const sheet = useMemo(
-    () => ({ grid, rows, rowIds, names, groups, members, ties, marks }),
-    [grid, rows, rowIds, names, groups, members, ties, marks],
+    () => ({ grid, rows, rowIds, names, groups, members, arrangement, ties, marks }),
+    [grid, rows, rowIds, names, groups, members, arrangement, ties, marks],
   )
   const asciiTab = useMemo(() => toAsciiTab(sheet, STANDARD_TUNING), [sheet])
   // The sheet as the bucket would hold it. One memo serves both the writes
@@ -229,6 +235,7 @@ export default function App({ published = null }) {
     if (next.names) setNames(next.names)
     if (next.groups) setGroups(next.groups)
     if (next.members) setMembers(next.members)
+    if (next.arrangement) setArrangement(next.arrangement)
     if (next.grid) setGrid(next.grid)
     if (next.ties) setTies(next.ties)
     if (next.marks) setMarks(next.marks)
@@ -340,12 +347,38 @@ export default function App({ published = null }) {
     const held = rowsInGroup(members, rowIds, groupId).length
 
     remember(`deleting ${was}`)
-    applySheet(removeGroup(groups, members, groupId))
+    // Takes the group out of the running order along with the sheet, since a
+    // block there stands for a group that exists.
+    applySheet(removeGroup(groups, members, arrangement, groupId))
     setStatus(
       held
         ? `Deleted ${was} — its ${held === 1 ? 'row is' : `${held} rows are`} in no group now`
         : `Deleted ${was}`,
     )
+  }
+
+  /**
+   * Put a group at the end of the running order. The same group may be added
+   * again — a chorus played twice is two blocks — so nothing here refuses a
+   * group already standing in the arrangement.
+   */
+  const handleAddToArrangement = (groupId) => {
+    remember('adding to the arrangement')
+    setArrangement(addToArrangement(arrangement, groupId))
+    setStatus(`Added ${groupLabel(groups, groupId)} to the arrangement`)
+  }
+
+  /**
+   * Take one block out of the running order, by where it stands rather than
+   * by which group it names: two blocks on the same group are two blocks, and
+   * only the one pressed goes.
+   */
+  const handleRemoveFromArrangement = (at) => {
+    const was = groupLabel(groups, arrangement[at])
+
+    remember('removing from the arrangement')
+    setArrangement(removeFromArrangement(arrangement, at))
+    setStatus(`Took ${was} out of the arrangement`)
   }
 
   /**
@@ -1041,6 +1074,9 @@ export default function App({ published = null }) {
           marks={marks}
           memo={memo}
           onMemoChange={handleMemoChange}
+          arrangement={arrangement}
+          onAddToArrangement={handleAddToArrangement}
+          onRemoveFromArrangement={handleRemoveFromArrangement}
           editing={editing}
           onSwapRows={handleSwapRows}
           onRenameRow={handleRenameRow}

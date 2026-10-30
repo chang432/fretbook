@@ -39,8 +39,9 @@ Entries are positional, so "remove" means remove at an index, not by id.
   `clampArrangement(arrangement, groups)` which drops entries whose group has
   gone. `removeGroup` returns a cleaned `arrangement` along with `groups` and
   `members`, so deleting a group cannot leave a dangling block. `toJson` emits
-  the field through `clampArrangement`; `fromJson` requires it to be an array of
-  ids of existing groups and drops the rest.
+  the field through `clampArrangement`; `fromJson` reads it through
+  `readArrangement`, which takes a missing or non-array field as `[]` and drops
+  ids no group answers to.
 - **`src/App.jsx`** — `arrangement` state from `saved.arrangement`, a line in
   `applySheet`, the field in the two `toJson` calls, and
   `handleAddToArrangement` / `handleRemoveFromArrangement`, each taking a
@@ -60,12 +61,13 @@ Entries are positional, so "remove" means remove at an index, not by id.
 
 ## File format
 
-`SHEET_VERSION` goes 12 → 13 and `arrangement` is required, with no path that
-reads a version 12 file — the same forward-only choice the earlier versions
-made. The cost is that a sheet already autosaved in local storage, and any
-published note not re-published, stops loading and the editor opens blank.
-Published notes are re-published from the editor, so they need one `Update`
-each.
+`SHEET_VERSION` stays at 12 and `arrangement` is the one optional field:
+`fromJson` reads a file without it as a sheet nobody has arranged. A sheet
+already autosaved in local storage, and every published note, therefore keeps
+loading untouched, and `toJson` writes the field from then on. This is the one
+place the project's forward-only rule is set aside, deliberately: the
+alternative was emptying every reader's saved sheet for a field that means
+"nothing yet" when it is missing.
 
 ## Checks
 

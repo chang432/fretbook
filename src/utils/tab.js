@@ -286,12 +286,16 @@ export const emptyGroups = (members, rowIds, groups) =>
  * what keeps deleting a group a thing done to the sheet's structure rather
  * than to its music.
  */
-export function removeGroup(groups, members, groupId) {
+export function removeGroup(groups, members, arrangement, groupId) {
+  const kept = groups.filter((group) => group.id !== groupId)
   return {
-    groups: groups.filter((group) => group.id !== groupId),
+    groups: kept,
     members: Object.fromEntries(
       Object.entries(members).filter(([, id]) => id !== groupId),
     ),
+    // A block in the running order stands for a group, so a group that has
+    // gone cannot be left standing in it.
+    arrangement: clampArrangement(arrangement, kept),
   }
 }
 
@@ -302,6 +306,30 @@ export const clampMembers = (members, rowIds, groups) =>
       groups.some((group) => group.id === groupId),
     ),
   )
+
+/* The arrangement -------------------------------------------------------- */
+
+/**
+ * The order the sheet's groups are played in: a verse, a chorus, that verse
+ * again. Kept as a list of group ids rather than as anything on the groups
+ * themselves, because an arrangement is a sequence and not a property — the
+ * same group may stand in it twice, or not at all, and a sheet with no
+ * arrangement written yet is simply an empty list.
+ *
+ * A block in the list is addressed by where it stands, not by which group it
+ * names, since two blocks naming the same group are two different blocks.
+ */
+
+/** Put a group at the end of the running order. */
+export const addToArrangement = (arrangement, groupId) => [...arrangement, groupId]
+
+/** Take out the block standing at `at`, leaving any other block on that group. */
+export const removeFromArrangement = (arrangement, at) =>
+  arrangement.filter((_, place) => place !== at)
+
+/** Drop blocks whose group has gone, so none is left pointing at nothing. */
+export const clampArrangement = (arrangement, groups) =>
+  arrangement.filter((id) => groups.some((group) => group.id === id))
 
 /* A blank sheet ---------------------------------------------------------- */
 
@@ -326,6 +354,9 @@ export function createSheet() {
     groups,
     members: Object.fromEntries(rowIds.map((id) => [id, groups[0].id])),
     grid: createGrid(totalColumns(rows)),
+    // Nothing is arranged until the writer says so: the running order starts
+    // empty even though the sheet starts with a group.
+    arrangement: [],
     ties: [],
     marks: [],
   }
@@ -859,12 +890,13 @@ export const isGridEmpty = (grid) =>
  * the rows and groups it came up with say that the editor was once open — not
  * that anyone wrote anything in it.
  */
-export const isSheetWritten = ({ grid, names, groups, title, memo }) =>
+export const isSheetWritten = ({ grid, names, groups, title, memo, arrangement }) =>
   !isGridEmpty(grid) ||
   title.trim() !== '' ||
   memo.trim() !== '' ||
   Object.values(names).some((name) => name) ||
-  groups.some((group) => group.name)
+  groups.some((group) => group.name) ||
+  (arrangement?.length ?? 0) > 0
 
 /** Index of the last column holding a note, or -1 when the grid is empty. */
 export const lastUsedColumn = (grid) => {
@@ -1015,7 +1047,7 @@ export function toAsciiTab({ grid, rows, ties, marks }, tuning = STANDARD_TUNING
 
 /** Machine-readable export that can round-trip back into the editor. */
 export function toJson(
-  { grid, rows, rowIds, names, groups, members, ties, marks, memo },
+  { grid, rows, rowIds, names, groups, members, arrangement, ties, marks, memo },
   tuning = STANDARD_TUNING,
   title = '',
 ) {
@@ -1044,6 +1076,9 @@ export function toJson(
       groups,
       // Which group each row is in, keyed by row id. Rows in none are absent.
       members: clampMembers(members, rowIds, groups),
+      // The order the groups are played in, as group ids. Repeats are the
+      // point of it; an empty list means nothing has been arranged.
+      arrangement: clampArrangement(arrangement ?? [], groups),
       // Emitted high-string-first, the same order as `tuning`.
       columns: grid.slice(0, totalColumns(rows)),
       ties,
@@ -1147,10 +1182,22 @@ export function fromJson(text) {
     names: readRowNames(data.names, rowIds),
     groups,
     members,
+    arrangement: readArrangement(data.arrangement, groups),
     memo: readMemo(data.memo),
     ties,
     marks,
   }
+}
+
+/**
+ * The running order from a file. The field arrived after the format did, so a
+ * file without one is read as a sheet nobody has arranged rather than as a
+ * malformed sheet — the same answer an empty list gives. Blocks naming a
+ * group the file does not hold are dropped.
+ */
+function readArrangement(raw, groups) {
+  if (!Array.isArray(raw)) return []
+  return clampArrangement(raw.filter(Number.isInteger), groups)
 }
 
 /**
