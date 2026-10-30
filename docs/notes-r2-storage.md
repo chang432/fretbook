@@ -264,6 +264,13 @@ npm run dev      # 5173, proxying /api to 8080
 `npm run stack` wants the same four values the VPS gets —
 `FRETBOOK_NOTES_BUCKET`, `FRETBOOK_R2_ENDPOINT`, `AWS_ACCESS_KEY_ID`,
 `AWS_SECRET_ACCESS_KEY` — in the git-ignored `docker/app/.env`, or exported in
-the shell, which compose and the script both prefer. It writes the file for you
-to fill in the first time, and refuses to start on a half-filled one rather
-than leaving you with a silently empty `/notes`.
+the shell, which compose and the script both prefer.
+
+```bash
+cp docker/app/.env.example docker/app/.env   # or let npm run stack do it
+```
+
+`docker/app/.env.example` is that file's shape, tracked beside the compose file
+that reads it and listing what each value is for; the script copies it across
+the first time and then refuses to start on a half-filled one rather than
+leaving you with a silently empty `/notes`.

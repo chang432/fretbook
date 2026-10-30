@@ -33,7 +33,10 @@ read by the backend over the S3 API — so `/notes` is empty under a bare
 `npm run dev` until something is serving `/api`. `npm run stack` brings that up
 in Docker on :8080 and the dev server proxies to it; the script checks the
 credentials first and tells you how many notes came back, since a stack without
-them comes up perfectly well and simply shows nothing. Everything else — which
+them comes up perfectly well and simply shows nothing. Those credentials live
+in `docker/app/.env` — copied from
+[`docker/app/.env.example`](docker/app/.env.example), which says what each
+value is for, and git-ignored once it holds real ones. Everything else — which
 is most of the app — works without any of it.
 
 ## Writing tab

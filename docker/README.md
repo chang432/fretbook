@@ -23,9 +23,17 @@ Two containers:
 
 ```bash
 cd docker/app
+cp .env.example .env             # once: the bucket, the R2 token, the password
 docker compose up --build        # http://localhost:8080
 WEB_PORT=3000 docker compose up  # different host port
 ```
+
+`.env` is what compose reads the backend's settings out of, and
+`.env.example` says what each one is for. It is git-ignored; a shell variable
+beats it, so a credential can stay off disk. Without it the stack still comes
+up — `/api/notes` answers 503 and `/notes` is an empty shelf.
+`npm run stack` from the repo root is the same thing with the file copied for
+you and the credentials checked first.
 
 The published port is bound to `127.0.0.1` (see *Deployment* below), so the
 stack is reachable from the machine running it and nowhere else.
@@ -48,6 +56,7 @@ docker/
   README.md
   app/                    # one stack per environment
     docker-compose.yml    # the template; -p and an env file make it dev or prod
+    .env.example          # the shape of the git-ignored .env compose reads
     caddy/
       Dockerfile          # multi-stage: node build -> caddy
       Caddyfile           # static file server + /api reverse proxy
@@ -59,6 +68,7 @@ docker/
       app/
         __init__.py       # application factory
         api.py            # /api blueprint
+        notes.py          # the published notes, read from and written to R2
   edge/                   # one proxy per host
     docker-compose.yml
     Caddyfile             # TLS + hostname routing to each environment

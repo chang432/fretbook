@@ -219,7 +219,7 @@ npm run dev      # 5173, proxying /api to 8080
 ```
 
 **Publish in a local editor writes to a real bucket** — whichever
-`FRETBOOK_NOTES_BUCKET` names, which is `fretbook-notes-dev` in the template
-that script writes. There is no local R2, so there is no dry run: a test press
+`FRETBOOK_NOTES_BUCKET` names, which is `fretbook-notes-dev` in
+`docker/app/.env.example`. There is no local R2, so there is no dry run: a test press
 leaves a note in the dev bucket, and `npm run notes:unpublish -- <name>` is how
 it goes away.

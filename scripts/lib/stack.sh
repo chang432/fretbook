@@ -13,6 +13,10 @@
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 APP_DIR="$ROOT/docker/app"
 ENV_FILE="$APP_DIR/.env"
+# The shape of that file, tracked beside the compose file it belongs to. It is
+# copied rather than described twice, so there is one place to change when the
+# backend learns to read something new.
+ENV_EXAMPLE="$APP_DIR/.env.example"
 PORT="${WEB_PORT:-8080}"
 
 # Colour only when something is watching. A redirected log should be plain.
@@ -49,40 +53,19 @@ require_docker() {
 		'  colima: colima start'
 }
 
-# Written rather than demanded, because the shape of the file is the thing worth
-# saying and four names are easier to fill in than to guess. Placeholders rather
-# than real values: this script is in git and the credentials are not.
+# Copied rather than written out here: docker/app/.env.example is the shape of
+# the file, it is in git beside the compose file that reads it, and `cp` is
+# what a reader would have done by hand anyway. Placeholders rather than real
+# values, which is why it can be tracked at all.
 write_env_template() {
-	cat > "$ENV_FILE" <<'TEMPLATE'
-# Local settings for `docker compose up`, git-ignored. The backend reads the
-# published notes out of the private bucket over the S3 API, and writes one
-# back when a sheet is published from the editor; see
-# ../../docs/notes-via-s3-client.md and ../../docs/notes-upload-from-app.md.
-#
-# The token wants **Object Read & Write** — the same one in your `r2` AWS
-# profile will do. Pointing this at fretbook-notes-dev is the point: Publish
-# in a local editor puts a note in whichever bucket is named here.
-#
-# The two AWS_* lines can be left empty if you would rather export the
-# credentials than keep them on disk: compose takes the shell's values first,
-# and so does the check that reads this file.
-#
-# The password is what the Update button on a published note asks for, and the
-# only way to write over one. It is optional — left empty, that button answers
-# 503 and nothing else changes — and it is not checked for below, since a
-# stack nobody updates from is a perfectly good stack.
-FRETBOOK_NOTES_BUCKET=fretbook-notes-dev
-FRETBOOK_R2_ENDPOINT=https://<account id>.r2.cloudflarestorage.com
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-FRETBOOK_PUBLISH_PASSWORD=
-TEMPLATE
+	cp "$ENV_EXAMPLE" "$ENV_FILE" ||
+		die "Could not write $ENV_FILE from $ENV_EXAMPLE."
 }
 
 require_env() {
 	if [ ! -f "$ENV_FILE" ]; then
 		write_env_template
-		die "Wrote $ENV_FILE." \
+		die "Wrote $ENV_FILE from $(basename "$ENV_EXAMPLE")." \
 			'Fill in the R2 endpoint and a read-write token, then run this again.'
 	fi
 
