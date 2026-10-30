@@ -66,10 +66,16 @@ write_env_template() {
 # The two AWS_* lines can be left empty if you would rather export the
 # credentials than keep them on disk: compose takes the shell's values first,
 # and so does the check that reads this file.
+#
+# The password is what the Update button on a published note asks for, and the
+# only way to write over one. It is optional — left empty, that button answers
+# 503 and nothing else changes — and it is not checked for below, since a
+# stack nobody updates from is a perfectly good stack.
 FRETBOOK_NOTES_BUCKET=fretbook-notes-dev
 FRETBOOK_R2_ENDPOINT=https://<account id>.r2.cloudflarestorage.com
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
+FRETBOOK_PUBLISH_PASSWORD=
 TEMPLATE
 }
 

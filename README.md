@@ -358,7 +358,9 @@ staves are never included. A JSON export keeps every row, blank ones and all —
 rows are yours to add, so a file records the sheet exactly as you left it.
 
 **Publish**, beside it, is the same JSON sent somewhere instead of saved: it
-puts the sheet in the published notes, at a URL anyone can open. See below.
+puts the sheet in the published notes, at a URL anyone can open — and on a
+published note that button is **Update**, which writes the sheet back over it
+with the password. See below.
 
 ## Publishing notes
 
@@ -380,10 +382,22 @@ Two things that button cannot do, deliberately:
   it, and this is the one guard that matters against a route anyone can reach.
 - **It cannot take a note down.** Nothing in the app deletes.
 
-Both of those are the commands below, from a machine with the token — which is
-also why they exist at all now. [docs/notes-upload-from-app.md](docs/notes-upload-from-app.md)
-is what that route gives up, and who can reach it: **anyone who can open the
-site**, with no passphrase in front of it.
+**Update**, on a published note, is how a note is revised — the same press
+aimed at the note in front of you, and the only one that asks for a password.
+Open `/notes/<name>`, change the sheet, press Update, type the password: that
+sheet replaces the note, title and all. The button is dead until something has
+actually changed, and what it writes over is gone, so the panel says as much
+before it asks for anything.
+
+The password is one secret per environment, `FRETBOOK_PUBLISH_PASSWORD` on the
+backend, sent in a header and stored nowhere in the browser. Without it set,
+Update answers 503 and the rest of the site is unaffected — so an environment
+opts into being editable.
+
+Taking a note down is the command below, from a machine with the token.
+[docs/notes-upload-from-app.md](docs/notes-upload-from-app.md) is what these
+routes give up, and who can reach them: publishing is open to **anyone who can
+open the site**, updating is not.
 
 The commands are the other way in, and still the only one that can replace or
 remove:
@@ -475,10 +489,10 @@ src/
   components/MarkBar.jsx    the rewind, tie and symbol buttons floating over the selected position
   components/PositionStrip.jsx one control per position above a staff, shared by the shift anchors and edit mode's strips
   components/Popover.jsx    the anchored panel behind the export and publish menus
-  components/PublishMenu.jsx the name a sheet is published under, and the press that uploads it
+  components/PublishMenu.jsx the name a sheet is published under or the password it is updated with, and the press that writes it
   components/icons.jsx      the drawn symbols on the buttons that carry no words
   utils/tab.js              grid, tie and mark model; ASCII/JSON; downloads
-  utils/notes.js            the published notes: the /api calls that fetch them, and the one that publishes
+  utils/notes.js            the published notes: the /api calls that fetch them, and the two that write one
   utils/audio.js            fret-to-pitch both ways, and the plucked-string synthesis
   utils/popover.js          where an anchored panel sits, kept inside the window
   utils/layout.js           staff geometry and the arc/symbol maths, shared by

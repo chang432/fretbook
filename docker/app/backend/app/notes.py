@@ -11,9 +11,10 @@ The keys are the ones scripts/notes.mjs writes, unchanged:
     notes.json            the manifest /notes lists
     notes/<name>.json     one note, the editor's own JSON export
 
-    GET /api/notes          the manifest
-    GET /api/notes/<slug>   one note
-    PUT /api/notes/<slug>   publish the sheet in the body under that name
+    GET  /api/notes          the manifest
+    GET  /api/notes/<slug>   one note
+    PUT  /api/notes/<slug>   publish the sheet in the body under that name
+    POST /api/notes/<slug>   replace that note — password required
 
 The manifest is read and rewritten as an object rather than rebuilt by listing
 the bucket, so the token this holds needs GetObject and PutObject and still no
@@ -30,10 +31,19 @@ are still a laptop with the same token and scripts/notes.mjs. The other guards
 are a body limit, an envelope check so a reader never meets a note the editor
 cannot open, and a cap on how fast uploads are accepted; see
 docs/notes-upload-from-app.md for what they are and are not worth.
+
+**POST is not open.** It is the one route that can destroy something — it
+writes over a note that is already there, and R2 keeps no versions — so it
+carries a password, in a header, compared against FRETBOOK_PUBLISH_PASSWORD.
+Without that variable the route answers 503 rather than letting an empty
+password through, and wrong guesses are capped separately from uploads. The
+two routes are kept apart rather than made one: PUT can only add a note and
+POST can only replace one, so neither can quietly do the other's job.
 """
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import re
@@ -81,6 +91,18 @@ MAX_UPLOAD_BYTES = 512 * 1024
 #: so one upload cannot make the index unreadable for everyone else.
 MAX_TITLE_CHARS = 120
 
+#: The header a password arrives in. A header rather than the query string or
+#: the body: a URL is logged by every hop that sees it, and the body is the
+#: sheet.
+PASSWORD_HEADER = "X-Fretbook-Password"
+
+#: How many wrong passwords this worker entertains in a minute. Counted apart
+#: from uploads, and checked before the comparison, since a cap that only
+#: applies after a guess has been tested does not cap guessing at all. The cost
+#: is that a minute of guessing locks the owner out for the rest of that
+#: minute, which is the cheaper half of the trade.
+WRONG_PASSWORDS_PER_MINUTE = 5
+
 #: How many uploads this worker accepts in a minute, all callers together.
 #: Not a defence — it is one process of several and says nothing about who is
 #: asking — but it is the difference between a loop adding a few notes and a
@@ -99,8 +121,9 @@ _client = None
 _cache: dict[str, tuple[float, bytes | None]] = {}
 
 #: When the uploads this worker has accepted were accepted, oldest first, kept
-#: only as far back as the window above.
+#: only as far back as the window above, and the same for wrong passwords.
 _accepted: deque[float] = deque()
+_wrong: deque[float] = deque()
 
 
 def _bucket() -> str:
@@ -283,16 +306,30 @@ def _put(key: str, body: bytes, cache_control: str) -> bool:
     return True
 
 
-def _within_rate_limit() -> bool:
-    """Count this upload against UPLOADS_PER_MINUTE, or refuse it."""
+def _full(window: deque[float], per_minute: int) -> bool:
+    """Whether a per-minute window has no room left, dropping what has aged
+    out of it on the way. Nothing is counted in: asking and recording are kept
+    apart because the password check has to ask before it knows whether there
+    is anything to record."""
     now = time.monotonic()
     with _lock:
-        while _accepted and _accepted[0] <= now - 60:
-            _accepted.popleft()
-        if len(_accepted) >= UPLOADS_PER_MINUTE:
-            return False
-        _accepted.append(now)
-        return True
+        while window and window[0] <= now - 60:
+            window.popleft()
+        return len(window) >= per_minute
+
+
+def _count(window: deque[float]):
+    """Record one event in a window."""
+    with _lock:
+        window.append(time.monotonic())
+
+
+def _within(window: deque[float], per_minute: int) -> bool:
+    """Count one event against a window, or refuse it."""
+    if _full(window, per_minute):
+        return False
+    _count(window)
+    return True
 
 
 def _manifest_entries() -> list[dict]:
@@ -363,6 +400,67 @@ def _sheet_title(data) -> str | None:
     return title.strip()[:MAX_TITLE_CHARS]
 
 
+def _submitted_sheet():
+    """The sheet in the request body and the title to list it under, or an
+    answer to send back in their place.
+
+    Both write routes judge a body the same way; what differs is who is
+    allowed to send one and what is done with it afterwards.
+    """
+    body = request.get_data(cache=False)
+    # Flask has already refused anything over its own limit by now; this covers
+    # a body that arrives chunked, with no length to refuse it on.
+    if len(body) > MAX_UPLOAD_BYTES:
+        return None, None, (jsonify(error="that sheet is too large to publish"), 413)
+
+    try:
+        data = json.loads(body)
+    except ValueError:
+        return None, None, (jsonify(error="that is not a Fretboard Notebook export"), 400)
+
+    title = _sheet_title(data)
+    if title is None:
+        return None, None, (
+            jsonify(error="that is not a current Fretboard Notebook export"),
+            400,
+        )
+
+    return body, title, None
+
+
+def _password() -> str:
+    """The password the update route asks for. Empty means the route is off."""
+    return os.environ.get("FRETBOOK_PUBLISH_PASSWORD", "").strip()
+
+
+def _wrong_password():
+    """Everything the update route refuses on, before it looks at the body.
+
+    None means the caller may go on. Checking the window before the comparison
+    is what caps guessing; comparing first would test every guess that was
+    sent, whatever the window said.
+    """
+    password = _password()
+    if not password:
+        # No password set is the route being off, not a password of "". Said
+        # as plainly as the missing-bucket 503 beside it: this is a deployment
+        # that has not been given its environment.
+        return jsonify(error="updating a note is not set up on this site"), 503
+
+    if _full(_wrong, WRONG_PASSWORDS_PER_MINUTE):
+        return jsonify(error="too many wrong passwords just now — try again shortly"), 429
+
+    # compare_digest rather than ==, so the answer does not arrive sooner for a
+    # password that was wrong in its first character than in its last.
+    if hmac.compare_digest(request.headers.get(PASSWORD_HEADER, ""), password):
+        return None
+
+    # Only the wrong ones are counted, so the cap is on guessing rather than on
+    # updating, and the owner's own presses never crowd the window.
+    _count(_wrong)
+    return jsonify(error="that password is not right"), 401
+
+
 @notes.put("/notes/<slug>")
 def publish(slug: str):
     """Publish the sheet in the body as /notes/<slug>.
@@ -379,24 +477,13 @@ def publish(slug: str):
     if not NOTE_NAME.match(slug):
         return jsonify(error="not a note name"), 400
 
-    body = request.get_data(cache=False)
-    # Flask has already refused anything over its own limit by now; this covers
-    # a body that arrives chunked, with no length to refuse it on.
-    if len(body) > MAX_UPLOAD_BYTES:
-        return jsonify(error="that sheet is too large to publish"), 413
-
-    try:
-        data = json.loads(body)
-    except ValueError:
-        return jsonify(error="that is not a Fretboard Notebook export"), 400
-
-    title = _sheet_title(data)
-    if title is None:
-        return jsonify(error="that is not a current Fretboard Notebook export"), 400
+    body, title, refused = _submitted_sheet()
+    if refused:
+        return refused
 
     # Counted after the body is judged and before anything is written, so a
     # stream of junk cannot use up the window that real uploads share.
-    if not _within_rate_limit():
+    if not _within(_accepted, UPLOADS_PER_MINUTE):
         return jsonify(error="too many notes published just now — try again shortly"), 429
 
     key = f"{PREFIX}/{slug}.json"
@@ -423,3 +510,52 @@ def publish(slug: str):
     listed = _list_note(slug, title or slug)
 
     return jsonify(slug=slug, title=title, path=f"/notes/{slug}", listed=listed), 201
+
+
+@notes.post("/notes/<slug>")
+def update(slug: str):
+    """Replace the note at /notes/<slug> with the sheet in the body.
+
+    The one route here that can destroy something. R2 keeps no versions and
+    nothing else holds a copy, so what this writes over is gone — which is why
+    it is the one route with a password on it, and why it is separate from the
+    PUT beside it rather than the same route in a second mood.
+
+    200 and the note is replaced, the manifest carrying its title again in case
+    that changed too. 404 if there is no note there: adding one is PUT's job,
+    and a typo in a name should not quietly publish a second copy.
+    """
+    if unconfigured := _unconfigured():
+        return unconfigured
+
+    if not NOTE_NAME.match(slug):
+        return jsonify(error="not a note name"), 400
+
+    # Before the body is read, let alone judged: an unauthorised caller gets
+    # the same answer whatever they sent, and sends nothing worth parsing.
+    if refused := _wrong_password():
+        return refused
+
+    body, title, refused = _submitted_sheet()
+    if refused:
+        return refused
+
+    if not _within(_accepted, UPLOADS_PER_MINUTE):
+        return jsonify(error="too many notes published just now — try again shortly"), 429
+
+    key = f"{PREFIX}/{slug}.json"
+    there = _taken(key)
+    if there is None:
+        return jsonify(error="the notes bucket cannot be reached"), 503
+    if not there:
+        return jsonify(error="no such note"), 404
+
+    if not _put(key, body, "public, max-age=60"):
+        return jsonify(error="the note could not be updated"), 503
+
+    # Rewritten rather than left alone: the title is the one thing the manifest
+    # holds, and an update is how it changes. `_list_note` replaces the line
+    # this slug already has.
+    listed = _list_note(slug, title or slug)
+
+    return jsonify(slug=slug, title=title, path=f"/notes/{slug}", listed=listed), 200

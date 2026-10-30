@@ -32,12 +32,13 @@ good: a web server that only ever reads has no business holding a token that
 can delete. That is now **Object Read & Write**, which is the real cost of this
 feature and the thing to weigh if it ever goes wrong.
 
-What is left of the argument is a narrower claim: the route can **add** a note
-and nothing else.
+What is left of the argument is a narrower claim: the **open** route can add a
+note and nothing else, and the route that can do more is not open.
 
 | | |
 |---|---|
-| A name is claimed once | an upload onto an existing key is refused with 409, not written over it |
+| A name is claimed once | PUT onto an existing key is refused with 409, not written over it |
+| Writing over one takes the password | POST, and only POST, replaces a note |
 | Nothing is deleted | there is no delete route, and the backend never calls `DeleteObject` |
 | The manifest is read and rewritten | not rebuilt by listing, so no `ListBucket` is needed either |
 
@@ -45,9 +46,9 @@ That 409 is doing most of the work. **R2 has no object versioning**, the repo
 tracks no notes, and `notes/` is a cache rather than a copy — so a write over a
 note destroys it, with nothing to restore from
 ([notes-pull-from-r2.md](notes-pull-from-r2.md)). Refusing a taken name is what
-keeps an open route from being able to do that. Replacing a note, and taking
-one down, stay `npm run notes:publish` and `npm run notes:unpublish` from a
-machine that holds the token on purpose.
+keeps the open route from being able to do that; the password is what stands in
+front of the route that can. Taking a note down is still
+`npm run notes:unpublish` from a machine that holds the token on purpose.
 
 ## Who can publish
 
@@ -58,17 +59,53 @@ the only limits on what they add are the ones below.
 
 | Guard | What it is | What it is not |
 |---|---|---|
-| 409 on a taken name | nothing published can be changed or removed through the app | no protection against *new* junk notes |
+| 409 on a taken name | nothing published can be changed or removed without the password | no protection against *new* junk notes |
 | Envelope check | `format`, `version`, a string title and non-empty `rows`/`columns` must be there, so a reader never meets a note the editor cannot open | not `fromJson` — the full judgement is still the browser's |
 | 512 KB body limit | Flask's own `MAX_CONTENT_LENGTH`, so an oversized body is refused before it is read into memory | a sheet is a few KB, so this is a ceiling rather than a constraint |
 | 120-character title | the line `/notes` lists is clipped; the note keeps its own bytes | nothing stops a silly title, only a huge one |
 | 20 uploads a minute | one deque in each gunicorn worker; the difference between a loop adding a few notes and one adding a hundred thousand | not per-caller, not shared between workers, and not a defence |
 
-If that becomes a problem, the next step is a **publish passphrase**: one secret
-in the backend's environment, sent with the upload, and 401 without it. It is
-about fifteen lines at this end and a field in the panel at the other, and it
-needs no accounts. Cloudflare's own rate limiting in front of the site is the
-other half of the same answer.
+If that becomes a problem, the password the update route below already uses can
+be put in front of publishing too: the pieces — the header, the comparison, the
+guess cap, the field in the panel — are all written, and would only need
+calling from the other route. Cloudflare's own rate limiting in front of the
+site is the other half of the same answer.
+
+## Updating a note
+
+`POST /api/notes/<slug>` replaces the note at that name with the sheet in the
+body. It is deliberately a second route rather than the first one in a second
+mood: **PUT can only add a note and POST can only replace one**, so neither can
+quietly do the other's job, and a mistyped name cannot publish a stray copy —
+POST answers 404 when there is no note there.
+
+| Guard | What it is |
+|---|---|
+| The password | `X-Fretbook-Password`, compared against `FRETBOOK_PUBLISH_PASSWORD` with `hmac.compare_digest`, before the body is read at all |
+| No password set | 503, rather than an empty password that happens to match — an environment opts into being updatable |
+| 5 wrong a minute | per worker, checked *before* the comparison, since a cap applied after a guess has been tested caps nothing |
+| A header, not a URL | a query string is logged by every hop that sees it |
+| Everything PUT has | the same body limit, envelope check and upload cap |
+
+The password goes over HTTPS to the site's own origin, is **never stored by the
+browser** — not in `localStorage`, not between panels — and is typed for the
+press that uses it. There is one password per environment and no accounts: it
+says *this press is the owner's*, and nothing more. Rolling it is one
+repository secret and a redeploy.
+
+Checking the cap before the comparison means a minute of sustained guessing
+also locks the owner out for the rest of that minute. That is the cheaper half
+of the trade, and the window clears itself.
+
+The button is **Update** rather than Publish on a published note, and it is
+dead until the sheet differs from the note as it was opened, so a stray press
+cannot rewrite a note with itself. The panel says what it is about to do before
+it asks for anything: *this replaces the published note; there are no versions
+to go back to*.
+
+It is visible to every reader, not only to whoever holds the password. The
+password is the control; hiding the button is not. A reader who presses it
+learns only that these notes can be updated by someone.
 
 ## The manifest
 
@@ -83,8 +120,12 @@ itself is never lost — it is already at its own URL — it is only unlisted, a
 At this app's rate of publishing, that is a race that will not happen; the
 repair for it existed before this change, which is why it is acceptable at all.
 
-A publish also drops its own two keys from the backend's 60-second cache, so a
-note is listed and readable immediately rather than within the minute.
+An update rewrites the same line rather than adding one, so a title changed in
+the editor follows the note into `/notes`.
+
+A write of either kind also drops its own two keys from the backend's
+60-second cache, so a note is listed and readable immediately rather than
+within the minute.
 
 ## What the reader sees
 
@@ -97,9 +138,13 @@ the one action in the editor that cannot be repeated, undone or taken back, and
 a panel that vanishes on success would be hiding exactly the thing worth
 reading.
 
-**Publish is not offered while a published note is open.** That sheet is
-already in the bucket, and the editor behind it is a reader's copy — the same
-reason autosave is off there.
+**Publish is not offered while a published note is open** — Update is, in its
+place. Publishing a second copy of a note under a second name is not what
+anyone opening one wants, and the button that is there instead aims at the note
+in front of them.
+
+One panel serves both, since the shape is the same — one field, one press, one
+receipt — and only what is asked for, and what it costs, differ.
 
 ## Cost estimate
 
@@ -108,7 +153,7 @@ still not dear.
 
 | Item | Free each month | Rate past it | This change |
 |---|---|---|---|
-| Class A (writes) | 1,000,000 | $4.50 / million | 2 per publish (the note, the manifest) → **$0.00** |
+| Class A (writes) | 1,000,000 | $4.50 / million | 2 per publish or update (the note, the manifest) → **$0.00** |
 | Class B (reads) | 10,000,000 | $0.36 / million | 1 HeadObject + 1 GetObject per publish → **$0.00** |
 | Standard storage | 10 GB-month | $0.015 / GB-month | a note is tens of KB; 10,000 of them is < 500 MB → **$0.00** |
 | Egress | unlimited — R2 charges none | — | **$0.00** |
@@ -144,15 +189,28 @@ Settings → Secrets and variables → Actions:
 leaves a site where `/notes` reads fine and **Publish** answers 503 — a note
 that could not be written, rather than a stack that will not come up.
 
-### 3. Decide whether dev and production should both be open
+### 3. Set a publish password, if the Update button should work
+
+Repository secret `PUBLISH_PASSWORD`, under Settings → Secrets and variables →
+Actions. `deploy.yml` passes it into the stack's env file as
+`FRETBOOK_PUBLISH_PASSWORD`.
+
+It is **optional, and the deploy does not fail without it**: unset, the Update
+button answers 503 and everything else works, which is the right default for an
+environment nobody edits notes on. Make it long and random — it is the one
+secret in front of the one route that can destroy a note, and the cap on
+guessing is 5 a minute per worker, not a wall.
+
+### 4. Decide whether dev and production should both be open
 
 They both will be, since they run the same image and the route has no switch.
 If production should not be, that is the passphrase above, and it is worth
 asking for before the site is somewhere findable.
 
-### 4. Locally
+### 5. Locally
 
-`docker/app/.env` needs a token that can write — the `r2` profile's own will do:
+`docker/app/.env` needs a token that can write — the `r2` profile's own will
+do — plus `FRETBOOK_PUBLISH_PASSWORD` if the Update button should work there:
 
 ```bash
 eval "$(aws configure export-credentials --profile r2 --format env)"

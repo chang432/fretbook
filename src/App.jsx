@@ -48,7 +48,7 @@ import {
 } from './utils/tab.js'
 import { HISTORY_LIMIT, nextUndoLabel, popHistory, pushHistory } from './utils/history.js'
 import { NOTES_PATH } from './utils/route.js'
-import { publishNote } from './utils/notes.js'
+import { publishNote, updateNote } from './utils/notes.js'
 import { renderTabToPngBlob } from './utils/renderPng.js'
 import { cellFrequency, createAudioEngine } from './utils/audio.js'
 
@@ -141,7 +141,8 @@ export default function App({ published = null }) {
   const [showText, setShowText] = useState(false)
   // The Export button's element while its menu is open, so the menu can anchor.
   const [exportMenu, setExportMenu] = useState(null)
-  // The Publish button's element while its panel is open, the same way.
+  // The Publish or Update button's element while its panel is open, the same
+  // way — the two are the same panel asking for different things.
   const [publishMenu, setPublishMenu] = useState(null)
   const [audioOn, setAudioOn] = useState(false)
   const fileInputRef = useRef(null)
@@ -154,7 +155,27 @@ export default function App({ published = null }) {
     [grid, rows, rowIds, names, groups, members, ties, marks],
   )
   const asciiTab = useMemo(() => toAsciiTab(sheet, STANDARD_TUNING), [sheet])
+  // The sheet as the bucket would hold it. One memo serves both the writes
+  // below and the test of whether a published note has been changed at all.
+  const json = useMemo(
+    () => toJson({ ...sheet, memo }, STANDARD_TUNING, title),
+    [sheet, memo, title],
+  )
   const empty = useMemo(() => isGridEmpty(grid), [grid])
+  // The published note as this page opened it, taken once and through the same
+  // `toJson` an upload goes through, so the two compare byte for byte. It is
+  // what tells a note that has been changed from one that is merely open, and
+  // it is null in the editor, where there is nothing to have changed from.
+  const [openedAs, setOpenedAs] = useState(() =>
+    published
+      ? toJson(
+          { ...saved, grid: fitGrid(saved.grid, saved.rows), memo: saved.memo ?? '' },
+          STANDARD_TUNING,
+          saved.title ?? '',
+        )
+      : null,
+  )
+  const changed = openedAs !== null && json !== openedAs
 
   // The sheet as it stood before each of the last few actions, oldest first.
   // Bounded by HISTORY_LIMIT, so this is a short way back rather than a record
@@ -754,16 +775,26 @@ export default function App({ published = null }) {
   }
 
   /**
-   * Upload the sheet to this environment's bucket as /notes/<slug>. The body
+   * Write the sheet to this environment's bucket — as a new note at
+   * /notes/<slug>, or over the published note this page is showing. The body
    * is the same JSON the Export menu writes to a file, so what a reader opens
    * is what Export → JSON file would have handed to `notes:publish`.
    *
-   * The panel reports the refusals itself, since the name it asked for is what
-   * one of them is about; the status line is for the press that worked.
+   * The panel reports the refusals itself, since what it asked for — a name, a
+   * password — is what most of them are about; the status line is for the
+   * press that worked.
    */
-  const publishSheet = async (slug) => {
-    const result = await publishNote(slug, toJson({ ...sheet, memo }, STANDARD_TUNING, title))
-    if (result.ok) setStatus(`Published /notes/${slug}`)
+  const writeSheet = async (slug, password) => {
+    const result = published
+      ? await updateNote(slug, json, password)
+      : await publishNote(slug, json)
+    if (!result.ok) return result
+
+    setStatus(`${published ? 'Updated' : 'Published'} /notes/${slug}`)
+    // What was sent is what the note holds now, so it becomes the thing a
+    // further change is measured against: Update goes dead again until the
+    // sheet moves away from it.
+    if (published) setOpenedAs(json)
     return result
   }
 
@@ -834,10 +865,31 @@ export default function App({ published = null }) {
           </button>
           {/* Publishing is an export too — the same bytes, sent to the bucket
               instead of to the disk — so it stands with Export rather than
-              with the buttons that change the sheet. Not offered while a
-              published note is open: that sheet is already in the bucket, and
-              this is the editor's own one. */}
-          {!published && (
+              with the buttons that change the sheet.
+
+              On a published note it is Update instead, which writes this sheet
+              over that one: the same press, aimed at the note already open
+              rather than at a new name, and asking for a password because it
+              is the one thing here that destroys something. It is dead until
+              the sheet differs from the note as it was opened, so a stray
+              press cannot rewrite a note with itself. */}
+          {published ? (
+            <button
+              type="button"
+              className={publishMenu ? 'danger' : ''}
+              onClick={(event) => setPublishMenu(publishMenu ? null : event.currentTarget)}
+              disabled={!changed}
+              aria-haspopup="dialog"
+              aria-expanded={!!publishMenu}
+              title={
+                changed
+                  ? `Write this sheet over /notes/${published.slug} — needs the password`
+                  : 'Nothing has been changed on this note yet'
+              }
+            >
+              Update
+            </button>
+          ) : (
             <button
               type="button"
               onClick={(event) => setPublishMenu(publishMenu ? null : event.currentTarget)}
@@ -969,9 +1021,10 @@ export default function App({ published = null }) {
       {publishMenu && (
         <PublishMenu
           anchor={publishMenu}
+          note={published?.slug ?? null}
           defaultSlug={fileStem}
           onClose={() => setPublishMenu(null)}
-          onPublish={publishSheet}
+          onWrite={writeSheet}
         />
       )}
 

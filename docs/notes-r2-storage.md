@@ -52,11 +52,13 @@ not a choice.
 The backend's token is **Object Read & Write**, because publishing is one of
 the things the app does: **Publish** in the editor uploads the sheet to this
 environment's bucket, and the browser cannot sign that request any more than it
-can sign a read. What that route can do is add a note — a name already taken is
-refused rather than overwritten, and nothing is ever deleted — which is the
-whole of what makes an open write route tolerable against a bucket with no
-versioning. [notes-upload-from-app.md](notes-upload-from-app.md) is that
-argument, and what it gives up.
+can sign a read. That route is open and can only *add* a note — a name already
+taken is refused rather than overwritten — which is what makes an open write
+route tolerable against a bucket with no versioning. Writing over a note is the
+other route, **Update** on a published note, and it asks for
+`FRETBOOK_PUBLISH_PASSWORD`; nothing deletes.
+[notes-upload-from-app.md](notes-upload-from-app.md) is that argument, and what
+it gives up.
 
 The checks the build used to do — a note's name is a legal URL, and the file is
 an export the editor can open — moved into `scripts/notes.mjs`, which is now the
@@ -94,8 +96,8 @@ the endpoint and the `r2` profile. A shell variable overrides it, and
 
 Or from the editor: **Publish**, a name, and the sheet is in the bucket. Same
 bytes, same keys, same manifest — the backend writes it instead of the `aws`
-CLI. Publishing a *revision* of a note, and unpublishing one, are still only
-here: the app refuses a name that is taken.
+CLI. A revision is **Update** on the published note itself, with the password;
+unpublishing is only here.
 
 ```bash
 npm run notes:publish   -- notes/passionfruit_by_drake.json
@@ -209,6 +211,7 @@ Settings → Secrets and variables → Actions:
 | Variable | `R2_ENDPOINT` | `https://<account id>.r2.cloudflarestorage.com` |
 | Secret | `R2_ACCESS_KEY_ID` | the **read & write** token from step 4 |
 | Secret | `R2_SECRET_ACCESS_KEY` | the same token's secret |
+| Secret | `PUBLISH_PASSWORD` | optional — what **Update** on a published note asks for. Unset, that button answers 503 and nothing else changes |
 
 **The next deploy fails fast if any is missing** — deliberately, since the
 alternative is a stack that comes up with a silently empty `/notes`.

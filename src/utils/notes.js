@@ -8,9 +8,10 @@
  * docs/notes-via-s3-client.md, and docker/app/backend/app/notes.py for the end
  * that speaks S3.
  *
- *   GET /api/notes          the manifest /notes lists, as [{ slug, title }]
- *   GET /api/notes/<slug>   one note, the editor's own JSON export
- *   PUT /api/notes/<slug>   publish the sheet in the body under that name
+ *   GET  /api/notes          the manifest /notes lists, as [{ slug, title }]
+ *   GET  /api/notes/<slug>   one note, the editor's own JSON export
+ *   PUT  /api/notes/<slug>   publish the sheet in the body under that name
+ *   POST /api/notes/<slug>   replace that note — password required
  *
  * Same origin, so there is no CORS rule, no bucket URL to inline at build time,
  * and no difference between the dev and prod bundles. Under `npm run dev` the
@@ -61,26 +62,44 @@ export async function fetchNote(slug) {
 }
 
 /**
- * Publish one sheet as `/notes/<slug>`.
- *
- *   PUT /api/notes/<slug>   the editor's own JSON export as the body
+ * Publish one sheet as a new note at `/notes/<slug>`. Refused if that name is
+ * already a note: see `updateNote` for the other half of that.
  *
  * The same hop in the other direction: the browser cannot sign an S3 request,
  * so the backend is what writes the object — see docker/app/backend/app/notes.py
  * for what it accepts, and docs/notes-upload-from-app.md for why a taken name
  * is refused rather than overwritten.
+ */
+export async function publishNote(slug, json) {
+  return write('PUT', slug, json)
+}
+
+/**
+ * Write one sheet over the note already at `/notes/<slug>`.
+ *
+ * Final: R2 keeps no versions, and the note that was there is the only copy
+ * there was. Hence the password, which the backend holds as
+ * FRETBOOK_PUBLISH_PASSWORD and this end never stores — it is typed for the
+ * press that uses it and goes no further than the one request.
+ */
+export async function updateNote(slug, json, password) {
+  return write('POST', slug, json, { 'X-Fretbook-Password': password })
+}
+
+/**
+ * One write to the bucket, through the backend.
  *
  * Resolves to `{ ok: true, note }`, or `{ ok: false, error }` with something
  * worth putting in front of the reader. A name that is taken is the one
  * failure the caller acts on rather than just reports, so it says so with
  * `taken` instead of only in words.
  */
-export async function publishNote(slug, json) {
+async function write(method, slug, json, headers = {}) {
   let response
   try {
     response = await fetch(noteUrl(slug), {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      method,
+      headers: { 'Content-Type': 'application/json', ...headers },
       body: json,
     })
   } catch {
@@ -114,6 +133,7 @@ export async function publishNote(slug, json) {
   return {
     ok: false,
     taken: response.status === 409,
+    wrongPassword: response.status === 401,
     error: sentence(said) || FAILURES[response.status] || 'Could not publish that sheet',
   }
 }
@@ -124,6 +144,8 @@ const sentence = (text) => (text ? `${text[0].toUpperCase()}${text.slice(1)}` : 
 /** A last resort for a status that arrived without a body to explain it. */
 const FAILURES = {
   400: 'That sheet is not something the editor could open again',
+  401: 'That password is not right',
+  404: 'There is no note at that name to update',
   409: 'That name is taken',
   413: 'That sheet is too large to publish',
   429: 'Too many notes published just now — try again shortly',

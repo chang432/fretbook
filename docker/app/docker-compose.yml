@@ -44,6 +44,11 @@ services:
       FRETBOOK_R2_ENDPOINT: ${FRETBOOK_R2_ENDPOINT:-}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      # The password the Update button on a published note asks for — the one
+      # route that writes over a note rather than adding one. Left empty, that
+      # route answers 503 and the rest of the stack is unaffected, so a
+      # deployment opts into updating by setting this.
+      FRETBOOK_PUBLISH_PASSWORD: ${FRETBOOK_PUBLISH_PASSWORD:-}
     # Not published on the host — only caddy needs to reach it.
     expose:
       - "8000"

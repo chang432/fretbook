@@ -62,6 +62,11 @@ name: Build, verify and deploy to the VPS
 #                      (docs/notes-upload-from-app.md). It can be the same
 #                      token a laptop publishes with, or its own — either can
 #                      then be rolled without the other.
+#   PUBLISH_PASSWORD   The password the Update button on a published note
+#                      asks for, which is the only way to write over one.
+#                      Optional: without it that button answers 503 and
+#                      everything else works, so it is how an environment
+#                      opts into being updatable from a browser.
 #
 # Nothing is needed to read the code: the repo is public, so the VPS clones it
 # anonymously.
@@ -232,6 +237,7 @@ jobs:
           R2_ENDPOINT: ${{ vars.R2_ENDPOINT }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          PUBLISH_PASSWORD: ${{ secrets.PUBLISH_PASSWORD }}
         with:
           host: ${{ vars.VPS_IP }}
           username: ${{ inputs.ssh_user }}
@@ -242,7 +248,7 @@ jobs:
           # Give the remote shell a generous budget: a cold box installs Docker
           # and builds both images from scratch on the first run.
           command_timeout: 30m
-          envs: REPO_FULL,ENV_NAME,BRANCH,SITE_DOMAIN,PROD_DOMAIN,DEV_DOMAIN,ACME_EMAIL,PROD_PORT,DEV_PORT,R2_ENDPOINT,R2_ACCESS_KEY_ID,R2_SECRET_ACCESS_KEY
+          envs: REPO_FULL,ENV_NAME,BRANCH,SITE_DOMAIN,PROD_DOMAIN,DEV_DOMAIN,ACME_EMAIL,PROD_PORT,DEV_PORT,R2_ENDPOINT,R2_ACCESS_KEY_ID,R2_SECRET_ACCESS_KEY,PUBLISH_PASSWORD
           script: |
             set -euo pipefail
 
@@ -335,8 +341,9 @@ jobs:
             # file compose reads directly, which sudo cannot strip.
             #
             # Kept outside APP_DIR so the checkout never holds deploy config,
-            # and root-owned 600 because it now does hold a secret: the R2
-            # token the backend reads the notes bucket with.
+            # and root-owned 600 because it now does hold secrets: the R2 token
+            # the backend reaches the notes bucket with, and the password the
+            # Update button asks for.
             #
             # The bucket is derived from the environment rather than configured,
             # the same way the port is picked above — fretbook-notes-dev and
@@ -351,6 +358,7 @@ jobs:
             FRETBOOK_R2_ENDPOINT=${R2_ENDPOINT}
             AWS_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
             AWS_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+            FRETBOOK_PUBLISH_PASSWORD=${PUBLISH_PASSWORD:-}
             EOF
 
             # --- Rebuild and run this environment's stack -------------------
