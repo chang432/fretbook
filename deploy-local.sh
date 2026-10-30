@@ -271,6 +271,7 @@ else
 	printf '\n%s1/4  Verify — skipped (--no-verify)%s\n' "$DIM" "$RESET"
 fi
 
+npm run stack:down
 deploy
 smoke
 tail_and_track
