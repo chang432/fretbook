@@ -281,6 +281,14 @@ export const emptyGroups = (members, rowIds, groups) =>
   groups.filter((group) => rowsInGroup(members, rowIds, group.id).length === 0)
 
 /**
+ * The groups holding at least one row: the ones there is something to play.
+ * An empty group is somewhere to put rows rather than a part of the song, so
+ * it is not yet a thing the running order can be built out of.
+ */
+export const filledGroups = (members, rowIds, groups) =>
+  groups.filter((group) => rowsInGroup(members, rowIds, group.id).length > 0)
+
+/**
  * Take a group off the sheet. The rows it held are not touched — they stay
  * exactly where they stand and are simply in no group afterwards, which is
  * what keeps deleting a group a thing done to the sheet's structure rather

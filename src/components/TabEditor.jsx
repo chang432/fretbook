@@ -12,6 +12,7 @@ import {
   MAX_ROW_NAME,
   STRING_COUNT,
   emptyGroups,
+  filledGroups,
   groupLabel,
   groupOfRow,
   groupRuns,
@@ -1139,6 +1140,7 @@ export default function TabEditor({
           stand down for as long as a row is being carried. */}
       <ArrangementSection
         groups={groups}
+        addable={filledGroups(members, rowIds, groups)}
         arrangement={arrangement}
         tone={groupTone}
         editing={editing}

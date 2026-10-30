@@ -13,6 +13,12 @@ import { groupLabel } from '../utils/tab.js'
  * does not touch the group it names, and taking one out leaves the group and
  * its rows exactly where they are.
  *
+ * Only groups holding rows are offered — `addable`, not `groups` — since an
+ * empty group is somewhere to write rather than something to play. That is a
+ * rule about what can be added and not about what the order may hold: a group
+ * already standing in it keeps its block when its last row leaves, because
+ * emptying a group is not a way of rewriting the song's shape.
+ *
  * It folds like the note above it, and for the same reason: an empty strip at
  * the top of every sheet would stand between the reader and the staves. A
  * sheet that arrives already arranged opens with the order in view, and a
@@ -21,6 +27,7 @@ import { groupLabel } from '../utils/tab.js'
  */
 export default function ArrangementSection({
   groups,
+  addable,
   arrangement,
   tone,
   editing,
@@ -116,10 +123,13 @@ export default function ArrangementSection({
           label="Add a group to the arrangement"
           onClose={() => setPicking(null)}
         >
-          {groups.length === 0 ? (
-            <p className="arrangement-none">There are no groups on this sheet yet.</p>
+          {addable.length === 0 ? (
+            <p className="arrangement-none">
+              No group holds any rows yet. A group with rows in it is something to
+              play, and can be arranged.
+            </p>
           ) : (
-            groups.map((group) => (
+            addable.map((group) => (
               <button
                 key={group.id}
                 type="button"

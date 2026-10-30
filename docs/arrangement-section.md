@@ -7,8 +7,11 @@ right, as the structure of a song.
 ## What it does
 
 - Starts empty on every sheet. Empty means one dashed outline block with a `+`.
-- Pressing `+` opens a picker listing the groups that exist on the sheet, by
-  `groupLabel`, and the chosen one is appended to the order.
+- Pressing `+` opens a picker listing the groups that hold at least one row,
+  by `groupLabel`, and the chosen one is appended to the order. An empty group
+  is somewhere to write rather than something to play, so it is not offered —
+  a rule about what can be added, not about what the order may hold: a block
+  stays when its group's last row leaves.
 - A group may appear more than once: a chorus played twice is two blocks. The
   arrangement is a playing order, not a set.
 - Each block carries the group's label, its `groupTone` colour, and an `×` that
