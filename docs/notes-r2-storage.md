@@ -8,13 +8,14 @@ own backend.
 Three consequences, and they are the point:
 
 - **Publishing is no longer a deploy.** A note is uploaded with
-  `npm run notes:publish`; it is live immediately, and nothing is rebuilt.
+  `npm run notes:publish`, or by **Publish** in the editor's own toolbar; it is
+  live immediately, and nothing is rebuilt.
 - **A deploy no longer carries notes.** `dev` and `main` ship the same code,
   and now the same image: nothing environment-specific is baked in.
 - **Nothing is world-readable.** The bucket has no public URL; the only things
-  that can read it are a laptop with the read-write token and the backend with
-  a read-only one. [notes-via-s3-client.md](notes-via-s3-client.md) is why it
-  is that way round.
+  that can reach it are a laptop with its R2 token and the backend with its
+  own. [notes-via-s3-client.md](notes-via-s3-client.md) is why it is that way
+  round.
 
 ## How it fits together
 
@@ -22,6 +23,7 @@ Three consequences, and they are the point:
 browser ──► https://<site>/notes          the app, served by Caddy from the image
         └─► https://<site>/api/notes      the manifest the index lists
         └─► https://<site>/api/notes/<name>   one note
+        └─► PUT /api/notes/<name>         publish the sheet in the editor
                     │  same origin, so no CORS
                     ▼
             Caddy handle /api/*  ──►  Flask + boto3  ──►  R2 (private)
@@ -46,6 +48,15 @@ repo variable R2_ENDPOINT + secrets ─► deploy.yml ─► /opt/fretbook-dev-d
 The bucket name is derived rather than configured — `fretbook-notes-${ENV_NAME}`
 — the same way the loopback port is picked, so a third name would be a typo and
 not a choice.
+
+The backend's token is **Object Read & Write**, because publishing is one of
+the things the app does: **Publish** in the editor uploads the sheet to this
+environment's bucket, and the browser cannot sign that request any more than it
+can sign a read. What that route can do is add a note — a name already taken is
+refused rather than overwritten, and nothing is ever deleted — which is the
+whole of what makes an open write route tolerable against a bucket with no
+versioning. [notes-upload-from-app.md](notes-upload-from-app.md) is that
+argument, and what it gives up.
 
 The checks the build used to do — a note's name is a legal URL, and the file is
 an export the editor can open — moved into `scripts/notes.mjs`, which is now the
@@ -81,6 +92,11 @@ the endpoint and the `r2` profile. A shell variable overrides it, and
 `--bucket` overrides both; with nothing said, every command means
 **`fretbook-notes-dev`**, and prints the bucket it used as its first line.
 
+Or from the editor: **Publish**, a name, and the sheet is in the bucket. Same
+bytes, same keys, same manifest — the backend writes it instead of the `aws`
+CLI. Publishing a *revision* of a note, and unpublishing one, are still only
+here: the app refuses a name that is taken.
+
 ```bash
 npm run notes:publish   -- notes/passionfruit_by_drake.json
 npm run notes:publish   -- notes/*.json              # seed a fresh bucket
@@ -113,7 +129,7 @@ handful of people:
 | Item | Free each month | Rate past it | This app |
 |---|---|---|---|
 | Standard storage | 10 GB-month | $0.015 / GB-month | < 5 MB → **$0.00** |
-| Class A (writes, lists) | 1,000,000 | $4.50 / million | tens a month → **$0.00** |
+| Class A (writes, lists) | 1,000,000 | $4.50 / million | tens a month, publishing included → **$0.00** |
 | Class B (reads) | 10,000,000 | $0.36 / million | ~10,000 a month → **$0.00** |
 | Egress | unlimited — R2 charges none | — | **$0.00** |
 
@@ -167,11 +183,13 @@ API token**, permission **Object Read & Write**, scoped to the two buckets. It
 gives you an **Access Key ID**, a **Secret Access Key**, and the account
 endpoint `https://<account id>.r2.cloudflarestorage.com`.
 
-**One for the server, to read with.** The same again, permission **Object Read
-only**. The backend signs its `GetObject` calls with this one. It is separate on
-purpose: a web server that only ever reads has no business holding a token that
-can delete, and either can be rolled without touching the other. CI itself
-needs neither — it only passes the read-only pair through to the VPS.
+**One for the server, to read and publish with.** The same again, permission
+**Object Read & Write**. The backend signs its `GetObject` calls with this one
+and the `PutObject` of a sheet published from the editor. It is separate from
+the laptop's on purpose — either can be rolled without touching the other —
+rather than because the two differ in power; they no longer do, which is the
+cost [notes-upload-from-app.md](notes-upload-from-app.md) weighs. CI itself
+needs neither token: it only passes the pair through to the VPS.
 
 Keep it apart from the AWS credentials that Route 53 and the Terraform state
 bucket use — these are different keys for a different provider:
@@ -189,7 +207,7 @@ Settings → Secrets and variables → Actions:
 | | Name | Value |
 |---|---|---|
 | Variable | `R2_ENDPOINT` | `https://<account id>.r2.cloudflarestorage.com` |
-| Secret | `R2_ACCESS_KEY_ID` | the **read-only** token from step 4 |
+| Secret | `R2_ACCESS_KEY_ID` | the **read & write** token from step 4 |
 | Secret | `R2_SECRET_ACCESS_KEY` | the same token's secret |
 
 **The next deploy fails fast if any is missing** — deliberately, since the

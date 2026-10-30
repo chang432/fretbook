@@ -56,10 +56,12 @@ name: Build, verify and deploy to the VPS
 #                      sudo — the non-interactive script below cannot answer
 #                      a sudo prompt.
 #   R2_ACCESS_KEY_ID   An R2 API token scoped to the notes buckets, **Object
-#   R2_SECRET_ACCESS_KEY  Read only**. The backend signs its GetObject calls
-#                      with it. Deliberately not the read-write token used to
-#                      publish from a laptop: a web server that only reads has
-#                      no business holding one that can delete.
+#   R2_SECRET_ACCESS_KEY  Read & Write**. The backend signs its GetObject
+#                      calls with it, and its PutObject ones: publishing a
+#                      sheet from the editor is a write by the web server
+#                      (docs/notes-upload-from-app.md). It can be the same
+#                      token a laptop publishes with, or its own — either can
+#                      then be rolled without the other.
 #
 # Nothing is needed to read the code: the repo is public, so the VPS clones it
 # anonymously.

@@ -1,5 +1,11 @@
 # Notes over the S3 API only
 
+> **One line of this has since changed.** The token on the VPS is **Object Read
+> & Write**, not read only: the editor can publish a sheet, and the backend is
+> what writes it — the same hop this doc argues for, in the other direction.
+> See [notes-upload-from-app.md](notes-upload-from-app.md). Everything else
+> below still describes how the read path works.
+
 Today the browser reads the notes bucket directly, over its public
 `pub-….r2.dev` URL. This moves every read onto the S3 API, which means the
 bucket stops being public and the notes come through the app's own backend.

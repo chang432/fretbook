@@ -55,11 +55,13 @@ require_docker() {
 write_env_template() {
 	cat > "$ENV_FILE" <<'TEMPLATE'
 # Local settings for `docker compose up`, git-ignored. The backend reads the
-# published notes out of the private bucket over the S3 API; see
-# ../../docs/notes-via-s3-client.md.
+# published notes out of the private bucket over the S3 API, and writes one
+# back when a sheet is published from the editor; see
+# ../../docs/notes-via-s3-client.md and ../../docs/notes-upload-from-app.md.
 #
-# The token wants **Object Read only** — this end never writes. Publishing is
-# `npm run notes:publish`, with the read-write token in your `r2` AWS profile.
+# The token wants **Object Read & Write** — the same one in your `r2` AWS
+# profile will do. Pointing this at fretbook-notes-dev is the point: Publish
+# in a local editor puts a note in whichever bucket is named here.
 #
 # The two AWS_* lines can be left empty if you would rather export the
 # credentials than keep them on disk: compose takes the shell's values first,
@@ -75,7 +77,7 @@ require_env() {
 	if [ ! -f "$ENV_FILE" ]; then
 		write_env_template
 		die "Wrote $ENV_FILE." \
-			'Fill in the R2 endpoint and a read-only token, then run this again.'
+			'Fill in the R2 endpoint and a read-write token, then run this again.'
 	fi
 
 	local missing="" name

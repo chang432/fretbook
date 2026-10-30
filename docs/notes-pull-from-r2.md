@@ -186,7 +186,8 @@ commit there is nowhere else to look.
   buckets to reason about for a risk that is six small files. (The buckets are
   private now, so the world-readable objection to an `archive/` prefix in the
   same bucket has gone — but a separate bucket is still the cleaner shape, since
-  the backend's read-only token should not be able to see old revisions.)
+  the backend's token should not be able to reach old revisions, and it can now
+  write: see [notes-upload-from-app.md](notes-upload-from-app.md).)
 - **Moving the runtime read path onto the S3 API** (private bucket, Flask
   proxying `get-object`) — a bigger, separate change, and the one that was
   rejected here and then done anyway: see

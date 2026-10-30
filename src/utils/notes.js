@@ -10,12 +10,14 @@
  *
  *   GET /api/notes          the manifest /notes lists, as [{ slug, title }]
  *   GET /api/notes/<slug>   one note, the editor's own JSON export
+ *   PUT /api/notes/<slug>   publish the sheet in the body under that name
  *
  * Same origin, so there is no CORS rule, no bucket URL to inline at build time,
  * and no difference between the dev and prod bundles. Under `npm run dev` the
  * Vite dev server proxies /api to the compose stack — see vite.config.js.
  */
 import { fromJson } from './tab.js'
+import { notePath } from './route.js'
 
 /** The manifest the index page lists. */
 export const manifestUrl = () => '/api/notes'
@@ -56,4 +58,74 @@ export async function fetchNote(slug) {
   } catch {
     return null
   }
+}
+
+/**
+ * Publish one sheet as `/notes/<slug>`.
+ *
+ *   PUT /api/notes/<slug>   the editor's own JSON export as the body
+ *
+ * The same hop in the other direction: the browser cannot sign an S3 request,
+ * so the backend is what writes the object — see docker/app/backend/app/notes.py
+ * for what it accepts, and docs/notes-upload-from-app.md for why a taken name
+ * is refused rather than overwritten.
+ *
+ * Resolves to `{ ok: true, note }`, or `{ ok: false, error }` with something
+ * worth putting in front of the reader. A name that is taken is the one
+ * failure the caller acts on rather than just reports, so it says so with
+ * `taken` instead of only in words.
+ */
+export async function publishNote(slug, json) {
+  let response
+  try {
+    response = await fetch(noteUrl(slug), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: json,
+    })
+  } catch {
+    // Offline, or nothing answering the origin at all.
+    return { ok: false, error: 'Could not reach the server' }
+  }
+
+  if (response.ok) {
+    try {
+      return { ok: true, note: await response.json() }
+    } catch {
+      // Published — the status says so — but the body is not what this end
+      // expects. The note is live either way, so it is not reported as a
+      // failure that would invite a second upload of the same sheet.
+      return { ok: true, note: { slug, path: notePath(slug) } }
+    }
+  }
+
+  // The backend's own wording when there is one: it knows which of the several
+  // ways a publish can be refused this was — a name that cannot be a URL and a
+  // sheet that is not an export are both 400s to a status code, and different
+  // things to say. It writes API prose, lowercase; this is where it is read
+  // aloud.
+  let said = ''
+  try {
+    said = (await response.json())?.error ?? ''
+  } catch {
+    said = ''
+  }
+
+  return {
+    ok: false,
+    taken: response.status === 409,
+    error: sentence(said) || FAILURES[response.status] || 'Could not publish that sheet',
+  }
+}
+
+/** A message as a sentence, whatever case it arrived in. */
+const sentence = (text) => (text ? `${text[0].toUpperCase()}${text.slice(1)}` : '')
+
+/** A last resort for a status that arrived without a body to explain it. */
+const FAILURES = {
+  400: 'That sheet is not something the editor could open again',
+  409: 'That name is taken',
+  413: 'That sheet is too large to publish',
+  429: 'Too many notes published just now — try again shortly',
+  503: 'Publishing is not set up on this site',
 }

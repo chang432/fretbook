@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import NoteLink from './components/NoteLink.jsx'
 import Popover from './components/Popover.jsx'
+import PublishMenu from './components/PublishMenu.jsx'
 import TabEditor from './components/TabEditor.jsx'
 import { PencilIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
 import {
@@ -47,6 +48,7 @@ import {
 } from './utils/tab.js'
 import { HISTORY_LIMIT, nextUndoLabel, popHistory, pushHistory } from './utils/history.js'
 import { NOTES_PATH } from './utils/route.js'
+import { publishNote } from './utils/notes.js'
 import { renderTabToPngBlob } from './utils/renderPng.js'
 import { cellFrequency, createAudioEngine } from './utils/audio.js'
 
@@ -139,6 +141,8 @@ export default function App({ published = null }) {
   const [showText, setShowText] = useState(false)
   // The Export button's element while its menu is open, so the menu can anchor.
   const [exportMenu, setExportMenu] = useState(null)
+  // The Publish button's element while its panel is open, the same way.
+  const [publishMenu, setPublishMenu] = useState(null)
   const [audioOn, setAudioOn] = useState(false)
   const fileInputRef = useRef(null)
   // Deliberately not restored from a saved session: a page should not be able
@@ -749,6 +753,20 @@ export default function App({ published = null }) {
     }
   }
 
+  /**
+   * Upload the sheet to this environment's bucket as /notes/<slug>. The body
+   * is the same JSON the Export menu writes to a file, so what a reader opens
+   * is what Export → JSON file would have handed to `notes:publish`.
+   *
+   * The panel reports the refusals itself, since the name it asked for is what
+   * one of them is about; the status line is for the press that worked.
+   */
+  const publishSheet = async (slug) => {
+    const result = await publishNote(slug, toJson({ ...sheet, memo }, STANDARD_TUNING, title))
+    if (result.ok) setStatus(`Published /notes/${slug}`)
+    return result
+  }
+
   /** Run one of the EXPORTS and put the menu away. */
   const runExport = (key) => {
     setExportMenu(null)
@@ -814,6 +832,23 @@ export default function App({ published = null }) {
           >
             Export
           </button>
+          {/* Publishing is an export too — the same bytes, sent to the bucket
+              instead of to the disk — so it stands with Export rather than
+              with the buttons that change the sheet. Not offered while a
+              published note is open: that sheet is already in the bucket, and
+              this is the editor's own one. */}
+          {!published && (
+            <button
+              type="button"
+              onClick={(event) => setPublishMenu(publishMenu ? null : event.currentTarget)}
+              disabled={empty}
+              aria-haspopup="dialog"
+              aria-expanded={!!publishMenu}
+              title="Put this sheet in the published notes, at a URL anyone can open"
+            >
+              Publish
+            </button>
+          )}
         </div>
 
         <div className="toolbar-group">
@@ -929,6 +964,15 @@ export default function App({ published = null }) {
             </button>
           ))}
         </Popover>
+      )}
+
+      {publishMenu && (
+        <PublishMenu
+          anchor={publishMenu}
+          defaultSlug={fileStem}
+          onClose={() => setPublishMenu(null)}
+          onPublish={publishSheet}
+        />
       )}
 
       <main className="sheet">

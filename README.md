@@ -357,13 +357,36 @@ Text and image exports stop at the last row you wrote in, so trailing blank
 staves are never included. A JSON export keeps every row, blank ones and all —
 rows are yours to add, so a file records the sheet exactly as you left it.
 
+**Publish**, beside it, is the same JSON sent somewhere instead of saved: it
+puts the sheet in the published notes, at a URL anyone can open. See below.
+
 ## Publishing notes
 
 A published note is a read-only note with a URL of its own, and `/notes` lists
 them all. They live in a **private Cloudflare R2 bucket, one per environment**,
 and the app reads them from its own origin through the backend, which is the
-one thing holding a credential for that bucket. Publishing is a command rather
-than a deploy:
+one thing holding a credential for that bucket.
+
+**Publish** in the toolbar is the short way: it asks for a name — prefilled
+from the title, which is already a publishable name — and uploads the sheet to
+this environment's bucket. It is live at `/notes/<name>` as soon as the press
+finishes, and `/notes` lists it. Nothing is rebuilt, nothing is merged, and
+there is no file in between.
+
+Two things that button cannot do, deliberately:
+
+- **It cannot publish over a note.** A name that is taken is refused, and you
+  are asked for another. R2 keeps no versions, so a write over a note destroys
+  it, and this is the one guard that matters against a route anyone can reach.
+- **It cannot take a note down.** Nothing in the app deletes.
+
+Both of those are the commands below, from a machine with the token — which is
+also why they exist at all now. [docs/notes-upload-from-app.md](docs/notes-upload-from-app.md)
+is what that route gives up, and who can reach it: **anyone who can open the
+site**, with no passphrase in front of it.
+
+The commands are the other way in, and still the only one that can replace or
+remove:
 
 ```bash
 cp .env.example .env.local      # once: the R2 endpoint and the token's profile
@@ -390,18 +413,17 @@ rather than in the consequences.
 notes/tie_that_binds_by_drake.json   →   /notes/tie_that_binds_by_drake
 ```
 
-To publish one: write it in the editor, **Export → JSON file**, and publish the
-file. An export is named after its title with underscores between the words,
-which is already a publishable name — rename it only if you want the URL to
-read differently, keeping to lowercase letters and digits joined by single
-dashes or underscores. It is live as soon as the upload finishes; nothing is
-rebuilt and no merge is involved.
+To publish from a file: **Export → JSON file**, then publish the file. An
+export is named after its title with underscores between the words, which is
+already a publishable name — rename it only if you want the URL to read
+differently, keeping to lowercase letters and digits joined by single dashes or
+underscores.
 
 **The bucket is the only place a note lives.** A reader can open one and play
-with it, but nothing they do is saved anywhere, and `notes:publish` is the only
-thing that can change what everyone sees. Nothing in this repo is
-authoritative about a note: `notes/` is git-ignored, and nothing under it is
-tracked.
+with it, but nothing they do is saved anywhere, and publishing — the button or
+the command — is the only thing that changes what everyone sees. Nothing in
+this repo is authoritative about a note: `notes/` is git-ignored, and nothing
+under it is tracked.
 
 `notes:pull` is how you get the notes onto a machine. It **mirrors** the
 bucket: it fetches what you do not have and deletes what the bucket no longer
@@ -416,15 +438,20 @@ republishing over a note or unpublishing one is final. That is the deliberate
 cost of one source of truth; [docs/notes-pull-from-r2.md](docs/notes-pull-from-r2.md)
 is where it is argued, and what to do if it ever bites.
 
-`scripts/notes.mjs` is the whole of publishing. It refuses a file the editor
-could not open, so a broken note never reaches a reader, and afterwards it
-rebuilds `notes.json` — the manifest `/notes` lists — from what is actually in
-the bucket, so there is no list to keep in step.
+`scripts/notes.mjs` is the whole of publishing from a terminal. It refuses a
+file the editor could not open, so a broken note never reaches a reader, and
+afterwards it rebuilds `notes.json` — the manifest `/notes` lists — from what
+is actually in the bucket, so there is no list to keep in step. The button
+takes the same two cares at the other end: the backend checks the export's
+envelope before it writes, and adds the note's own line to the manifest rather
+than leaving it unlisted. `npm run notes:manifest` remains the repair for a
+manifest that has drifted either way.
 
 **Nothing about a note is baked into the build.** The browser asks
-`/api/notes` and `/api/notes/<name>` on its own origin; Caddy hands those to
-Flask, and `docker/app/backend/app/notes.py` fetches the object from R2 with
-boto3. Which bucket that means is the backend's runtime setting, so the dev and
+`/api/notes` and `/api/notes/<name>` on its own origin — and `PUT`s to the
+second of those to publish; Caddy hands them to Flask, and
+`docker/app/backend/app/notes.py` fetches the object from R2 with boto3, or
+writes it. Which bucket that means is the backend's runtime setting, so the dev and
 prod web images are identical — see
 [docs/notes-via-s3-client.md](docs/notes-via-s3-client.md).
 
@@ -432,9 +459,10 @@ Everything speaks the S3 API, in other words: publishing is the ordinary `aws`
 CLI pointed at the account's R2 endpoint, and reading is boto3 pointed at the
 same place. Nothing reads the bucket over HTTP, and the bucket is not public.
 
-**The buckets themselves are not created by this repo.** The API tokens — a
-read-write one for your laptop, a read-only one for the server — and the costs
-are in [docs/notes-r2-storage.md](docs/notes-r2-storage.md).
+**The buckets themselves are not created by this repo.** The API tokens — one
+for your laptop and one for the server, both **Object Read & Write** now that
+the server publishes too — and the costs are in
+[docs/notes-r2-storage.md](docs/notes-r2-storage.md).
 
 ## Layout
 
@@ -446,10 +474,11 @@ src/
   components/StaffOverlay.jsx the SVG arcs and symbols over one staff line
   components/MarkBar.jsx    the rewind, tie and symbol buttons floating over the selected position
   components/PositionStrip.jsx one control per position above a staff, shared by the shift anchors and edit mode's strips
-  components/Popover.jsx    the anchored panel behind the export menu
+  components/Popover.jsx    the anchored panel behind the export and publish menus
+  components/PublishMenu.jsx the name a sheet is published under, and the press that uploads it
   components/icons.jsx      the drawn symbols on the buttons that carry no words
   utils/tab.js              grid, tie and mark model; ASCII/JSON; downloads
-  utils/notes.js            the published notes: the /api calls that fetch them
+  utils/notes.js            the published notes: the /api calls that fetch them, and the one that publishes
   utils/audio.js            fret-to-pitch both ways, and the plucked-string synthesis
   utils/popover.js          where an anchored panel sits, kept inside the window
   utils/layout.js           staff geometry and the arc/symbol maths, shared by

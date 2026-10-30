@@ -33,9 +33,13 @@ services:
       # web image serve both environments: the bundle asks its own origin, and
       # this is the end that knows which bucket that means.
       #
-      # The token here should be Object Read only — this process never writes.
-      # Publishing is a laptop with a different token; see
-      # docs/notes-via-s3-client.md. boto3 reads the AWS_* pair itself.
+      # The token here wants Object Read & Write: the backend serves the
+      # notes and is also what publishes one, since a sheet uploaded from the
+      # editor is written by this process (PUT /api/notes/<slug> — see
+      # docs/notes-upload-from-app.md). It never deletes, and a name already
+      # taken is refused rather than overwritten, so the one thing that route
+      # can do to the bucket is add a note. boto3 reads the AWS_* pair
+      # itself.
       FRETBOOK_NOTES_BUCKET: ${FRETBOOK_NOTES_BUCKET:-}
       FRETBOOK_R2_ENDPOINT: ${FRETBOOK_R2_ENDPOINT:-}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}

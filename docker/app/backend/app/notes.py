@@ -1,6 +1,6 @@
-"""The published notes, read out of R2 over the S3 API.
+"""The published notes: read out of R2 over the S3 API, and written back to it.
 
-The bucket is private: nothing but this process can read it, and the browser
+The bucket is private: nothing but this process can reach it, and the browser
 reaches a note by asking its own origin for /api/notes/<slug>. A browser cannot
 sign an S3 request — signing needs the R2 token, and anything in the bundle is
 readable by anyone who opens devtools — so this is the hop that lets the bucket
@@ -11,10 +11,25 @@ The keys are the ones scripts/notes.mjs writes, unchanged:
     notes.json            the manifest /notes lists
     notes/<name>.json     one note, the editor's own JSON export
 
-The manifest is read as an object rather than rebuilt by listing the bucket,
-which is what lets the token this holds be **GetObject and nothing else** — no
-list, no write, no delete. Publishing still happens from a laptop with a
-read-write token; this end of it only ever reads.
+    GET /api/notes          the manifest
+    GET /api/notes/<slug>   one note
+    PUT /api/notes/<slug>   publish the sheet in the body under that name
+
+The manifest is read and rewritten as an object rather than rebuilt by listing
+the bucket, so the token this holds needs GetObject and PutObject and still no
+list and no delete — `notes:manifest` stays the thing that rebuilds it from
+what is actually there, and remains the repair tool when two uploads land at
+once and one read-modify-write of the manifest loses the other's line.
+
+**PUT is open: anyone who can open the site can publish.** What keeps that from
+being a bucket anyone can rewrite is that a name is claimed once — an upload
+onto a name that already exists is refused rather than overwriting it, which
+matters because R2 keeps no versions, so a write over a note is final and there
+is no second copy anywhere (docs/notes-pull-from-r2.md). Deleting and replacing
+are still a laptop with the same token and scripts/notes.mjs. The other guards
+are a body limit, an envelope check so a reader never meets a note the editor
+cannot open, and a cap on how fast uploads are accepted; see
+docs/notes-upload-from-app.md for what they are and are not worth.
 """
 
 from __future__ import annotations
@@ -24,11 +39,12 @@ import os
 import re
 import threading
 import time
+from collections import deque
 
 import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
-from flask import Blueprint, Response, jsonify
+from flask import Blueprint, Response, jsonify, request
 
 notes = Blueprint("notes", __name__)
 
@@ -42,6 +58,36 @@ NOTE_NAME = re.compile(r"^[a-z0-9]+(?:[-_][a-z0-9]+)*$")
 PREFIX = "notes"
 MANIFEST = "notes.json"
 
+#: The sheet format an upload has to be in, mirroring `SHEET_FORMAT` and
+#: `SHEET_VERSION` in src/utils/tab.js the way NOTE_NAME above mirrors its
+#: pattern. Only the envelope is checked here — whether the thing inside it is
+#: a sheet the editor can open is still `fromJson`'s call, in the browser — but
+#: the envelope is what tells a current export from an old one or from a file
+#: that was never one, and a reader meeting either is the failure worth
+#: spending ten lines to avoid. A bumped version refuses uploads until this
+#: constant is bumped with it.
+SHEET_FORMAT = "fretboard-notebook"
+SHEET_VERSION = 12
+
+#: The largest upload accepted. A note is a few KB and a long sheet tens, so
+#: this is wide enough for anything the editor produces and narrow enough that
+#: the bucket cannot be filled a megabyte at a time. app/__init__.py sets the
+#: same figure as Flask's own MAX_CONTENT_LENGTH, which is what stops a body
+#: being read into memory before this can judge its length.
+MAX_UPLOAD_BYTES = 512 * 1024
+
+#: How much of a title is kept in the manifest. The note itself is stored
+#: byte for byte whatever this says; only the line /notes lists is clipped,
+#: so one upload cannot make the index unreadable for everyone else.
+MAX_TITLE_CHARS = 120
+
+#: How many uploads this worker accepts in a minute, all callers together.
+#: Not a defence — it is one process of several and says nothing about who is
+#: asking — but it is the difference between a loop adding a few notes and a
+#: loop adding a hundred thousand, and it costs one deque. The real control, if
+#: it is ever wanted, is a passphrase or Cloudflare's own rate limiting.
+UPLOADS_PER_MINUTE = 20
+
 #: How long an object is reused before R2 is asked again. The same window
 #: notes:publish puts on a note, which is the trade this cache makes: a publish
 #: appears within a minute instead of instantly, and /notes costs one GetObject
@@ -51,6 +97,10 @@ TTL_SECONDS = 60
 _lock = threading.Lock()
 _client = None
 _cache: dict[str, tuple[float, bytes | None]] = {}
+
+#: When the uploads this worker has accepted were accepted, oldest first, kept
+#: only as far back as the window above.
+_accepted: deque[float] = deque()
 
 
 def _bucket() -> str:
@@ -182,3 +232,194 @@ def note(slug: str):
         return jsonify(error="no such note"), 404
 
     return _json(body, "public, max-age=60")
+
+
+# --- Publishing -------------------------------------------------------------
+#
+# The write end of the same bucket. Everything above answers a reader; what
+# follows accepts a sheet from the editor and makes it one more published note,
+# which is the one thing here that cannot be taken back by trying again.
+
+
+def _taken(key: str) -> bool | None:
+    """Whether something already sits at that key — True, False, or None when
+    R2 could not be asked.
+
+    Asked straight rather than through the TTL cache: "is this name free" is
+    the one question a minute-old answer must not be given to, since the answer
+    decides whether bytes are written over somebody's note.
+    """
+    try:
+        _s3().head_object(Bucket=_bucket(), Key=key)
+        return True
+    except ClientError as error:
+        status = error.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+        # 404 is the name being free. Anything else — a denied token, a bucket
+        # that is not there — is not evidence that it is, so it is neither.
+        return False if status == 404 else None
+    except BotoCoreError:
+        return None
+
+
+def _put(key: str, body: bytes, cache_control: str) -> bool:
+    """One object written, with the headers scripts/notes.mjs gives it."""
+    try:
+        _s3().put_object(
+            Bucket=_bucket(),
+            Key=key,
+            Body=body,
+            ContentType="application/json",
+            CacheControl=cache_control,
+        )
+    except (BotoCoreError, ClientError):
+        return False
+
+    # The bytes just written are what the bucket now holds, so the cached copy
+    # of this key is known to be stale rather than merely old. Dropping it is
+    # what makes a publish from the app appear at once instead of within the
+    # minute the cache would otherwise hold.
+    with _lock:
+        _cache.pop(key, None)
+    return True
+
+
+def _within_rate_limit() -> bool:
+    """Count this upload against UPLOADS_PER_MINUTE, or refuse it."""
+    now = time.monotonic()
+    with _lock:
+        while _accepted and _accepted[0] <= now - 60:
+            _accepted.popleft()
+        if len(_accepted) >= UPLOADS_PER_MINUTE:
+            return False
+        _accepted.append(now)
+        return True
+
+
+def _manifest_entries() -> list[dict]:
+    """The manifest as a list of entries, dropping anything that is not one.
+
+    Read straight rather than through the cache, for the same reason as
+    `_taken`: this copy is about to be written back, and rewriting a minute-old
+    one would drop whatever was published in between.
+    """
+    body = _fetch(MANIFEST)
+    if body is None:
+        # No manifest yet is an empty bucket, and the upload about to be added
+        # is the first line of its first one.
+        return []
+
+    try:
+        listed = json.loads(body)
+    except ValueError:
+        # Unreadable is treated as absent, which is the same judgement the
+        # index route makes. `notes:manifest` rebuilds it from the bucket.
+        return []
+
+    if not isinstance(listed, list):
+        return []
+    return [entry for entry in listed if isinstance(entry, dict) and entry.get("slug")]
+
+
+def _list_note(slug: str, title: str) -> bool:
+    """Add one note to the manifest, in the order /notes lists them."""
+    entries = [entry for entry in _manifest_entries() if entry.get("slug") != slug]
+    entries.append({"slug": slug, "title": title})
+    # Title then slug, the order scripts/notes.mjs sorts into, so a manifest
+    # this writes and one that command rebuilds list the same notes the same
+    # way round.
+    entries.sort(key=lambda entry: (str(entry.get("title") or ""), str(entry.get("slug"))))
+
+    body = f"{json.dumps(entries, indent=2, ensure_ascii=False)}\n".encode()
+    # no-cache, unlike a note: this is the object that has to reflect a publish
+    # immediately.
+    return _put(MANIFEST, body, "no-cache")
+
+
+def _sheet_title(data) -> str | None:
+    """The title to list an uploaded sheet under, or None if the body is not a
+    current export at all.
+
+    Only the envelope is judged — see SHEET_VERSION above for why that line is
+    drawn here and the rest of it in the browser.
+    """
+    if not isinstance(data, dict):
+        return None
+    if data.get("format") != SHEET_FORMAT or data.get("version") != SHEET_VERSION:
+        return None
+
+    title = data.get("title")
+    if not isinstance(title, str):
+        return None
+
+    # The two the editor always writes and a reader cannot do without. Their
+    # contents are fromJson's business; that they are there at all is what
+    # separates an export from a JSON file that happens to carry the envelope.
+    if not isinstance(data.get("columns"), list) or not data["columns"]:
+        return None
+    if not isinstance(data.get("rows"), list) or not data["rows"]:
+        return None
+
+    # Untitled sheets are listed under their name, the way notes.mjs lists one.
+    return title.strip()[:MAX_TITLE_CHARS]
+
+
+@notes.put("/notes/<slug>")
+def publish(slug: str):
+    """Publish the sheet in the body as /notes/<slug>.
+
+    201 and the note is live — the manifest is rewritten in the same call, so
+    /notes lists it on the next visit. 409 means the name is taken, which is
+    the whole of the protection a bucket with no versioning gets: a published
+    note cannot be replaced or removed through this route, only alongside an
+    unused name.
+    """
+    if unconfigured := _unconfigured():
+        return unconfigured
+
+    if not NOTE_NAME.match(slug):
+        return jsonify(error="not a note name"), 400
+
+    body = request.get_data(cache=False)
+    # Flask has already refused anything over its own limit by now; this covers
+    # a body that arrives chunked, with no length to refuse it on.
+    if len(body) > MAX_UPLOAD_BYTES:
+        return jsonify(error="that sheet is too large to publish"), 413
+
+    try:
+        data = json.loads(body)
+    except ValueError:
+        return jsonify(error="that is not a Fretboard Notebook export"), 400
+
+    title = _sheet_title(data)
+    if title is None:
+        return jsonify(error="that is not a current Fretboard Notebook export"), 400
+
+    # Counted after the body is judged and before anything is written, so a
+    # stream of junk cannot use up the window that real uploads share.
+    if not _within_rate_limit():
+        return jsonify(error="too many notes published just now — try again shortly"), 429
+
+    key = f"{PREFIX}/{slug}.json"
+    taken = _taken(key)
+    if taken is None:
+        return jsonify(error="the notes bucket cannot be reached"), 503
+    if taken:
+        return jsonify(error="that name is taken"), 409
+
+    # Stored as it arrived rather than re-encoded, so what a reader is served
+    # is byte for byte the export the editor made — the same thing
+    # notes:publish uploads, and what lets the ETag be the file's own MD5.
+    #
+    # Short rather than immutable, matching notes:publish: a note can still be
+    # republished over by hand, and a minute of staleness is cheaper than never
+    # caching at all.
+    if not _put(key, body, "public, max-age=60"):
+        return jsonify(error="the note could not be published"), 503
+
+    # The note is live either way: it is readable at its own URL the moment the
+    # object lands. A manifest that did not get written leaves it unlisted
+    # until `notes:manifest` runs, which is worth saying rather than reporting
+    # as a failed publish and inviting a second upload of the same sheet.
+    listed = _list_note(slug, title or slug)
+
+    return jsonify(slug=slug, title=title, path=f"/notes/{slug}", listed=listed), 201

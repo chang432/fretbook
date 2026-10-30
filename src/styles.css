@@ -410,6 +410,81 @@ button.link {
   font-size: 12px;
 }
 
+/* The Publish panel. Wider than the export menu because it holds a field
+   rather than a list, and the field holds a URL. */
+.publish-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 260px;
+  max-width: 100%;
+  padding: 12px;
+}
+
+.publish-menu form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.publish-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* The prefix and the field read as one address, so they share a border and
+   only the whole of it takes the focus ring. */
+.publish-field {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--bar);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.publish-field:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.publish-prefix {
+  padding: 7px 0 7px 10px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.publish-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px 7px 2px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.publish-input:focus-visible {
+  outline: none;
+}
+
+.publish-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.publish-error {
+  margin: 0;
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.publish-done {
+  margin: 0;
+  font-size: 14px;
+}
+
 /* Sheet ---------------------------------------------------------------- */
 
 /* No panel: the staves sit straight on the page, the way ruled lines sit on a
