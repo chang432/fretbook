@@ -1,4 +1,4 @@
-# Fretboard Notebook
+# Fretbook
 
 A small static React app for writing guitar tab the way you would in a notebook:
 six string lines, and you type fret numbers onto them to record a chord shape or
