@@ -313,6 +313,48 @@ own presses and the staff under it still picks the row up.
   like the rest of its bar controls, stands down for as long as the mode is
   on, and any shift that was out closes on the way in.
 
+### Playing it live
+
+The **screen** button in the toolbar asks for a tempo and then plays the song
+full screen: a playhead standing fixed on the page, with the tab sliding
+leftwards underneath it, the way a DAW moves a track past its play position.
+
+- **The arrangement is what plays.** Each block of the running order comes past
+  in turn, and a block is played as the rows its group holds, in the order they
+  stand on the sheet. So a chorus written once and arranged three times comes
+  past three times — the same tab, three stretches of the song.
+- **A sheet with nothing arranged has no song**, and the button stays down
+  until something is in the running order. The staves say what the music is;
+  the arrangement says what order it is played in, and there is nothing
+  sensible to guess about the second from the first. A row in no group is
+  therefore not played either.
+- A group in the running order that has since lost its last row is simply
+  skipped. The block stays where it is — emptying a group is not a way of
+  rewriting the song's shape — but there is no tab under it to sound.
+- Each block is named above the strip in its group's own colour, and the seam
+  where one block gives way to the next is drawn heavier than the seam between
+  two rows of one block. The readout names what is playing: *Chorus · 2 of 3 ·
+  bar 2/4*.
+- One position is one beat, so a bar is four of them. At 90 BPM the playhead
+  crosses a position every two thirds of a second.
+- A silent bar leads in, so there is a bar's worth of tempo to pick up before
+  the first note is due.
+- With sound on, every note standing on the position the playhead reaches
+  sounds together, as a chord.
+- <kbd>space</kbd> pauses and resumes, <kbd>←</kbd> / <kbd>→</kbd> move a bar at
+  a time, <kbd>↑</kbd> / <kbd>↓</kbd> change the tempo by 5 without stopping,
+  and <kbd>esc</kbd> leaves. The transport buttons along the top do the same.
+- The tempo popup's **Simple mode** leaves the moving tab and an **Exit** button
+  only, for a clean audience-facing display.
+- The staff is zoomed to fit the space it has, measured rather than guessed —
+  a phone, or a window with the toolbar wrapped onto two lines, gets a smaller
+  staff rather than one with its top string cut off. The zoom is capped so
+  there are always beats visible ahead of the playhead to read.
+- The tempo is not saved with the sheet. It is how the song is being played
+  right now rather than anything the song itself says, so the prompt asks each
+  time — as does the Simple mode box, which a later visit should not open into
+  unasked.
+
 ### Playing a chord again
 
 Selecting any position puts a **rewind** button above it, which fills that
@@ -493,15 +535,19 @@ src/
   components/StaffOverlay.jsx the SVG arcs and symbols over one staff line
   components/MarkBar.jsx    the rewind, tie and symbol buttons floating over the selected position
   components/PositionStrip.jsx one control per position above a staff, shared by the shift anchors and edit mode's strips
-  components/Popover.jsx    the anchored panel behind the export and publish menus
+  components/ArrangementSection.jsx the running order: the groups as blocks, left to right
+  components/LiveMode.jsx   the full-screen player: playhead, scrolling tab, transport
+  components/Popover.jsx    the anchored panel behind the export, publish and tempo menus
   components/PublishMenu.jsx the name a sheet is published under or the password it is changed with, and the press that writes it
   components/icons.jsx      the drawn symbols on the buttons that carry no words
   utils/tab.js              grid, tie and mark model; ASCII/JSON; downloads
   utils/notes.js            the published notes: the /api calls that fetch them, and the three that change one
+  utils/live.js             the arrangement as a flat run of beats, and its timing
   utils/audio.js            fret-to-pitch both ways, and the plucked-string synthesis
   utils/popover.js          where an anchored panel sits, kept inside the window
-  utils/layout.js           staff geometry and the arc/symbol maths, shared by
-                            the SVG overlay, the buttons, and the canvas
+  utils/layout.js           staff geometry, the group colours, and the arc/symbol
+                            maths, shared by the SVG overlay, the buttons,
+                            the player and the canvas
   utils/renderPng.js        canvas rendering for the image export
 ```
 
@@ -510,6 +556,13 @@ contiguous slice — that is how it is edited and how every export walks it. Tie
 (`{ string, from, to }`) and marks (`{ string, col, symbol }`) are kept beside
 it in absolute grid positions: that is what lets one arc be clipped across a
 staff wrap, and it keeps a cell's value a plain string.
+
+Live mode reads that same grid rather than a copy of it. `songRuns` walks the
+arrangement and expands each block into one stretch per row its group holds —
+carrying the column that row starts at — so the player walks a flat list of
+beats and never has to work out where a row, or a block, begins. A group
+arranged twice yields two stretches pointing at the same columns, which is what
+makes a repeat cost nothing.
 
 Groups are kept the other way round from how they are drawn. The sheet holds a
 list of them — `{ id, name }`, ids handed out in turn and never reused — and

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import LiveMode from './components/LiveMode.jsx'
 import NoteLink from './components/NoteLink.jsx'
 import Popover from './components/Popover.jsx'
 import PublishMenu from './components/PublishMenu.jsx'
 import TabEditor from './components/TabEditor.jsx'
-import { PencilIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
+import { PencilIcon, PresentIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
 import {
   STANDARD_TUNING,
   addBar,
@@ -49,6 +50,7 @@ import {
   toJson,
 } from './utils/tab.js'
 import { HISTORY_LIMIT, nextUndoLabel, popHistory, pushHistory } from './utils/history.js'
+import { DEFAULT_BPM, MAX_BPM, MIN_BPM, clampBpm, hasSong } from './utils/live.js'
 import { NOTES_PATH } from './utils/route.js'
 import { deleteNote, publishNote, updateNote } from './utils/notes.js'
 import { renderTabToPngBlob } from './utils/renderPng.js'
@@ -154,6 +156,15 @@ export default function App({ published = null }) {
   // screen with nothing behind it: there is no note left to update or delete.
   const [deleted, setDeleted] = useState(false)
   const [audioOn, setAudioOn] = useState(false)
+  // The player. None of it is saved with the sheet: a tempo and an
+  // audience-facing display are how a song is being played right now rather
+  // than anything the song itself says, so both are asked for per launch.
+  const [bpm, setBpm] = useState(DEFAULT_BPM)
+  // The screen button's element while it is asking for a tempo.
+  const [liveMenu, setLiveMenu] = useState(null)
+  const [bpmDraft, setBpmDraft] = useState('')
+  const [simpleLiveMode, setSimpleLiveMode] = useState(false)
+  const [live, setLive] = useState(false)
   const fileInputRef = useRef(null)
   // Deliberately not restored from a saved session: a page should not be able
   // to start making noise before the reader has asked for it.
@@ -171,6 +182,12 @@ export default function App({ published = null }) {
     [sheet, memo, title],
   )
   const empty = useMemo(() => isGridEmpty(grid), [grid])
+  // Whether there is a song to play at all. The arrangement is what the player
+  // follows, so a sheet nobody has arranged has nothing for it to do — and
+  // neither has one arranged entirely out of groups that have since been
+  // emptied, which is why this asks the player's own model rather than just
+  // measuring the arrangement.
+  const playable = useMemo(() => hasSong(sheet), [sheet])
   // The published note as this page opened it, taken once and through the same
   // `toJson` an upload goes through, so the two compare byte for byte. It is
   // what tells a note that has been changed from one that is merely open, and
@@ -651,6 +668,29 @@ export default function App({ published = null }) {
     [grid, playNote],
   )
 
+  /** Ask for a tempo, starting from whatever the sheet was last played at. */
+  const openLive = (event) => {
+    if (liveMenu) {
+      setLiveMenu(null)
+      return
+    }
+    setBpmDraft(String(bpm))
+    setLiveMenu(event.currentTarget)
+  }
+
+  const closeLive = useCallback(() => setLive(false), [])
+
+  const startLive = () => {
+    // Fullscreen permission belongs to the click that starts playback. Asking
+    // from LiveMode's effect is too late for browsers that consume activation
+    // once this handler returns. The overlay covers the document while live,
+    // so making the document element fullscreen has the intended result.
+    document.documentElement.requestFullscreen?.().catch(() => {})
+    setBpm(clampBpm(bpmDraft))
+    setLiveMenu(null)
+    setLive(true)
+  }
+
   /**
    * Fill the selected position with the last one written before it — the same
    * chord played again, taken from where it stands rather than typed out a
@@ -1034,6 +1074,22 @@ export default function App({ published = null }) {
           >
             <SoundIcon muted={!audioOn} />
           </button>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={openLive}
+            disabled={!playable}
+            aria-haspopup="dialog"
+            aria-expanded={!!liveMenu}
+            aria-label="Play the arrangement full screen"
+            title={
+              playable
+                ? 'Play the arrangement full screen at a tempo'
+                : 'Arrange the groups into a running order to play the song'
+            }
+          >
+            <PresentIcon />
+          </button>
         </div>
 
         <span className="status" role="status">
@@ -1100,6 +1156,53 @@ export default function App({ published = null }) {
         </Popover>
       )}
 
+      {liveMenu && (
+        <Popover
+          anchor={liveMenu}
+          className="live-menu"
+          label="Live playback"
+          onClose={() => setLiveMenu(null)}
+        >
+          <label className="live-menu-label" htmlFor="live-bpm">
+            Tempo
+          </label>
+          <div className="live-menu-row">
+            <input
+              id="live-bpm"
+              className="live-menu-input"
+              type="number"
+              inputMode="numeric"
+              min={MIN_BPM}
+              max={MAX_BPM}
+              value={bpmDraft}
+              autoFocus
+              onChange={(event) => setBpmDraft(event.target.value)}
+              onFocus={(event) => event.target.select()}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') startLive()
+              }}
+            />
+            <span className="live-menu-unit">BPM</span>
+          </div>
+          <label className="live-menu-toggle">
+            <input
+              type="checkbox"
+              checked={simpleLiveMode}
+              onChange={(event) => setSimpleLiveMode(event.target.checked)}
+            />
+            <span>Simple mode</span>
+          </label>
+          <button type="button" className="live-menu-start" onClick={startLive}>
+            Start
+          </button>
+          <p className="live-menu-hint">
+            One position is one beat, so a bar is four. The arrangement is what
+            plays: each block in turn, and the rows its group holds in the order
+            they stand on the sheet.
+          </p>
+        </Popover>
+      )}
+
       {writeMenu && (
         <PublishMenu
           anchor={writeMenu.anchor}
@@ -1159,6 +1262,19 @@ export default function App({ published = null }) {
         </button>
         {showText && <pre className="output-pre">{empty ? '(nothing written yet)' : asciiTab}</pre>}
       </section>
+
+      {live && (
+        <LiveMode
+          sheet={sheet}
+          tuning={STANDARD_TUNING}
+          title={title}
+          bpm={bpm}
+          simpleMode={simpleLiveMode}
+          onBpmChange={setBpm}
+          onPlayColumn={playColumn}
+          onClose={closeLive}
+        />
+      )}
     </div>
   )
 }

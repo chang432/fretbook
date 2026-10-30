@@ -10,6 +10,19 @@ export const CELL_W = 36
 export const ROW_H = 34
 export const LABEL_W = 30
 
+/** How many colours the group bars run through before coming round again. */
+const GROUP_TONES = 4
+
+/**
+ * The colour a group is drawn in — its bar, the spine down the rows it holds,
+ * the swatch on the chip that moves a row into it, its blocks in the
+ * arrangement, and its name over the strip live mode plays. Taken from the
+ * group's id rather than from where it stands, so a group keeps its colour for
+ * as long as it exists, and two groups made one after the other never share
+ * one: ids are handed out in turn and never reused.
+ */
+export const groupTone = (id) => `var(--group-${(id % GROUP_TONES) + 1})`
+
 /** How far the arc keeps clear of the notes it joins. */
 const ARC_INSET = 9
 

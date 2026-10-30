@@ -7,6 +7,7 @@ import PositionStrip from './PositionStrip.jsx'
 import StaffOverlay from './StaffOverlay.jsx'
 import { PasteIcon, TrashIcon } from './icons.jsx'
 import { cellMidi, noteName, nudgeTarget } from '../utils/audio.js'
+import { groupTone } from '../utils/layout.js'
 import {
   MARK_ZIGZAG,
   MAX_ROW_NAME,
@@ -37,18 +38,6 @@ const TIE_KEY = 't'
 
 /** Keyboard equivalent of the rewind button beside it. */
 const COPY_KEY = 'r'
-
-/** How many colours the group bars run through before coming round again. */
-const GROUP_TONES = 4
-
-/**
- * The colour a group is drawn in — its bar, the spine down the rows it holds,
- * and the swatch on the chip that moves a row into it. Taken from the group's
- * id rather than from where it stands, so a group keeps its colour for as
- * long as it exists, and two groups made one after the other never share one:
- * ids are handed out in turn and never reused.
- */
-const groupTone = (id) => `var(--group-${(id % GROUP_TONES) + 1})`
 
 /**
  * The whole writable sheet: one staff per row, top to bottom. `rows` is the
@@ -1142,7 +1131,6 @@ export default function TabEditor({
         groups={groups}
         addable={filledGroups(members, rowIds, groups)}
         arrangement={arrangement}
-        tone={groupTone}
         editing={editing}
         onAdd={onAddToArrangement}
         onRemove={onRemoveFromArrangement}

@@ -51,7 +51,7 @@ The published manifest at `notes.json` is an array of `{ slug, title }`; its slu
 
 ## Editing and view state
 
-These structures are transient and are not part of the saved sheet. See [App.jsx](../src/App.jsx), [TabEditor.jsx](../src/components/TabEditor.jsx), and [history.js](../src/utils/history.js).
+These structures are transient and are not part of the saved sheet. See [App.jsx](../src/App.jsx), [TabEditor.jsx](../src/components/TabEditor.jsx), [live.js](../src/utils/live.js), and [history.js](../src/utils/history.js).
 
 | Structure | Shape | Purpose |
 | --- | --- | --- |
@@ -63,6 +63,8 @@ These structures are transient and are not part of the saved sheet. See [App.jsx
 | Folded groups / rows | `Set<groupId>`, `Set<rowId>` | Collapsed view state, not persisted. |
 | Cell references | `Map<string, HTMLElement>` | Input elements indexed by `"col:string"` for focus and keyboard navigation. |
 | Group runs | `{ group: Group \| null, rows: number[] }[]` | Derived display blocks: a group and its consecutive row indices, or one ungrouped row. Empty groups are derived separately. |
+| Song runs | `{ at, block, groupId, row, rowId, opens, gridStart, cols, beat }[]` | What live mode plays, derived from the arrangement by `songRuns`: one entry per row of each arranged block, in playing order. `at` is the block's index in `arrangement`; `block` is its ordinal among the blocks that have rows to play; `opens` marks the first row of a block; `gridStart` and `cols` are absolute grid columns, and `beat` is the song position the entry starts at. One grid column is one beat. A block whose group holds no rows produces no entries, so an arrangement of only-empty groups yields none at all. |
+| Playback tempo | `number` (BPM) | Session state in `App.jsx`, bounded by `clampBpm` to 20–300 and defaulting to 90. Not part of the sheet or the saved file: the player's prompt asks for it per launch. |
 | Row order / offsets | `number[]`, `Map<rowIndex, number>` | Reordering uses an array of previous row indices and a map of column displacement to move annotations. Row-start arrays map row indices to absolute columns. |
 | Other selections | row index, tie target column, pending removal row index, or `null` | Track a selected row, tie cursor and confirmation for bar removal. |
 
