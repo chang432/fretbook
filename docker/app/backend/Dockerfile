@@ -12,8 +12,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY gunicorn.conf.py wsgi.py ./
 COPY app ./app
 
-# Run unprivileged.
-RUN useradd --create-home --uid 10001 appuser
+# Run unprivileged. The log file every print is mirrored into (see
+# gunicorn.conf.py) is created here rather than at boot: /var/log belongs to
+# root, so the process could not make it for itself.
+RUN useradd --create-home --uid 10001 appuser \
+ && touch /var/log/output.log \
+ && chown appuser:appuser /var/log/output.log
 USER appuser
 
 EXPOSE 8000

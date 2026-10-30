@@ -1,26 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import LiveMode from './components/LiveMode.jsx'
 import NoteLink from './components/NoteLink.jsx'
 import Popover from './components/Popover.jsx'
+import PublishMenu from './components/PublishMenu.jsx'
 import TabEditor from './components/TabEditor.jsx'
-import { CopyIcon, PresentIcon, SoundIcon, SwapIcon, UndoIcon } from './components/icons.jsx'
+import { PencilIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
 import {
-  DEFAULT_BPM,
-  MAX_BPM,
-  MIN_BPM,
   STANDARD_TUNING,
   addBar,
-  addRow,
-  clampBpm,
+  addRowToGroup,
+  addToArrangement,
   copyColumn,
-  createGrid,
-  createGroups,
-  createRows,
+  addGroup,
+  createSheet,
   downloadFile,
   fitGrid,
   fromJson,
+  groupLabel,
+  groupOfRow,
+  moveRowTo,
+  putRowInGroup,
+  removeGroup,
   isGridEmpty,
   isSameTie,
+  isSheetWritten,
   lastBarNoteCount,
   makeTie,
   markAt,
@@ -29,15 +31,15 @@ import {
   pasteTarget,
   previousWrittenColumn,
   removeBar,
+  removeFromArrangement,
   removeRow,
   rowName,
+  rowsInGroup,
   rowNoteCount,
-  setGroupRepeat,
-  setGroupSlot,
+  setGroupName,
   setRowName,
   shiftLoss,
   shiftRow,
-  swapGroupSlots,
   swapRows,
   tiesClash,
   tieTouches,
@@ -45,13 +47,18 @@ import {
   slugify,
   toAsciiTab,
   toJson,
-  totalColumns,
 } from './utils/tab.js'
 import { HISTORY_LIMIT, nextUndoLabel, popHistory, pushHistory } from './utils/history.js'
 import { NOTES_PATH } from './utils/route.js'
+import { deleteNote, publishNote, updateNote } from './utils/notes.js'
 import { renderTabToPngBlob } from './utils/renderPng.js'
 import { cellFrequency, createAudioEngine } from './utils/audio.js'
 
+// The one slot this browser keeps its sheet in. The suffix namespaces the
+// *slot* — one key holding one JSON export — and not the sheet format inside
+// it: `fromJson` refuses anything but the current SHEET_VERSION, so a bumped
+// format needs no new key. Move this only if the slot's own shape changes,
+// e.g. if the editor ever holds more than one sheet.
 const STORAGE_KEY = 'fretboard-notebook:v1'
 
 // A JSON file is parsed in memory before its contents can be validated. This
@@ -67,11 +74,21 @@ const EXPORTS = [
   { key: 'clipboard', name: 'Copy', hint: 'ASCII tab to the clipboard' },
 ]
 
-/** Load the last session so a page refresh never loses written-down fingerings. */
+/**
+ * Load the last session so a page refresh never loses written-down fingerings.
+ *
+ * A saved sheet with nothing written in it is treated as nothing saved. The
+ * autosave below runs the moment the editor opens, so merely visiting the page
+ * once leaves a sheet in storage — and restoring that would hand back the
+ * layout the editor happened to start on then, in place of the blank page it
+ * starts on now. Only work is worth keeping; an empty page is the same empty
+ * page wherever it comes from.
+ */
 function loadSaved() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? fromJson(raw) : null
+    const sheet = raw ? fromJson(raw) : null
+    return sheet && isSheetWritten(sheet) ? sheet : null
   } catch {
     return null
   }
@@ -90,59 +107,84 @@ function loadSaved() {
 export default function App({ published = null }) {
   // Read the note, or localStorage, once and lazily, and seed the state below
   // from whichever it was.
-  const [saved] = useState(() => published?.sheet ?? loadSaved())
-  const [title, setTitle] = useState(saved?.title ?? '')
+  // Nothing published and nothing saved means a blank page, which is a sheet
+  // of its own rather than an absence: `createSheet` says what it holds.
+  const [saved] = useState(() => published?.sheet ?? loadSaved() ?? createSheet())
+  const [title, setTitle] = useState(saved.title ?? '')
+  // The note written above the running order: prose about the sheet — a
+  // tuning, a capo, what to listen for. Called a memo here because "note"
+  // already means a fret on a string, and a published sheet besides.
+  const [memo, setMemo] = useState(saved.memo ?? '')
   // Rows carry their own length in bars, so they lead and the grid follows.
-  const [rows, setRows] = useState(() => saved?.rows ?? createRows())
-  // One group id per row, in row order. A row's id is its name rather than
-  // its place, so it travels with the row when the sheet is rearranged.
-  const [groups, setGroups] = useState(() => saved?.groups ?? createGroups(saved?.rows?.length))
-  // The names rows have been given, keyed by group id — so a name travels
-  // with its row the way the id does. Rows nobody has named are absent.
-  const [names, setNames] = useState(() => saved?.names ?? {})
-  const [grid, setGrid] = useState(() => fitGrid(saved?.grid ?? [], saved?.rows ?? createRows()))
-  const [ties, setTies] = useState(() => saved?.ties ?? [])
-  const [marks, setMarks] = useState(() => saved?.marks ?? [])
-  // The running order above the staves: one slot per position in the song,
-  // holding the row played there and how many times over.
-  const [structure, setStructure] = useState(() => saved?.structure ?? [])
+  const [rows, setRows] = useState(saved.rows)
+  // One id per row, in row order. A row's id is its name rather than its
+  // place, so it travels with the row when the sheet is rearranged.
+  const [rowIds, setRowIds] = useState(saved.rowIds)
+  // The names rows have been given, keyed by row id — so a name travels with
+  // its row the way the id does. Rows nobody has named are absent.
+  const [names, setNames] = useState(saved.names)
+  // The groups the sheet holds, and which group each row is in — kept against
+  // the row id, so a row carries its group around the page with it. Where a
+  // group stands is not kept at all: a group is drawn over the rows it holds,
+  // so it stands where they do. A sheet always has at least one group.
+  const [groups, setGroups] = useState(saved.groups)
+  const [members, setMembers] = useState(saved.members)
+  // The order the groups are played in, as group ids: the song's structure,
+  // which the staves themselves cannot say. Empty until it is written, and
+  // absent from sheets saved before it existed.
+  const [arrangement, setArrangement] = useState(saved.arrangement ?? [])
+  const [grid, setGrid] = useState(() => fitGrid(saved.grid, saved.rows))
+  const [ties, setTies] = useState(saved.ties)
+  const [marks, setMarks] = useState(saved.marks)
   const [status, setStatus] = useState('')
-  // Edit mode: the sheet stops taking type and a press picks a row or a group
-  // slot up instead, so two of them can be swapped. Not saved with the sheet —
-  // it is a way of handling the page, not a property of the song.
+  // Edit mode: the sheet stops taking type and a press picks a row up
+  // instead, so two of them can be swapped. Not saved with the sheet — it is
+  // a way of handling the page, not a property of the song.
   const [editing, setEditing] = useState(false)
-  // Whether copy mode is on: the strips above every staff that pick a stretch
-  // of positions out and write it down again elsewhere. Not saved with the
-  // session — it is an errand, not a property of the song.
-  const [copying, setCopying] = useState(false)
   const [confirmingClear, setConfirmingClear] = useState(false)
   // Row whose minus button is armed, waiting for a second press.
   const [pendingRemove, setPendingRemove] = useState(null)
   const [showText, setShowText] = useState(false)
   // The Export button's element while its menu is open, so the menu can anchor.
   const [exportMenu, setExportMenu] = useState(null)
+  // The open write panel, as the button it hangs under and which of the three
+  // presses it is — they are one panel asking for different things.
+  const [writeMenu, setWriteMenu] = useState(null)
+  // Set once this page's note has been taken down, which leaves the sheet on
+  // screen with nothing behind it: there is no note left to update or delete.
+  const [deleted, setDeleted] = useState(false)
   const [audioOn, setAudioOn] = useState(false)
-  // Playback tempo, and the Live button's element while it is asking for one.
-  const [bpm, setBpm] = useState(() => saved?.bpm ?? DEFAULT_BPM)
-  const [liveMenu, setLiveMenu] = useState(null)
-  const [bpmDraft, setBpmDraft] = useState('')
-  // Chosen for this launch only: a presentation should not unexpectedly open
-  // without its transport controls on a later visit.
-  const [simpleLiveMode, setSimpleLiveMode] = useState(false)
-  const [live, setLive] = useState(false)
   const fileInputRef = useRef(null)
-  // Set when + New row is pressed, so the effect that scrolls to it knows to.
-  const revealNewRow = useRef(false)
   // Deliberately not restored from a saved session: a page should not be able
   // to start making noise before the reader has asked for it.
   const audioRef = useRef(null)
 
   const sheet = useMemo(
-    () => ({ grid, rows, groups, names, ties, marks, structure }),
-    [grid, rows, groups, names, ties, marks, structure],
+    () => ({ grid, rows, rowIds, names, groups, members, arrangement, ties, marks }),
+    [grid, rows, rowIds, names, groups, members, arrangement, ties, marks],
   )
   const asciiTab = useMemo(() => toAsciiTab(sheet, STANDARD_TUNING), [sheet])
+  // The sheet as the bucket would hold it. One memo serves both the writes
+  // below and the test of whether a published note has been changed at all.
+  const json = useMemo(
+    () => toJson({ ...sheet, memo }, STANDARD_TUNING, title),
+    [sheet, memo, title],
+  )
   const empty = useMemo(() => isGridEmpty(grid), [grid])
+  // The published note as this page opened it, taken once and through the same
+  // `toJson` an upload goes through, so the two compare byte for byte. It is
+  // what tells a note that has been changed from one that is merely open, and
+  // it is null in the editor, where there is nothing to have changed from.
+  const [openedAs, setOpenedAs] = useState(() =>
+    published
+      ? toJson(
+          { ...saved, grid: fitGrid(saved.grid, saved.rows), memo: saved.memo ?? '' },
+          STANDARD_TUNING,
+          saved.title ?? '',
+        )
+      : null,
+  )
+  const changed = openedAs !== null && json !== openedAs
 
   // The sheet as it stood before each of the last few actions, oldest first.
   // Bounded by HISTORY_LIMIT, so this is a short way back rather than a record
@@ -192,14 +234,16 @@ export default function App({ published = null }) {
    */
   const applySheet = useCallback((next) => {
     if (next.rows) setRows(next.rows)
-    if (next.groups) setGroups(next.groups)
+    if (next.rowIds) setRowIds(next.rowIds)
     if (next.names) setNames(next.names)
+    if (next.groups) setGroups(next.groups)
+    if (next.members) setMembers(next.members)
+    if (next.arrangement) setArrangement(next.arrangement)
     if (next.grid) setGrid(next.grid)
     if (next.ties) setTies(next.ties)
     if (next.marks) setMarks(next.marks)
-    if (next.structure) setStructure(next.structure)
     if (next.title !== undefined) setTitle(next.title)
-    if (next.bpm !== undefined) setBpm(next.bpm)
+    if (next.memo !== undefined) setMemo(next.memo)
   }, [])
 
   /**
@@ -219,104 +263,190 @@ export default function App({ published = null }) {
     setStatus(`Undid ${entry.label}`)
   }
 
-  /** The number in a row's circle — its group id, counting from one. */
-  const rowLabel = (rowIndex) => groups[rowIndex] + 1
+  /** The number in a row's circle — where the row stands on the page. */
+  const rowLabel = (rowIndex) => rowIndex + 1
 
   /**
    * Name a row, or clear its name by passing an empty one. The name is kept
-   * against the row's group id rather than its place, so it stays with the
-   * row when the sheet is reordered and goes when the row does.
+   * against the row's own id rather than its place, so it stays with the row
+   * when the sheet is reordered and goes when the row does.
    *
    * A press that leaves the name as it was — opening the box and closing it
    * again, or retyping the same name — changes nothing and costs no undo.
    */
   const handleRenameRow = (rowIndex, name) => {
-    const id = groups[rowIndex]
+    const id = rowIds[rowIndex]
     const next = setRowName(names, id, name)
     const written = rowName(next, id)
     if (written === rowName(names, id)) return
 
-    remember(`naming group ${rowLabel(rowIndex)}`)
+    remember(`naming row ${rowLabel(rowIndex)}`)
     setNames(next)
     setStatus(
       written
-        ? `Group ${rowLabel(rowIndex)} is now "${written}"`
-        : `Group ${rowLabel(rowIndex)} has no name again`,
+        ? `Row ${rowLabel(rowIndex)} is now "${written}"`
+        : `Row ${rowLabel(rowIndex)} has no name again`,
     )
   }
 
-  /** Append an empty row at the bottom and scroll down to it. */
-  const handleAddRow = () => {
-    remember('adding a row')
-    const next = addRow(sheet)
-    // The scroll has to wait for the row to be laid out, so it is left to the
-    // effect below rather than run here, where the page is still its old height.
-    revealNewRow.current = true
-    setRows(next.rows)
-    setGroups(next.groups)
-    setGrid(next.grid)
-    disarmRemovals()
+  /**
+   * Write the sheet's note. It arrives a keystroke at a time, so the whole
+   * run counts as one step of history — `memo` as the token is what holds it
+   * together — and the note itself rides along as an extra, since it is not
+   * part of the sheet the staves are drawn from.
+   */
+  const handleMemoChange = (next) => {
+    if (next === memo) return
+    remember('writing the note', { token: 'memo', extra: { memo } })
+    setMemo(next)
   }
 
-  /** Put a group in one slot of the running order, or clear it with null. */
-  const handleSetGroup = useCallback(
-    (slot, group) => {
-      remember('a change to the running order')
-      setStructure((prev) => setGroupSlot(prev, slot, group))
-    },
-    [remember],
-  )
-
-  /** Say how many times one slot of the running order plays its group. */
-  const handleSetGroupRepeat = useCallback(
-    (slot, repeat) => {
-      remember('a change to the running order')
-      setStructure((prev) => setGroupRepeat(prev, slot, repeat))
-    },
-    [remember],
-  )
+  /**
+   * Add an empty row to the end of a group. A row is written inside a group,
+   * so a group is where one is asked for: the press is on that group's own
+   * button, at the foot of its rows, and the row appears directly above it.
+   */
+  const handleAddRow = (groupId) => {
+    remember('adding a row')
+    const next = addRowToGroup(sheet, groupId)
+    applySheet(next)
+    disarmRemovals()
+    setStatus(`Row ${next.at + 1} added to ${groupLabel(groups, groupId)}`)
+  }
 
   /**
-   * Exchange two rows, the tab written in them and all. The running order is
-   * not touched: its slots name groups by position, so the strip goes on
-   * saying what it said and the song changes with the rows. Reordering the
-   * strip is its own swap, and the two never reach into each other.
+   * Add an empty group. It holds no rows yet, so it waits as a bar at the end
+   * of the sheet until one is sent to it.
+   */
+  const handleAddGroup = () => {
+    remember('adding a group')
+    const next = addGroup(groups)
+    setGroups(next)
+    setStatus(`Added ${groupLabel(next, next[next.length - 1].id)}`)
+  }
+
+  /**
+   * Name a group, or clear its name by passing an empty one. A group with no
+   * name of its own is called after where it stands, so clearing one leaves
+   * it named rather than nameless.
+   */
+  const handleRenameGroup = (groupId, name) => {
+    const next = setGroupName(groups, groupId, name)
+    if (groupLabel(next, groupId) === groupLabel(groups, groupId)) return
+
+    remember(`naming ${groupLabel(groups, groupId)}`)
+    setGroups(next)
+    setStatus(`That group is now ${groupLabel(next, groupId)}`)
+  }
+
+  /**
+   * Take a group off the sheet. The rows it held stay exactly where they
+   * stand and are in no group afterwards — the bar goes, the music does not,
+   * which is why this goes on one press with Undo as the way back rather
+   * than asking first.
+   */
+  const handleDeleteGroup = (groupId) => {
+    const was = groupLabel(groups, groupId)
+    const held = rowsInGroup(members, rowIds, groupId).length
+
+    remember(`deleting ${was}`)
+    // Takes the group out of the running order along with the sheet, since a
+    // block there stands for a group that exists.
+    applySheet(removeGroup(groups, members, arrangement, groupId))
+    setStatus(
+      held
+        ? `Deleted ${was} — its ${held === 1 ? 'row is' : `${held} rows are`} in no group now`
+        : `Deleted ${was}`,
+    )
+  }
+
+  /**
+   * Put a group at the end of the running order. The same group may be added
+   * again — a chorus played twice is two blocks — so nothing here refuses a
+   * group already standing in the arrangement.
+   */
+  const handleAddToArrangement = (groupId) => {
+    remember('adding to the arrangement')
+    setArrangement(addToArrangement(arrangement, groupId))
+    setStatus(`Added ${groupLabel(groups, groupId)} to the arrangement`)
+  }
+
+  /**
+   * Take one block out of the running order, by where it stands rather than
+   * by which group it names: two blocks on the same group are two blocks, and
+   * only the one pressed goes.
+   */
+  const handleRemoveFromArrangement = (at) => {
+    const was = groupLabel(groups, arrangement[at])
+
+    remember('removing from the arrangement')
+    setArrangement(removeFromArrangement(arrangement, at))
+    setStatus(`Took ${was} out of the arrangement`)
+  }
+
+  /**
+   * Put a row in a group, or take it out of the one it is in with null.
+   *
+   * A group is drawn as one bar over the rows it holds, so this moves the row
+   * as well: it joins the end of its new group's run, or drops just past the
+   * run it has left. The row therefore has a new number afterwards, which is
+   * what the sheet is told about — the old one no longer points at it.
+   */
+  const handleSetRowGroup = (rowIndex, groupId) => {
+    if (groupOfRow(members, rowIds[rowIndex]) === groupId) return
+
+    remember(`moving row ${rowLabel(rowIndex)}`)
+    const next = putRowInGroup(sheet, rowIndex, groupId)
+    applySheet(next)
+    disarmRemovals()
+    setStatus(
+      Number.isInteger(groupId)
+        ? `Row ${rowLabel(next.at)} is in ${groupLabel(groups, groupId)}`
+        : `Row ${rowLabel(next.at)} is in no group`,
+    )
+  }
+
+  /**
+   * Move a row to a place between two others, and into whatever group that
+   * place belongs to. The other half of edit mode's reordering: a swap trades
+   * two rows, this one takes a row somewhere else and lets everything between
+   * close up behind it.
+   */
+  const handleMoveRow = (from, to, groupId) => {
+    remember(`moving row ${rowLabel(from)}`)
+    const next = moveRowTo(sheet, from, to, groupId)
+    applySheet(next)
+    disarmRemovals()
+    setStatus(
+      `Row ${rowLabel(from)} moved to row ${rowLabel(next.at)}` +
+        (Number.isInteger(groupId) ? `, in ${groupLabel(groups, groupId)}` : ', in no group'),
+    )
+  }
+
+  /**
+   * Exchange two rows, the tab written in them and all. A row's name travels
+   * with the music, since it is kept against the row's id; which group a row
+   * is in stays behind with the place it stood, so a row swapped into a
+   * group's run joins that group — see `swapRows`.
    */
   const handleSwapRows = useCallback(
     (a, b) => {
-      remember(`swapping groups ${groups[a] + 1} and ${groups[b] + 1}`)
-      const next = swapRows(sheet, a, b)
-      setRows(next.rows)
-      setGroups(next.groups)
-      setGrid(next.grid)
-      setTies(next.ties)
-      setMarks(next.marks)
+      remember(`swapping rows ${a + 1} and ${b + 1}`)
+      applySheet(swapRows(sheetRef.current, a, b))
       disarmRemovals()
-      // Read straight off `groups` rather than through rowLabel, which is
-      // rebuilt each render and would keep this callback from being memoised.
-      setStatus(`Swapped groups ${groups[a] + 1} and ${groups[b] + 1}`)
+      setStatus(`Swapped rows ${a + 1} and ${b + 1}`)
     },
-    [sheet, groups, remember],
-  )
-
-  /** Exchange two positions of the running order, which reorders the song. */
-  const handleSwapGroupSlots = useCallback(
-    (a, b) => {
-      remember(`swapping positions ${a + 1} and ${b + 1} of the running order`)
-      setStructure((prev) => swapGroupSlots(prev, a, b))
-      setStatus(`Swapped positions ${a + 1} and ${b + 1} of the running order`)
-    },
-    [remember],
+    [applySheet, remember],
   )
 
   /**
    * Take one row off the sheet, wherever it stands: the grid loses its run of
-   * columns, the rows below slide up, and the running order loses the slots
-   * that called for it. Both ways of deleting a row end up here, so the two
+   * columns, the rows below slide up, and the name and group the row was
+   * given go with it. Both ways of deleting a row end up here, so the two
    * buttons differ only in which row they name and how they ask first.
    */
   const applyRemoveRow = (rowIndex) => {
-    remember(`deleting group ${rowLabel(rowIndex)}`)
+    remember(`deleting row ${rowLabel(rowIndex)}`)
     applySheet(removeRow(sheet, rowIndex))
     disarmRemovals()
   }
@@ -331,24 +461,15 @@ export default function App({ published = null }) {
   const handleDeleteRow = (rowIndex) => {
     if (rows.length <= 1 || rowIndex < 0 || rowIndex >= rows.length) return
 
-    const group = rowLabel(rowIndex)
+    const row = rowLabel(rowIndex)
     const notes = rowNoteCount(grid, rows, rowIndex)
     applyRemoveRow(rowIndex)
     setStatus(
       notes > 0
-        ? `Deleted group ${group} — ${notes} note${notes === 1 ? '' : 's'}`
-        : `Deleted group ${group}`,
+        ? `Deleted row ${row} — ${notes} note${notes === 1 ? '' : 's'}`
+        : `Deleted row ${row}`,
     )
   }
-
-  /** What − Remove row asks for: the bottom row, by the same one press. */
-  const handleRemoveRow = () => handleDeleteRow(rows.length - 1)
-
-  useEffect(() => {
-    if (!revealNewRow.current) return
-    revealNewRow.current = false
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
-  }, [rows])
 
   /**
    * Widen one row by a bar. All four pieces move together — the columns are
@@ -356,7 +477,7 @@ export default function App({ published = null }) {
    * why this works off the whole sheet rather than four separate updates.
    */
   const handleAddBar = (rowIndex) => {
-    remember(`adding a bar to group ${rowLabel(rowIndex)}`)
+    remember(`adding a bar to row ${rowLabel(rowIndex)}`)
     const next = addBar(sheet, rowIndex)
     setRows(next.rows)
     setGrid(next.grid)
@@ -374,7 +495,7 @@ export default function App({ published = null }) {
    */
   const handleShiftRow = (rowIndex, step, anchor = null) => {
     const lost = shiftLoss(grid, rows, rowIndex, step, anchor)
-    remember(`shifting group ${rowLabel(rowIndex)}`)
+    remember(`shifting row ${rowLabel(rowIndex)}`)
     const next = shiftRow(sheet, rowIndex, step, anchor)
     setGrid(next.grid)
     setTies(next.ties)
@@ -382,7 +503,7 @@ export default function App({ published = null }) {
     disarmRemovals()
     if (lost.notes > 0) {
       setStatus(
-        `Shifted group ${rowLabel(rowIndex)} — ${lost.notes} note${lost.notes === 1 ? '' : 's'} ${
+        `Shifted row ${rowLabel(rowIndex)} — ${lost.notes} note${lost.notes === 1 ? '' : 's'} ${
           lost.overwritten ? 'written over' : 'fell off the end'
         }`,
       )
@@ -401,11 +522,11 @@ export default function App({ published = null }) {
     const notes = lastBarNoteCount(grid, rows, rowIndex)
     if (notes > 0 && pendingRemove !== rowIndex) {
       setPendingRemove(rowIndex)
-      setStatus(`Last bar of group ${rowLabel(rowIndex)} holds ${notes} note${notes === 1 ? '' : 's'} — press again to delete`)
+      setStatus(`Last bar of row ${rowLabel(rowIndex)} holds ${notes} note${notes === 1 ? '' : 's'} — press again to delete`)
       return
     }
 
-    remember(`deleting a bar from group ${rowLabel(rowIndex)}`)
+    remember(`deleting a bar from row ${rowLabel(rowIndex)}`)
     const next = removeBar(sheet, rowIndex)
     setRows(next.rows)
     setGrid(next.grid)
@@ -421,11 +542,11 @@ export default function App({ published = null }) {
     // write over it, so a note is read and nothing more.
     if (published) return
     try {
-      localStorage.setItem(STORAGE_KEY, toJson({ ...sheet, bpm }, STANDARD_TUNING, title))
+      localStorage.setItem(STORAGE_KEY, toJson({ ...sheet, memo }, STANDARD_TUNING, title))
     } catch {
       // Private-mode / quota failures are not worth interrupting the user for.
     }
-  }, [published, sheet, bpm, title])
+  }, [published, sheet, memo, title])
 
   useEffect(() => {
     if (!status) return undefined
@@ -457,32 +578,21 @@ export default function App({ published = null }) {
   }
 
   /**
-   * Turn edit mode on or off. It takes the sheet over — cells stop accepting
-   * type, and a press picks the row out rather than putting the cursor in it —
-   * so anything half-armed underneath is put away rather than left waiting for
-   * a press that can no longer reach it.
+   * Turn edit mode on or off. It is the one mode the sheet has: the whole of
+   * working on a sheet rather than writing in it — picking a row up to swap
+   * it, sending a row to a group, deleting a row, and picking a stretch of
+   * notes out to write down again elsewhere.
+   *
+   * It takes the sheet over — cells stop accepting type, and a press picks
+   * the row out rather than putting the cursor in it — so anything half-armed
+   * underneath is put away rather than left waiting for a press that can no
+   * longer reach it.
    */
   const toggleEditing = () => {
     const next = !editing
     setEditing(next)
     disarmRemovals()
-    // The two modes both take the sheet over and would draw over each other,
-    // so reaching for one puts the other away.
-    if (next) setCopying(false)
     setStatus(next ? 'Edit mode on' : '')
-  }
-
-  /**
-   * Turn copy mode on or off. It adds two strips above every staff — circles
-   * to pick a stretch of positions out with, and a paste button per position —
-   * and leaves writing alone underneath, since nothing it does competes with
-   * the cursor.
-   */
-  const toggleCopying = () => {
-    const next = !copying
-    setCopying(next)
-    if (next) setEditing(false)
-    setStatus(next ? 'Copy mode on' : '')
   }
 
   /**
@@ -533,36 +643,13 @@ export default function App({ published = null }) {
     [audioOn],
   )
 
-  /** Sound a whole position at once — the chord live mode's playhead reaches. */
+  /** Sound a whole position at once — every string written in one column. */
   const playColumn = useCallback(
     (col) => {
       grid[col]?.forEach((value, stringIndex) => playNote(stringIndex, value))
     },
     [grid, playNote],
   )
-
-  /** Ask for a tempo, starting from whatever the sheet was last played at. */
-  const openLive = (event) => {
-    if (liveMenu) {
-      setLiveMenu(null)
-      return
-    }
-    setBpmDraft(String(bpm))
-    setLiveMenu(event.currentTarget)
-  }
-
-  const closeLive = useCallback(() => setLive(false), [])
-
-  const startLive = () => {
-    // Fullscreen permission belongs to the click that starts playback. Asking
-    // from LiveMode's effect is too late for browsers that consume activation
-    // once this handler returns. The overlay covers the document while live,
-    // so making the document element fullscreen has the intended result.
-    document.documentElement.requestFullscreen?.().catch(() => {})
-    setBpm(clampBpm(bpmDraft))
-    setLiveMenu(null)
-    setLive(true)
-  }
 
   /**
    * Fill the selected position with the last one written before it — the same
@@ -698,7 +785,7 @@ export default function App({ published = null }) {
   const exportJson = () => {
     downloadFile(
       `${fileStem}.json`,
-      toJson({ ...sheet, bpm }, STANDARD_TUNING, title),
+      toJson({ ...sheet, memo }, STANDARD_TUNING, title),
       'application/json',
     )
     setStatus('Saved JSON')
@@ -723,6 +810,56 @@ export default function App({ published = null }) {
     }
   }
 
+  /**
+   * Open one of the write panels under the button that asked for it, or put
+   * that panel away if it is the one already open.
+   */
+  const openWrite = (mode, anchor) => {
+    setWriteMenu((open) => (open?.mode === mode ? null : { mode, anchor }))
+  }
+
+  /** What each of the three presses does, and what it leaves behind. */
+  const writes = {
+    publish: {
+      send: (slug) => publishNote(slug, json),
+      said: 'Published',
+    },
+    update: {
+      send: (slug, password) => updateNote(slug, json, password),
+      said: 'Updated',
+      // What was sent is what the note holds now, so it becomes the thing a
+      // further change is measured against: Update goes dead again until the
+      // sheet moves away from it.
+      then: () => setOpenedAs(json),
+    },
+    delete: {
+      send: (slug, password) => deleteNote(slug, password),
+      said: 'Deleted',
+      then: () => setDeleted(true),
+    },
+  }
+
+  /**
+   * Write to this environment's bucket: a new note at /notes/<slug>, this
+   * sheet over the published note the page is showing, or that note gone. What
+   * goes up is the same JSON the Export menu writes to a file, so what a
+   * reader opens is what Export → JSON file would have handed to
+   * `notes:publish`.
+   *
+   * The panel reports the refusals itself, since what it asked for — a name, a
+   * password — is what most of them are about; the status line is for the
+   * press that worked.
+   */
+  const writeSheet = async (slug, password) => {
+    const write = writes[writeMenu?.mode ?? 'publish']
+    const result = await write.send(slug, password)
+    if (!result.ok) return result
+
+    setStatus(`${write.said} /notes/${slug}`)
+    write.then?.()
+    return result
+  }
+
   /** Run one of the EXPORTS and put the menu away. */
   const runExport = (key) => {
     setExportMenu(null)
@@ -742,30 +879,23 @@ export default function App({ published = null }) {
     }
     const parsed = fromJson(await file.text())
     if (!parsed) {
-      setStatus('That file is not a Fretboard Notebook export')
+      setStatus('That file is not a current Fretboard Notebook export')
       return
     }
-    // Opening a file replaces the title and the tempo as well as the sheet,
-    // so the snapshot carries those two along: undoing an import that was
-    // meant for another window puts the whole page back, not just the staves.
-    remember(`opening ${file.name}`, { extra: { title, bpm } })
+    // Opening a file replaces the title and the note as well as the sheet, so
+    // the snapshot carries those two along: undoing an import that was meant
+    // for another window puts the whole page back, not just the staves.
+    remember(`opening ${file.name}`, { extra: { title, memo } })
     applySheet({ ...parsed, grid: fitGrid(parsed.grid, parsed.rows) })
     disarmRemovals()
     setStatus(`Opened ${file.name}`)
   }
 
   const clearAll = () => {
-    const fresh = createRows()
     remember('clearing the sheet')
-    applySheet({
-      rows: fresh,
-      groups: createGroups(fresh.length),
-      names: {},
-      grid: createGrid(totalColumns(fresh)),
-      ties: [],
-      marks: [],
-      structure: [],
-    })
+    // Clearing leaves the page as a blank one starts: the sheet's own note
+    // goes with it, while the title stays for the reader to change or keep.
+    applySheet({ ...createSheet(), memo: '' })
     disarmRemovals()
     setConfirmingClear(false)
     setStatus('Cleared')
@@ -795,6 +925,64 @@ export default function App({ published = null }) {
           >
             Export
           </button>
+          {/* Publishing is an export too — the same bytes, sent to the bucket
+              instead of to the disk — so it stands with Export rather than
+              with the buttons that change the sheet.
+
+              A published note carries the two that act on it instead: Update,
+              which writes this sheet over that one, and Delete, which takes it
+              down. Both ask for a password, since between them they are
+              everything here that destroys something, and both go dead once
+              the note is gone. Update is dead until the sheet differs from the
+              note as it was opened too, so a stray press cannot rewrite a note
+              with itself. */}
+          {published ? (
+            <>
+              <button
+                type="button"
+                className={writeMenu?.mode === 'update' ? 'danger' : ''}
+                onClick={(event) => openWrite('update', event.currentTarget)}
+                disabled={!changed || deleted}
+                aria-haspopup="dialog"
+                aria-expanded={writeMenu?.mode === 'update'}
+                title={
+                  deleted
+                    ? 'This note has been taken down'
+                    : changed
+                      ? `Write this sheet over /notes/${published.slug} — needs the password`
+                      : 'Nothing has been changed on this note yet'
+                }
+              >
+                Update
+              </button>
+              <button
+                type="button"
+                className={writeMenu?.mode === 'delete' ? 'danger' : ''}
+                onClick={(event) => openWrite('delete', event.currentTarget)}
+                disabled={deleted}
+                aria-haspopup="dialog"
+                aria-expanded={writeMenu?.mode === 'delete'}
+                title={
+                  deleted
+                    ? 'This note has been taken down'
+                    : `Take /notes/${published.slug} down for good — needs the password`
+                }
+              >
+                Delete
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={(event) => openWrite('publish', event.currentTarget)}
+              disabled={empty}
+              aria-haspopup="dialog"
+              aria-expanded={!!writeMenu}
+              title="Put this sheet in the published notes, at a URL anyone can open"
+            >
+              Publish
+            </button>
+          )}
         </div>
 
         <div className="toolbar-group">
@@ -824,30 +1012,15 @@ export default function App({ published = null }) {
             type="button"
             className={`icon-button${editing ? ' is-on' : ''}`}
             aria-pressed={editing}
-            aria-label={editing ? 'Finish editing the order' : 'Edit the order'}
+            aria-label={editing ? 'Finish editing' : 'Edit the sheet'}
             onClick={toggleEditing}
             title={
               editing
-                ? 'Editing the order — press two rows or two groups to swap them'
-                : 'Reorder the rows and the running order'
+                ? 'Edit mode — swap rows, move one into a group, or copy a stretch of notes'
+                : 'Rearrange the rows and copy notes about'
             }
           >
-            <SwapIcon />
-          </button>
-          <button
-            type="button"
-            className={`icon-button${copying ? ' is-on' : ''}`}
-            aria-pressed={copying}
-            aria-label={copying ? 'Finish copying' : 'Copy and paste notes'}
-            onClick={toggleCopying}
-            disabled={editing}
-            title={
-              copying
-                ? 'Copy mode — press two positions to pick a stretch out, then a paste button'
-                : 'Copy a stretch of notes and paste it elsewhere'
-            }
-          >
-            <CopyIcon />
+            <PencilIcon />
           </button>
           <button
             type="button"
@@ -860,18 +1033,6 @@ export default function App({ published = null }) {
             }
           >
             <SoundIcon muted={!audioOn} />
-          </button>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={openLive}
-            disabled={empty}
-            aria-haspopup="dialog"
-            aria-expanded={!!liveMenu}
-            aria-label="Play the song full screen"
-            title="Play the song full screen at a tempo"
-          >
-            <PresentIcon />
           </button>
         </div>
 
@@ -911,16 +1072,15 @@ export default function App({ published = null }) {
           mode that is still on. So the mode says what it is here instead. */}
       {editing && (
         <p className="edit-hint">
-          Press a row or a group, then press another, and the two exchange places.
-          The bin at the end of a row deletes that row. Writing is off until this
-          is turned back off.
-        </p>
-      )}
-
-      {copying && (
-        <p className="edit-hint">
-          Press two circles on one row to pick out a stretch, then a paste button to
-          write it down starting there. A stretch cannot span two rows.
+          Press a row, then press another, and the two exchange places — a row
+          swapped into a group joins it. While a row is held, the lines between
+          the rows light up: press one to move the held row there instead of
+          swapping it, and a line inside a group&rsquo;s bracket puts it in that
+          group. A group&rsquo;s bar takes the held row too, or lets it go. The bin
+          at the end of a row deletes that row. Above each staff, press two circles to pick a
+          stretch of notes out — one row at a time — then a paste button to
+          write it down starting there. Writing is off until this is turned
+          back off.
         </p>
       )}
 
@@ -940,68 +1100,42 @@ export default function App({ published = null }) {
         </Popover>
       )}
 
-      {liveMenu && (
-        <Popover
-          anchor={liveMenu}
-          className="live-menu"
-          label="Live playback"
-          onClose={() => setLiveMenu(null)}
-        >
-          <label className="live-menu-label" htmlFor="live-bpm">
-            Tempo
-          </label>
-          <div className="live-menu-row">
-            <input
-              id="live-bpm"
-              className="live-menu-input"
-              type="number"
-              inputMode="numeric"
-              min={MIN_BPM}
-              max={MAX_BPM}
-              value={bpmDraft}
-              autoFocus
-              onChange={(event) => setBpmDraft(event.target.value)}
-              onFocus={(event) => event.target.select()}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') startLive()
-              }}
-            />
-            <span className="live-menu-unit">BPM</span>
-          </div>
-          <label className="live-menu-toggle">
-            <input
-              type="checkbox"
-              checked={simpleLiveMode}
-              onChange={(event) => setSimpleLiveMode(event.target.checked)}
-            />
-            <span>Simple mode</span>
-          </label>
-          <button type="button" className="live-menu-start" onClick={startLive}>
-            Start
-          </button>
-          <p className="live-menu-hint">
-            One position is one beat, so a bar is four. The song plays in the order the
-            Groups strip sets.
-          </p>
-        </Popover>
+      {writeMenu && (
+        <PublishMenu
+          anchor={writeMenu.anchor}
+          mode={writeMenu.mode}
+          note={published?.slug ?? null}
+          defaultSlug={fileStem}
+          onClose={() => setWriteMenu(null)}
+          onWrite={writeSheet}
+        />
       )}
 
       <main className="sheet">
         <TabEditor
           grid={grid}
           rows={rows}
-          groups={groups}
+          rowIds={rowIds}
           names={names}
+          groups={groups}
+          members={members}
           tuning={STANDARD_TUNING}
           ties={ties}
           marks={marks}
-          structure={structure}
+          memo={memo}
+          onMemoChange={handleMemoChange}
+          arrangement={arrangement}
+          onAddToArrangement={handleAddToArrangement}
+          onRemoveFromArrangement={handleRemoveFromArrangement}
           editing={editing}
-          onSetGroup={handleSetGroup}
-          onSetGroupRepeat={handleSetGroupRepeat}
           onSwapRows={handleSwapRows}
           onRenameRow={handleRenameRow}
-          onSwapGroupSlots={handleSwapGroupSlots}
+          onAddRow={handleAddRow}
+          onAddGroup={handleAddGroup}
+          onRenameGroup={handleRenameGroup}
+          onSetRowGroup={handleSetRowGroup}
+          onMoveRow={handleMoveRow}
+          onDeleteGroup={handleDeleteGroup}
           onCellChange={handleCellChange}
           onCreateTie={createTie}
           onToggleMark={handleToggleMark}
@@ -1012,7 +1146,6 @@ export default function App({ published = null }) {
           onCopyColumn={handleCopyColumn}
           onNudgeNote={handleNudgeNote}
           onStatus={setStatus}
-          copying={copying}
           onPasteRange={handlePasteRange}
           pendingRemove={pendingRemove}
           onCancelRemove={() => setPendingRemove(null)}
@@ -1020,38 +1153,12 @@ export default function App({ published = null }) {
         />
       </main>
 
-      <div className="sheet-actions">
-        <button type="button" onClick={handleAddRow} disabled={editing}>
-          + New row
-        </button>
-        <button
-          type="button"
-          onClick={handleRemoveRow}
-          disabled={editing || rows.length <= 1}
-        >
-          − Remove row
-        </button>
-      </div>
-
       <section className="output">
         <button type="button" className="link" onClick={() => setShowText((v) => !v)}>
           {showText ? 'Hide' : 'Show'} text output
         </button>
         {showText && <pre className="output-pre">{empty ? '(nothing written yet)' : asciiTab}</pre>}
       </section>
-
-      {live && (
-        <LiveMode
-          sheet={sheet}
-          tuning={STANDARD_TUNING}
-          title={title}
-          bpm={bpm}
-          simpleMode={simpleLiveMode}
-          onBpmChange={setBpm}
-          onPlayColumn={playColumn}
-          onClose={closeLive}
-        />
-      )}
     </div>
   )
 }

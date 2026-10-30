@@ -64,7 +64,7 @@ export default function Popover({ anchor, className, label, onClose, children })
       // measure and the placement both happen before paint, so this never
       // shows. It is opacity rather than `visibility: hidden` because a field
       // inside a hidden panel cannot take focus, which would leave a panel
-      // that opens on a field — the tempo prompt — needing a click first.
+      // that opens on a field needing a click first.
       style={
         place
           ? {

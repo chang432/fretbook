@@ -20,7 +20,7 @@
   --staff-air: 14px;
 
   /* One strip of per-position controls above a staff — the shift anchors, or
-     copy mode's circles and paste buttons. Each one standing pushes the
+     the range copy's circles and paste buttons. Each one standing pushes the
      strings down by exactly this much. */
   --strip-h: 22px;
 
@@ -33,6 +33,21 @@
   --barline: #a3aeb9;
   --muted: #7d8894;
   --accent: #a8492f;
+
+  /* One tone per group, taken in turn as groups are made — see `groupTone`
+     in TabEditor. Each is dark enough to carry paper-coloured text on a
+     group's bar, and distinct enough from its neighbours to tell two groups
+     apart at a glance down the spines. */
+  --group-1: #a8492f;
+  --group-2: #3f6d5a;
+  --group-3: #3c5b85;
+  --group-4: #8a6a2f;
+
+  /* The spine down the left of a group's rows, and how far past it those rows
+     are indented. The bar above and the spine below share the width, so the
+     two meet as one bracket. */
+  --spine-w: 6px;
+  --group-indent: 14px;
 
   color-scheme: light;
 }
@@ -241,7 +256,7 @@ button.link {
 
 /* Edit mode ------------------------------------------------------------ */
 
-/* Says what the two presses do, and stays up for as long as the mode does —
+/* Says what the mode's presses do, and stays up for as long as the mode does —
    the status line beside the buttons clears itself after a few seconds, which
    is right for something that has just happened and wrong for a mode. */
 .edit-hint {
@@ -250,10 +265,78 @@ button.link {
   font-size: 13px;
 }
 
-/* The transparent sheet laid over a staff while the order is being edited, so
+/* The place between two rows, which is where a held row is moved to rather
+   than swapped with. The band stands for as long as the mode does, so picking
+   a row up lights the places it could go instead of moving the whole sheet
+   about; it is empty and takes no press until something is held.
+
+   Thin: it divides two rows and must not read as a gap between them, which is
+   why the line inside it is drawn faint rather than the band being drawn at
+   all. */
+.row-gap {
+  position: relative;
+  z-index: 7;
+  height: 12px;
+}
+
+.row-gap-drop {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+/* The line itself: dashed while it is only an offer, so it reads as a place
+   to put something rather than as one more rule between two rows, and solid
+   in the accent colour under the pointer — the colour the held row is drawn
+   in, so what is being carried and where it would land read as one errand. */
+.row-gap-line {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: 1px;
+  background: repeating-linear-gradient(
+    to right,
+    rgb(168 73 47 / 45%) 0 7px,
+    transparent 7px 13px
+  );
+}
+
+.row-gap-drop:hover .row-gap-line,
+.row-gap-drop:focus-visible .row-gap-line {
+  height: 3px;
+  background: var(--accent);
+}
+
+/* A dot at the left end under the pointer, where the row would start — the
+   line says the place, the dot says it is a place to put something. */
+.row-gap-drop:hover::before,
+.row-gap-drop:focus-visible::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.row-gap-drop:focus-visible {
+  outline: none;
+}
+
+/* The transparent sheet laid over a staff while the sheet is being edited, so
    a row is one thing to press rather than a grid of cells. It is inset by a
    couple of pixels so its outline reads as around the row rather than as a
-   change to the rule between rows. */
+   change to the rule between rows.
+
+   It covers the strips above the staff as well, which are part of the same
+   mode and have their own presses to take — so they are lifted over it, the
+   way the row's name line is. */
 .row-select {
   position: absolute;
   inset: 2px;
@@ -327,6 +410,81 @@ button.link {
   font-size: 12px;
 }
 
+/* The Publish panel. Wider than the export menu because it holds a field
+   rather than a list, and the field holds a URL. */
+.publish-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 260px;
+  max-width: 100%;
+  padding: 12px;
+}
+
+.publish-menu form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.publish-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* The prefix and the field read as one address, so they share a border and
+   only the whole of it takes the focus ring. */
+.publish-field {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--bar);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.publish-field:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.publish-prefix {
+  padding: 7px 0 7px 10px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.publish-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px 7px 2px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.publish-input:focus-visible {
+  outline: none;
+}
+
+.publish-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.publish-error {
+  margin: 0;
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.publish-done {
+  margin: 0;
+  font-size: 14px;
+}
+
 /* Sheet ---------------------------------------------------------------- */
 
 /* No panel: the staves sit straight on the page, the way ruled lines sit on a
@@ -343,12 +501,11 @@ button.link {
   flex-direction: column;
 }
 
-/* Group section ------------------------------------------------------- */
+/* Memo section -------------------------------------------------------- */
 
-/* The running order, in the same ruled-off shape as a row so it reads as part
-   of the same sheet — just a shallower one, and stacked the same way: its name
-   above, the strip under it. */
-.group-section {
+/* The sheet's written note, in the same ruled-off shape as the running order
+   below it — the heading on its own line, what it holds under that. */
+.memo-section {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -356,117 +513,494 @@ button.link {
   border-top: 1px solid var(--bar);
 }
 
-/* Above the strip at the left edge, where a row carries its number. */
-.group-title {
-  margin-bottom: 6px;
+/* The heading is the control: the whole line folds the note away and brings
+   it back, so there is no separate thing to find and press. */
+.memo-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  padding: 2px 6px 2px 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
   color: var(--muted);
+  text-align: left;
+}
+
+.memo-toggle:hover {
+  border: 0;
+  color: var(--accent);
+}
+
+/* Points along the line when the note is folded away and down into it when it
+   is open, which is the one place the state is drawn. */
+.memo-caret {
+  display: inline-block;
+  font: 400 12px/1 ui-monospace, Menlo, monospace;
+  transition: transform 0.12s ease-out;
+}
+
+.memo-caret.is-open {
+  transform: rotate(90deg);
+}
+
+/* Set like the Groups label beside it, so the two read as one pair of
+   headings rather than as two different kinds of thing. */
+.memo-heading {
   font: 600 10px/1 ui-monospace, Menlo, monospace;
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }
 
-/* Indented past the string labels so a slot stands over the bars it names. */
-.group-slots {
+/* The first line of a folded note, so what is put away still says what it is.
+   One line, cut off rather than wrapped: the heading is not the note. */
+.memo-preview {
+  overflow: hidden;
+  font-size: 12px;
+  font-style: italic;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Indented past the string labels, so the note starts where the bars and the
+   group slots start. Grows downwards by hand when a few lines are not enough,
+   and never sideways: the sheet's own width is the line length. */
+.memo-input {
+  width: calc(100% - var(--label-w));
+  margin-left: var(--label-w);
+  padding: 6px 8px;
+  border: 1px solid var(--bar);
+  border-radius: 8px;
+  background: var(--paper);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.memo-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.memo-input::placeholder {
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* Arrangement --------------------------------------------------------- */
+
+/* Sits directly under the note and is built the same way — the heading is
+   the control — so the two read as one pair of things said about the sheet
+   before the staves start. */
+.arrangement-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 10px 0;
+  border-top: 1px solid var(--bar);
+}
+
+/* The order itself, read left to right and wrapping when it outgrows the
+   sheet's width. Indented past the string labels, where the note's box and
+   the bars start. */
+.arrangement-list {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
+  width: calc(100% - var(--label-w));
+  margin: 6px 0 0;
   margin-left: var(--label-w);
+  padding: 0;
+  list-style: none;
 }
 
-/* One position in the song. Empty ones are quiet dashed outlines — somewhere
-   to write rather than something written. */
-.group-slot {
-  /* Wide enough for a bare group number; a repeat count grows it rather than
-     being squeezed in beside one. */
-  min-width: 32px;
+.arrangement-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* One group being played. Filled in the group's own colour, the way its bar
+   down the sheet is, so a block is recognised before it is read. */
+.arrangement-block {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   height: 28px;
-  padding: 0 5px;
+  padding: 0 4px 0 9px;
+  border-radius: 4px;
+  background: var(--group);
+  color: var(--paper);
+}
+
+.arrangement-name {
+  font: 600 12px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* Takes this block out of the order. Set like the × on a group's bar, since
+   it is the same press on a smaller thing. */
+.arrangement-remove {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: rgb(251 248 241 / 65%);
+  font: 400 14px/1 ui-monospace, Menlo, monospace;
+}
+
+.arrangement-remove:hover:not(:disabled) {
+  border-color: rgb(251 248 241 / 55%);
+  background: rgb(251 248 241 / 16%);
+  color: var(--paper);
+}
+
+.arrangement-remove:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* What makes the blocks an order rather than a set. */
+.arrangement-arrow {
+  color: var(--muted);
+  font: 400 13px/1 ui-monospace, Menlo, monospace;
+}
+
+/* Somewhere to add to the order: a block's outline at a block's own height,
+   dashed, as the New group button at the foot of the sheet is drawn. */
+.arrangement-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 28px;
+  padding: 0;
   border-style: dashed;
-  border-radius: 7px;
+  border-radius: 4px;
   background: none;
   color: var(--muted);
-  font: 600 13px/1 ui-monospace, Menlo, monospace;
-  font-variant-numeric: tabular-nums;
+  font: 400 15px/1 ui-monospace, Menlo, monospace;
 }
 
-/* How many times over the slot plays its group. Quieter than the number it
-   follows: the group is what is played, the count only how often. */
-.group-repeat {
-  margin-left: 1px;
-  font-weight: 500;
-  opacity: 0.5;
-}
-
-.group-slot.is-filled {
-  border-style: solid;
-  background: var(--paper);
-  color: var(--ink);
-}
-
-.group-slot:hover:not(:disabled),
-.group-slot.is-open {
+.arrangement-add:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);
 }
 
-/* Picked up in edit mode, waiting for the slot it swaps with. A slot is
-   already a small outlined box, so it only needs filling in — the staff rows
-   get the same accent as an outline, since filling one would hide the tab. */
-.group-slot.is-selected,
-.group-slot.is-selected:hover {
-  border-style: solid;
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
-}
-
-/* The list of groups a slot can take, over how many times it plays one. */
-.group-picker {
+/* The groups on offer, hanging under that block. */
+.arrangement-picker {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-width: 240px;
+  width: 180px;
+  max-width: 100%;
   padding: 5px;
 }
 
-.group-picker-section {
+.arrangement-option {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  font-size: 14px;
+  text-align: left;
 }
 
-.group-picker-title {
+.arrangement-option:hover:not(:disabled) {
+  background: var(--page);
+}
+
+/* Says which group a line is before the name is read, in the colour that
+   group is drawn in everywhere else. */
+.arrangement-swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--group);
+}
+
+.arrangement-none {
+  margin: 0;
+  padding: 7px 10px;
   color: var(--muted);
-  font: 600 9px/1 ui-monospace, Menlo, monospace;
+  font-size: 13px;
+}
+
+/* Groups -------------------------------------------------------------- */
+
+/* A group is drawn where its rows are: one bar across the full width of the
+   sheet, and the rows it holds indented under it behind a spine of the same
+   colour, so the two read as one bracket around the group. There is no strip
+   of groups above the staves — the bar is the only place a group is drawn.
+
+   `--group` is set on the section by the editor, one of the four tones below
+   per group, and everything in here takes its colour from that. */
+.group {
+  display: flex;
+  flex-direction: column;
+  /* Two bars never meet edge to edge, so one group always reads as ending
+     before the next begins. */
+  margin-top: 12px;
+}
+
+/* The sheet opens flush with whatever stands first — a bar there would
+   otherwise float away from the rule above it — and a row standing on its own
+   after a group is pushed clear of that group's rows. */
+.editor > :first-child {
+  margin-top: 0;
+}
+
+.editor > .group + .staff {
+  margin-top: 12px;
+}
+
+/* The bar itself: short, but solid and the width of the page, so it reads as
+   a band across the sheet rather than as a chip sitting on top of one. It is
+   the ground the drop target is laid over, so it is positioned. */
+.group-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 6px 0 4px;
+  border-radius: 4px 4px 0 0;
+  background: var(--group);
+  color: var(--paper);
+}
+
+/* Folds the group away and brings it back. Points along the bar when the
+   rows are put away and down into them when they are open — the one place
+   the state is drawn, as the note at the top of the sheet does it. */
+.group-caret {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: inherit;
+}
+
+.group-caret-mark {
+  display: block;
+  font: 400 13px/1 ui-monospace, Menlo, monospace;
+  transition: transform 0.12s ease-out;
+}
+
+.group-caret-mark.is-open {
+  transform: rotate(90deg);
+}
+
+/* Takes the group off the sheet. Last on the bar, pushed to the far end by
+   eating its free space, and quiet until it is pointed at: deleting a group
+   is rarer than naming one, and it should not read as the bar's first offer.
+   It warms rather than reddens on hover — the rows are not going anywhere. */
+.group-delete {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: rgb(251 248 241 / 65%);
+  font: 400 15px/1 ui-monospace, Menlo, monospace;
+}
+
+.group-caret:hover:not(:disabled),
+.group-delete:hover:not(:disabled) {
+  border-color: rgb(251 248 241 / 55%);
+  background: rgb(251 248 241 / 16%);
+  color: var(--paper);
+}
+
+.group-delete:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* While edit mode holds a row, the whole bar is one thing to press: where
+   that row is sent. Laid over the bar rather than replacing it, so the group
+   being aimed at still reads as itself underneath. */
+.group-drop {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 10px;
+  border: 1px dashed rgb(251 248 241 / 60%);
+  border-radius: inherit;
+  background: rgb(22 32 43 / 12%);
+}
+
+.group-drop:hover,
+.group-drop:focus-visible {
+  border-style: solid;
+  border-color: var(--paper);
+  background: rgb(22 32 43 / 24%);
+  outline: none;
+}
+
+/* What the press would do, said on the bar itself rather than left to a
+   tooltip: this is the only way a row joins a group. */
+.group-drop-hint {
+  color: var(--paper);
+  font: 600 10px/1 ui-monospace, Menlo, monospace;
   letter-spacing: 0.09em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.group-drop:hover .group-drop-hint,
+.group-drop:focus-visible .group-drop-hint {
+  opacity: 1;
+}
+
+/* The name, and the way in to changing it. Carries no outline of its own
+   until it is pointed at: the bar is already a box. */
+.group-bar-name {
+  flex: none;
+  padding: 2px 5px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: inherit;
+  font: 600 12px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.group-picker-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+.group-bar-name:hover:not(:disabled) {
+  border-color: rgb(251 248 241 / 55%);
+  background: rgb(251 248 241 / 12%);
 }
 
-.group-option {
-  min-width: 28px;
+/* The name takes no press while the order is being edited, and lets the
+   press through rather than swallowing it — as a row's name does. */
+.group-bar-name:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+/* How many rows are under the bar. Quieter than the name: the rows are right
+   there to be read, so this only counts them. */
+.group-bar-rows {
+  color: rgb(251 248 241 / 70%);
+  font: 500 11px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.04em;
+}
+
+/* Typing the name, in the bar's own place so nothing jumps as it is written.
+   Paper-coloured against the bar, the way a box always is. */
+.group-bar-input {
+  width: 160px;
+  padding: 2px 5px;
+  border: 1px solid rgb(251 248 241 / 70%);
+  border-radius: 5px;
+  background: rgb(251 248 241 / 16%);
+  color: var(--paper);
+  font: 600 12px ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+}
+
+.group-bar-input::placeholder {
+  color: rgb(251 248 241 / 65%);
+  font-style: italic;
+}
+
+.group-bar-input:focus-visible {
+  outline: 2px solid var(--paper);
+  outline-offset: -3px;
+}
+
+/* The rows the group holds: indented past the spine running down their left
+   side, which is the same width and colour as the bar and starts flush under
+   it. The tint is faint enough to leave the staves alone and only says how
+   far the group reaches. */
+.group-body {
+  padding-left: var(--group-indent);
+  border-left: var(--spine-w) solid var(--group);
+  border-radius: 0 0 0 4px;
+  background: color-mix(in srgb, var(--group) 4%, transparent);
+}
+
+/* The bar above is the rule dividing a group from what came before it, so the
+   first row under it draws none of its own. */
+.group-body > .staff:first-child {
+  border-top: 0;
+}
+
+/* A group whose rows are all folded away is a bar and nothing else, so it
+   carries its own foot rather than ending on a cut edge. A group holding no
+   rows yet still has a body — the press that gives it its first one. */
+.group--folded .group-bar {
+  border-radius: 4px;
+}
+
+/* Somewhere to write, drawn rather than written: another group past the last
+   of them, and another row at the foot of a group's own rows. Both dashed,
+   both at the full width of what they stand under. */
+.group-add,
+.row-add {
   height: 28px;
-  padding: 0 6px;
-  border-radius: 7px;
-  font: 600 13px/1 ui-monospace, Menlo, monospace;
-  font-variant-numeric: tabular-nums;
-}
-
-.group-option.is-active {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
-}
-
-.group-option--clear {
+  padding: 0 10px;
+  border-style: dashed;
+  border-radius: 4px;
+  background: none;
   color: var(--muted);
-  font-size: 12px;
-  letter-spacing: 0.02em;
+  font: 600 11px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.group-add {
+  margin-top: 12px;
+}
+
+/* Inside the group's body, where a button is not a block of its own. The room
+   below it is the group's foot, and matches the indent it stands in. */
+.row-add {
+  display: block;
+  width: calc(100% - var(--group-indent));
+  margin: 10px 0;
+}
+
+.group-add:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The group's own colour, since this press adds to that group rather than to
+   the sheet at large. */
+.row-add:hover:not(:disabled) {
+  border-color: var(--group);
+  color: var(--group);
 }
 
 /* Staff --------------------------------------------------------------- */
@@ -731,14 +1265,21 @@ button.link {
   flex-direction: column;
   /* Matches the scroller's padding so labels line up with their strings, plus
      one strip's worth for every strip standing inside the scroller — the shift
-     anchors, and copy mode's two. TabEditor counts them onto `--strips`. */
+     anchors, and the range copy's two. TabEditor counts them onto `--strips`. */
   margin-top: calc(var(--staff-air) + var(--strip-h) * var(--strips, 0));
 }
 
 /* One control per position, on the same column pitch as the staff below it, so
    each sits over the position it acts on. Shared by the shift anchors and by
-   copy mode's range circles and paste buttons. */
+   edit mode's range circles and paste buttons.
+
+   Above the press-sheet that edit mode lays over the row: the band a strip
+   stands in is the strip's, and only what is actually drawn in it takes a
+   press — the strip is as wide as its own staff, so the rest of the line
+   falls through to the row underneath, which picks the row up. */
 .position-strip {
+  position: relative;
+  z-index: 6;
   display: flex;
   align-items: center;
   width: max-content;
@@ -756,7 +1297,7 @@ button.link {
 }
 
 /* The circle glyph, drawn on the cells that mark a position rather than act on
-   it — the shift anchors, and copy mode's two range ends. */
+   it — the shift anchors, and the range copy's two ends. */
 .position-dot::before {
   content: '';
   position: absolute;
@@ -832,14 +1373,12 @@ button.link {
 }
 
 /* Two guide layers: a faint tick on every column, a firmer barline every 4.
-   Both are inset by half a row so they stop at the outer strings. Shared with
-   live mode's strip, so a bar is ruled the same wherever it is drawn.
+   Both are inset by half a row so they stop at the outer strings.
 
    Each layer draws its line at the start of a column, so the run of them stops
    one column short of the end — the line closing the last bar would fall just
    past the edge of the box and be clipped. The staff draws that one itself. */
-.staff-body,
-.live-run {
+.staff-body {
   background-image:
     repeating-linear-gradient(to right, var(--barline) 0 1px, transparent 1px var(--bar-w)),
     repeating-linear-gradient(to right, var(--grid) 0 1px, transparent 1px var(--cell-w));
@@ -1019,15 +1558,6 @@ button.link {
   background: radial-gradient(closest-side, rgb(168 73 47 / 32%) 78%, transparent 100%);
 }
 
-/* Sheet actions -------------------------------------------------------- */
-
-.sheet-actions {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 24px;
-}
-
 /* Output -------------------------------------------------------------- */
 
 .output {
@@ -1042,313 +1572,6 @@ button.link {
   background: var(--paper);
   font: 13px/1.45 ui-monospace, Menlo, monospace;
   overflow-x: auto;
-}
-
-/* Live mode ------------------------------------------------------------ */
-
-/* The tempo prompt behind the Live button. */
-.live-menu {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 210px;
-  padding: 12px;
-}
-
-.live-menu-label {
-  color: var(--muted);
-  font: 600 10px/1 ui-monospace, Menlo, monospace;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-}
-
-.live-menu-row {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.live-menu-input {
-  width: 90px;
-  padding: 6px 8px;
-  border: 1px solid var(--bar);
-  border-radius: 8px;
-  background: var(--page);
-  color: var(--ink);
-  font: 600 18px ui-monospace, Menlo, monospace;
-  font-variant-numeric: tabular-nums;
-}
-
-.live-menu-unit,
-.live-menu-hint {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.live-menu-hint {
-  margin: 0;
-  line-height: 1.35;
-}
-
-.live-menu-toggle {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  color: var(--ink);
-  font-size: 13px;
-}
-
-.live-menu-toggle input {
-  accent-color: var(--accent);
-}
-
-.live-menu-start {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
-}
-
-/*
- * The full-screen player. Everything inside is drawn by the same staff rules
- * the editor uses, and takes its colours from the same place — so the song
- * plays on the page it was written on, at the size the window allows. Only the
- * geometry below is the player's own.
- */
-.live {
-  /* Where the playhead stands, as a share of the width: enough tab behind it
-     to see what was just played, most of it ahead. */
-  --live-head: 28%;
-  /* Seed only: LiveMode measures the space the staff has and sets this
-     inline, so the staff is never cut off by a window too short for it. */
-  --live-scale: 2;
-  /* The group label hangs above the top string, so what is centred is the
-     staff plus that label — otherwise the label is the first thing off the
-     top of a short window. Half its height, nudged down. */
-  --live-lift: calc(12px * var(--live-scale));
-
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  flex-direction: column;
-  background: var(--page);
-  color: var(--ink);
-}
-
-/* It is focused on open so the keys reach it; the ring around the whole
-   screen that would otherwise draw says nothing. */
-.live:focus {
-  outline: none;
-}
-
-.live-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 16px;
-  align-items: center;
-  padding: 12px 18px;
-  border-bottom: 1px solid var(--bar);
-}
-
-/* Simple mode keeps Exit available without reserving room above the tab. */
-.live--simple .live-bar {
-  position: absolute;
-  z-index: 10;
-  top: 0;
-  right: 0;
-  padding: 12px 18px;
-  border: 0;
-}
-
-.live-title {
-  font: 600 17px Georgia, 'Times New Roman', serif;
-}
-
-.live-transport {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.live-play {
-  min-width: 96px;
-}
-
-.live-tempo {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  margin-left: 8px;
-}
-
-.live-tempo button {
-  width: 30px;
-  padding: 6px 0;
-  font: 400 16px/1 ui-monospace, Menlo, monospace;
-}
-
-.live-bpm {
-  min-width: 74px;
-  text-align: center;
-  font: 600 14px ui-monospace, Menlo, monospace;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Pushed to the right-hand end, ahead of Exit. */
-.live-readout {
-  margin-left: auto;
-  color: var(--muted);
-  font: 13px ui-monospace, Menlo, monospace;
-  font-variant-numeric: tabular-nums;
-}
-
-/* The window the song scrolls through. */
-.live-viewport {
-  position: relative;
-  flex: 1;
-  overflow: hidden;
-}
-
-/* The tab slides out of sight behind the string labels rather than stopping
-   dead at their edge. */
-.live-viewport::before {
-  content: '';
-  position: absolute;
-  z-index: 4;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 120px;
-  background: linear-gradient(to right, var(--page) 45%, transparent);
-  pointer-events: none;
-}
-
-/*
- * Two nested transforms, so the moving one stays in plain staff pixels: the
- * stage holds the zoom and pins the staff's left edge to the playhead, and the
- * track — the only thing touched frame to frame — is offset by the position in
- * cell widths.
- */
-.live-stage {
-  position: absolute;
-  top: 50%;
-  left: var(--live-head);
-  width: max-content;
-  transform: translateY(calc(-50% + var(--live-lift))) scale(var(--live-scale));
-  transform-origin: left center;
-}
-
-.live-track {
-  position: relative;
-  width: max-content;
-  will-change: transform;
-}
-
-.live-strip {
-  display: flex;
-}
-
-/* One run of the running order: a row of the sheet, drawn where the song
-   reaches it. A row played three times is three of these. */
-.live-run {
-  position: relative;
-  flex: none;
-}
-
-/* Where one run gives way to the next. */
-.live-run + .live-run::before {
-  content: '';
-  position: absolute;
-  top: calc(var(--row-h) / 2);
-  bottom: calc(var(--row-h) / 2);
-  left: 0;
-  width: 2px;
-  background: var(--muted);
-}
-
-.live-run-label {
-  position: absolute;
-  top: -20px;
-  left: 3px;
-  color: var(--muted);
-  font: 600 9px/1 ui-monospace, Menlo, monospace;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-/* The written frets. Not inputs here — nothing is editable mid-song — but the
-   same size and the same chip punched out of the string behind them. */
-.live-cell {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--cell-w);
-  height: var(--row-h);
-  color: var(--ink);
-  font: 600 17px/1 ui-monospace, Menlo, monospace;
-}
-
-/* The position being played, travelling with the tab under the playhead. */
-.live-now {
-  position: absolute;
-  z-index: 1;
-  top: 0;
-  bottom: 0;
-  border-radius: 6px;
-  background: rgb(168 73 47 / 16%);
-}
-
-/* The playhead itself: fixed on screen, the tab moving past it. */
-.live-playhead {
-  position: absolute;
-  z-index: 5;
-  top: 0;
-  bottom: 0;
-  left: var(--live-head);
-  width: 2px;
-  background: var(--accent);
-}
-
-.live-playhead::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -6px;
-  border-top: 8px solid var(--accent);
-  border-right: 7px solid transparent;
-  border-left: 7px solid transparent;
-}
-
-/* Which string is which, pinned over the left edge at the staff's own scale. */
-.live-labels {
-  position: absolute;
-  z-index: 6;
-  top: 50%;
-  left: 0;
-  display: flex;
-  flex-direction: column;
-  /* Lifted with the staff, so the letters stay level with their strings. */
-  transform: translateY(calc(-50% + var(--live-lift))) scale(var(--live-scale));
-  transform-origin: left center;
-}
-
-.live-progress {
-  height: 3px;
-  background: var(--paper);
-}
-
-.live-progress-fill {
-  height: 100%;
-  background: var(--accent);
-}
-
-/* A narrow window has less room behind the playhead to spare. */
-@media (max-width: 600px) {
-  .live {
-    --live-head: 22%;
-  }
 }
 
 .visually-hidden {

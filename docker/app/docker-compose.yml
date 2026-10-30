@@ -1,5 +1,12 @@
 # Two containers: caddy serves the built Vite app and reverse-proxies /api to
-# gunicorn/Flask. Run from this directory: `docker compose up --build`.
+# gunicorn/Flask, which is also where the published notes come from — the
+# bucket is private, so the backend reads it over the S3 API and the browser
+# never touches R2. Run from this directory: `docker compose up --build`.
+#
+# The backend's four notes variables come from a git-ignored .env beside this
+# file locally, and from /opt/fretbook-<env>-deploy.env on the VPS. Without
+# them the stack still runs: /api/notes answers 503 and /notes shows an empty
+# shelf.
 #
 # IMAGE_TAG namespaces the images this builds. It defaults to "local" so a
 # laptop is unaffected; CI sets it per environment (see
@@ -16,6 +23,31 @@ services:
       PORT: "8000"
       WEB_CONCURRENCY: "2"
       LOG_LEVEL: info
+      # Every print and gunicorn log line is written here inside the container
+      # as well as to the container's streams, so a debug print can be read
+      # back with `docker compose exec backend cat /var/log/output.log` after
+      # it has scrolled past. Empty leaves the streams as the only place.
+      LOG_FILE: /var/log/output.log
+      # The private notes bucket this environment serves, and the credentials
+      # for it. Runtime settings rather than build args, which is what lets one
+      # web image serve both environments: the bundle asks its own origin, and
+      # this is the end that knows which bucket that means.
+      #
+      # The token here wants Object Read & Write: the backend serves the
+      # notes and is also what writes them, since a sheet published, updated or
+      # taken down from the editor goes through this process (see
+      # docs/notes-upload-from-app.md). Only the open route needs no password,
+      # and it can do nothing but add a note — a name already taken is refused
+      # rather than overwritten. boto3 reads the AWS_* pair itself.
+      FRETBOOK_NOTES_BUCKET: ${FRETBOOK_NOTES_BUCKET:-}
+      FRETBOOK_R2_ENDPOINT: ${FRETBOOK_R2_ENDPOINT:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      # The password the Update and Delete buttons on a published note ask
+      # for — the two routes that write over a note or remove it rather than
+      # adding one. Left empty, they answer 503 and the rest of the stack is
+      # unaffected, so a deployment opts into being editable by setting this.
+      FRETBOOK_PUBLISH_PASSWORD: ${FRETBOOK_PUBLISH_PASSWORD:-}
     # Not published on the host — only caddy needs to reach it.
     expose:
       - "8000"
@@ -37,12 +69,6 @@ services:
       # that root rather than to this file.
       context: ../..
       dockerfile: docker/app/caddy/Dockerfile
-      args:
-        # The public R2 bucket this environment's published notes live in,
-        # baked into the bundle by the node stage. Unset locally, where there
-        # is usually no bucket to read; CI writes it into the deploy env file
-        # per environment (see .github/workflows/deploy.yml).
-        NOTES_BASE_URL: ${NOTES_BASE_URL:-}
     image: fretbook-web:${IMAGE_TAG:-local}
     restart: unless-stopped
     ports:

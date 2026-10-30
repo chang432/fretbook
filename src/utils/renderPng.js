@@ -30,7 +30,7 @@ const COLORS = {
   tie: '#a8492f',
 }
 
-export function renderTabToCanvas({ grid, rows, ties = [], marks = [] }, tuning, title, scale = 2) {
+export function renderTabToCanvas({ grid, rows, ties, marks }, tuning, title, scale = 2) {
   const staves = contentRows(grid, rows)
   const starts = rowStarts(rows)
   // Rows can differ in length, so the image is as wide as its widest one.

@@ -10,7 +10,12 @@
     "lint": "eslint .",
     "notes:publish": "node scripts/notes.mjs publish",
     "notes:unpublish": "node scripts/notes.mjs unpublish",
-    "notes:manifest": "node scripts/notes.mjs manifest"
+    "notes:manifest": "node scripts/notes.mjs manifest",
+    "notes:pull": "node scripts/notes.mjs pull",
+    "stack": "bash scripts/stack.sh up",
+    "stack:down": "bash scripts/stack.sh down",
+    "stack:logs": "bash scripts/stack.sh logs",
+    "deploy:local": "bash deploy-local.sh"
   },
   "dependencies": {
     "react": "^19.2.0",

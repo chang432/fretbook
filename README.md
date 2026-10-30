@@ -1,4 +1,4 @@
-# Fretboard Notebook
+# Fretbook
 
 A small static React app for writing guitar tab the way you would in a notebook:
 six string lines, and you type fret numbers onto them to record a chord shape or
@@ -12,11 +12,32 @@ npm run dev      # http://localhost:5173
 npm run build    # static output in dist/
 npm run preview  # serve dist/ the way the server does
 npm run lint
+
+npm run stack       # the whole thing in Docker, as the VPS runs it
+npm run stack:logs  # follow both containers
+npm run stack:down  # stop them
+
+npm run deploy:local  # the full deploy: verify, start, smoke-test, then watch
 ```
 
-The published notes come from an R2 bucket rather than from the repo, so
-`/notes` is empty until the build is told which one: `cp .env.example .env.local`
-and point it at the dev bucket. Everything else works without it.
+`deploy:local` runs the phases [the CI workflow](.github/workflows/deploy.yml)
+runs against the VPS — lint and build, then the images, then a smoke test of
+`/api/health`, `/api/notes`, `/notes` and one note — and then stays, tailing
+both containers: errors highlighted and counted, healthcheck probes hidden, and
+a banner whenever a container restarts or a healthcheck turns. Ctrl-C leaves
+the stack running. `--no-verify` skips the first phase, `--all` keeps the
+probes, `--down-on-exit` tears it down when you stop watching.
+
+The published notes come from a private R2 bucket rather than from the repo,
+read by the backend over the S3 API — so `/notes` is empty under a bare
+`npm run dev` until something is serving `/api`. `npm run stack` brings that up
+in Docker on :8080 and the dev server proxies to it; the script checks the
+credentials first and tells you how many notes came back, since a stack without
+them comes up perfectly well and simply shows nothing. Those credentials live
+in `docker/app/.env` — copied from
+[`docker/app/.env.example`](docker/app/.env.example), which says what each
+value is for, and git-ignored once it holds real ones. Everything else — which
+is most of the app — works without any of it.
 
 ## Writing tab
 
@@ -77,50 +98,102 @@ right, and that is what they are showing you.
   the arrows go back to moving the whole row — which is the same thing anchored
   at its first position.
 
-### Groups and song structure
+### A note on the sheet
 
-Each row is a **group** — a chunk of tab meant to be played more than once. The
-**Groups** strip above the staves is the running order: press a slot, pick a
-group from the list that appears, and it takes that group's number.
+At the top of the sheet is **Notes**, a box for what the staves cannot say —
+a tuning, a capo, who it is by, what to listen for.
 
-- Writing `1 1 2 1 3 1` there says to play the first row twice, then the
-  second, then the first, then the third, then the first again — without
-  writing any of it out twice.
-- Pressing a slot that already holds a group reopens the list with that group
-  marked, plus **Clear** to empty the slot. <kbd>esc</kbd> or a press anywhere
-  else closes the list without changing anything.
-- There is always one free slot past the end, so the strip grows as you fill it.
-- Removing a row removes the group, so any slot calling for it is emptied. A
-  new row is given a number past every one handed out so far, so a slot left
-  over from a group that has gone never quietly picks up its replacement — which
-  is why the numbers can end up 1, 2, 4 rather than always running on.
+- It is **folded away** until you press the heading, so an empty box is never
+  in the way of the writing it is there to support. A sheet that already
+  carries a note opens with it in view, and a folded one shows its first line
+  beside the heading, so nothing is quietly lost behind a closed word.
+- Pressing the heading open puts the cursor in the box; <kbd>esc</kbd> folds it
+  away again. The note is kept as it is typed — there is nothing to save.
+- It travels with the sheet: it is kept between visits, written into the JSON
+  export and read back out of it. The text and image exports are the tab
+  itself, so they leave it out.
+- A whole run of typing is **one step of Undo**, the same bargain writing a
+  fret makes, so taking back a note you did not mean to write is one press.
+
+### Groups
+
+A **group** is a run of rows that belong together — a verse, a chorus, the four
+bars that come back later. A group is drawn where its rows are: one **bar
+across the full width of the sheet**, with the rows it holds indented under it
+behind a vertical spine in the group's own colour, so the bar and the spine
+read as one bracket around the group.
+
+- **Name a group by typing in its bar.** <kbd>enter</kbd> writes the name down,
+  <kbd>esc</kbd> abandons what was typed. A group nobody has named answers to
+  where it stands — *Group 2* — so there is always something to call it.
+- **Fold a group away** with the caret at the left of its bar. The rows go,
+  the bar stays and says what has been put aside — *3 rows · 6 bars · 14
+  notes* — so a long sheet can be read as its sections. A fold is a way of
+  handling the page rather than part of the song, so it is not saved.
+- **Delete a group with the × at the right of its bar.** The rows it held are
+  not touched: they stay exactly where they stand and are in no group
+  afterwards. It goes on one press and **Undo** takes it back, the same
+  bargain the bin at the end of a row makes.
+- **Rows join and leave groups in edit mode** — see below. There is nothing on
+  a row's own line to press, since the bar above it already says which group
+  it is in.
+- **A group's rows are always next to each other**, since the bar brackets
+  them. Putting a row in a group therefore moves it: it joins the end of that
+  group's run, and leaving a group drops it just past the rows that group still
+  holds. The row keeps its name, its notes, its arcs and its symbols — only its
+  number changes, because the number is where it stands.
+- A row in no group stands on its own, flush left, with no bar over it.
+- **+ New group** at the end of the sheet adds one. It holds no rows yet, so it
+  waits there as a bar until a row is sent to it — and the next group made
+  takes the next colour, four of them before they come round again.
+- Deleting a row takes it out of its group with it. A group that loses its
+  last row that way stays on the sheet, waiting at the end as an empty bar.
 
 ### Reordering the sheet
 
-The **two rows and an arrow** in the toolbar turn on edit mode, which is where
-the sheet is rearranged rather than written in. Press a row, then press
-another, and the two exchange places. The same two presses work on the Groups
-strip, where they exchange two positions of the running order.
+The **pencil** in the toolbar turns on edit mode, which is where the sheet is
+worked on rather than written in — the one mode it has. Everything that
+rearranges a sheet lives there: swapping rows, moving a row between groups,
+deleting a row, and copying a stretch of notes from one place to another.
+
+Press a row, then press another, and the two exchange places. A row can also
+be moved rather than traded: while one is held, **the places between the rows
+light up as dashed lines**, and pressing one takes the held row there, with
+everything in between closing up behind it.
+
+It is also the one place a row joins or leaves a group. A line inside a
+group's bracket puts the row in that group; a line between two blocks leaves
+it in none. **Every group's bar is somewhere to put it too** — *Put here* on
+the groups it could join, *Take out* on the one it is already in.
 
 - The first press picks something up and holds it, drawn in the accent colour.
-  The second says what to swap it with. Pressing the same one again, or
-  <kbd>esc</kbd>, puts it back down without moving anything.
-- A row and a group slot are different things with nothing to trade, so
-  reaching for one lets go of the other rather than swapping across them.
+  The second says what to swap it with, or where to move it to. Pressing the
+  same row again, or <kbd>esc</kbd>, puts it back down without moving
+  anything.
+- **The lines are there for as long as the mode is**, empty until something is
+  held, so picking a row up lights the places it could go rather than moving
+  the whole sheet about. The two lines either side of the held row stay unlit:
+  they are where it already is.
+- Each line says where it would land — *into Chorus, after row 3*, *between
+  rows 2 and 3, in no group* — so the line under a group's bar and the line
+  just above it read as the two different offers they are.
 - **Everything in a row travels with it** — the notes, the arcs, the symbols,
   and the bars it is however many of. Two rows of different lengths swap just
   as readily as two of the same length; the rows between them slide by the
   difference.
-- **A row's number goes with it.** The circle at the left of a row is its
-  group, and a group is a name rather than a place: swap the first and third
-  rows and their circles read 3 and 1. The rows are no longer numbered down the
-  page, because what is written in them has moved.
-- **The two orders are independent.** Swapping rows does not touch the Groups
-  strip, and swapping slots does not touch the rows. A strip reading `1 1 2 1`
-  still reads `1 1 2 1` after rows 1 and 2 have changed places, and still plays
-  the same music — group 1 is wherever group 1 now sits. Rearranging the page
-  and changing the running order are two separate things, and each is done in
-  one place.
+- **A row is numbered by where it stands**, so swapping two rows swaps their
+  numbers with them. The name a row carries travels with the music instead,
+  since it is kept against the row rather than against the line it happens to
+  be written on.
+- **Rows can be swapped across groups.** Which group a row is in belongs to
+  the place it stands rather than to the row, so a row swapped into the middle
+  of a group joins it and the row it changed places with takes the group it
+  has left. A swap therefore never leaves a bar drawn over a row that is not
+  in it.
+- **Pressing a group's bar moves the held row to the end of that group**,
+  which is how a group grows or empties — a swap alone could only ever trade
+  one row for another. The row is put back down afterwards, since it is
+  somewhere else now.
 - **Writing is off while the mode is on.** A press anywhere on a row means
   *this row* rather than *this position*, so the cells stop taking type and the
   per-row bar buttons stand down. Turning the mode back off gives all of it
@@ -131,9 +204,8 @@ strip, where they exchange two positions of the running order.
   **Undo** puts it back — unlike the bar **−**, which still asks twice, since
   taking a bar off is a smaller thing to mean and a harder one to see. The
   sheet never drops below a single row. Everything below the deleted row
-  slides up, and any slot of the running order calling for its group is
-  emptied — the numbers in the remaining circles do not change, since a group
-  is a name rather than a place.
+  slides up and is renumbered, and the group it was in simply holds one row
+  fewer.
 
 ### Ties
 
@@ -198,9 +270,10 @@ from the keyboard.
 
 ### Copying a stretch of notes
 
-The **two sheets** in the toolbar turn on copy mode, which puts two strips above
-every staff: a row of circles to pick a stretch out with, and under them one
-paste button per position saying *start it here*.
+Edit mode puts two strips above every staff: a row of circles to pick a stretch
+out with, and under them one paste button per position saying *start it here*.
+They stand above the sheet that covers each row, so the strip band takes its
+own presses and the staff under it still picks the row up.
 
 - Press two circles on the same row and everything between them highlights —
   the two ends solid, the positions they carry weaker. Pressing a third circle
@@ -228,42 +301,17 @@ paste button per position saying *start it here*.
   them and waits — `Pasting here writes over 5 notes — press again to paste` —
   and goes through on the second press. The arming lapses when you look away,
   the same as the bar-removal button.
-- Copy mode and reordering both take the sheet over, so turning one on puts the
-  other away. Writing stays on underneath copy mode: the strips sit above the
-  staff and nothing they do competes with the cursor.
-- **Shifting a row is off while copy mode is on.** A shift's anchors and copy
+- **Writing is off while the mode is on**, as it is for everything else edit
+  mode does: a press on a row means *this row*, not *this position*. Nothing
+  here needs the cursor — a stretch is picked out and written down with
+  presses alone.
+- A stretch picked out is forgotten when the mode is turned off. It belongs to
+  the mode rather than to the sheet, the same as a row left held.
+- **Shifting a row happens outside the mode.** A shift's anchors and the
   mode's circles are the same control above the same staff for two different
-  errands, which is one strip too many to tell apart — so copy mode closes any
-  shift that was out, and the row's **↔** stands down until it is turned off.
-
-### Playing it live
-
-The **screen** button in the toolbar asks for a tempo and then plays the song
-full screen: a
-playhead standing fixed on the page, with the tab sliding leftwards underneath
-it, the way a DAW moves a track past its play position.
-
-- One position is one beat, so a bar is four of them. At 90 BPM the playhead
-  crosses a position every two thirds of a second.
-- The song played is the **Groups** running order, expanded — writing `1 1 2`
-  there plays the first row, then the first row again, then the second, one
-  continuous line of tab. A sheet with an empty running order plays its rows
-  once each, top to bottom.
-- A silent bar leads in, so there is a bar's worth of tempo to pick up before
-  the first note is due.
-- With sound on, every note standing on the position the playhead reaches
-  sounds together, as a chord.
-- <kbd>space</kbd> pauses and resumes, <kbd>←</kbd> / <kbd>→</kbd> move a bar at
-  a time, <kbd>↑</kbd> / <kbd>↓</kbd> change the tempo by 5 without stopping,
-  and <kbd>esc</kbd> leaves. The transport buttons along the top do the same.
-- The tempo popup's **Simple mode** leaves the moving tab and an **Exit** button
-  only, for a clean audience-facing display.
-- The staff is zoomed to fit the space it has, measured rather than guessed —
-  a phone, or a window with the toolbar wrapped onto two lines, gets a smaller
-  staff rather than one with its top string cut off. The zoom is capped so
-  there are always beats visible ahead of the playhead to read.
-- The tempo is saved with the song, so a sheet is reopened at the speed it was
-  last played at.
+  errands, which is one strip too many to tell apart — so the row's **↔**,
+  like the rest of its bar controls, stands down for as long as the mode is
+  on, and any shift that was out closes on the way in.
 
 ### Playing a chord again
 
@@ -312,57 +360,127 @@ Text and image exports stop at the last row you wrote in, so trailing blank
 staves are never included. A JSON export keeps every row, blank ones and all —
 rows are yours to add, so a file records the sheet exactly as you left it.
 
+**Publish**, beside it, is the same JSON sent somewhere instead of saved: it
+puts the sheet in the published notes, at a URL anyone can open — and a
+published note carries **Update** and **Delete** there instead, both of which
+want the password. See below.
+
 ## Publishing notes
 
 A published note is a read-only note with a URL of its own, and `/notes` lists
-them all. They live in a **public Cloudflare R2 bucket, one per environment** —
-dev and prod read different buckets — and the browser reads them straight out
-of it, so publishing is a command rather than a deploy:
+them all. They live in a **private Cloudflare R2 bucket, one per environment**,
+and the app reads them from its own origin through the backend, which is the
+one thing holding a credential for that bucket.
+
+**Publish** in the toolbar is the short way: it asks for a name — prefilled
+from the title, which is already a publishable name — and uploads the sheet to
+this environment's bucket. It is live at `/notes/<name>` as soon as the press
+finishes, and `/notes` lists it. Nothing is rebuilt, nothing is merged, and
+there is no file in between.
+
+**It cannot publish over a note**, deliberately: a name that is taken is
+refused and you are asked for another. R2 keeps no versions, so a write over a
+note destroys it, and that refusal is the one guard that matters on a route
+anyone can reach.
+
+Changing a note, and taking one down, are the two buttons a **published note**
+carries instead — and the two that ask for a password:
+
+| On `/notes/<name>` | What it does |
+| --- | --- |
+| **Update** | Writes the sheet in front of you over that note, title and all. Dead until something has actually changed |
+| **Delete** | Takes the note down: the object and its line in the index. The link stops working |
+
+Both are final — nothing else holds a copy — so each panel says what it is
+about to do before it asks for anything. The only way back from a delete is
+**Export → JSON file** and `notes:publish` again.
+
+The password is one secret per environment, `FRETBOOK_PUBLISH_PASSWORD` on the
+backend, sent in a header and stored nowhere in the browser. Without it set,
+both buttons answer 503 and the rest of the site is unaffected — so an
+environment opts into being editable.
+
+[docs/notes-upload-from-app.md](docs/notes-upload-from-app.md) is what these
+routes give up, and who can reach them: publishing is open to **anyone who can
+open the site**, changing and removing are not.
+
+The commands are the other way in, and still the only one that can replace or
+remove:
 
 ```bash
-export FRETBOOK_R2_ENDPOINT=https://<account id>.r2.cloudflarestorage.com
-export FRETBOOK_NOTES_BUCKET=fretbook-notes-dev     # or pass --bucket
-export AWS_PROFILE=r2                                # the R2 token's credentials
+cp .env.example .env.local      # once: the R2 endpoint and the token's profile
 
 npm run notes:publish   -- notes/tie_that_binds_by_drake.json
 npm run notes:unpublish -- tie_that_binds_by_drake
 npm run notes:manifest                               # rebuild the index only
+npm run notes:pull                                   # refresh the local cache
 ```
+
+**A bare command means the dev bucket.** Local work is dev work, so that is the
+default; production has to be named, either for one command or for a shell:
+
+```bash
+npm run notes:publish -- --bucket fretbook-notes-prod notes/*.json
+export FRETBOOK_NOTES_BUCKET=fretbook-notes-prod
+```
+
+Every command prints the bucket it acted on as its first line, with `(default)`
+when nothing asked for one — so a forgotten override shows up in the output
+rather than in the consequences.
 
 ```
 notes/tie_that_binds_by_drake.json   →   /notes/tie_that_binds_by_drake
 ```
 
-To publish one: write it in the editor, **Export → JSON file**, and publish the
-file. An export is named after its title with underscores between the words,
-which is already a publishable name — rename it only if you want the URL to
-read differently, keeping to lowercase letters and digits joined by single
-dashes or underscores. It is live as soon as the upload finishes; nothing is
-rebuilt and no merge is involved.
+To publish from a file: **Export → JSON file**, then publish the file. An
+export is named after its title with underscores between the words, which is
+already a publishable name — rename it only if you want the URL to read
+differently, keeping to lowercase letters and digits joined by single dashes or
+underscores.
 
-The bucket is the only source of truth: a reader can open a note and play with
-it, but nothing they do is saved anywhere, and `notes:publish` is the only
-thing that can change what everyone sees. The repo's `notes/` folder is just
-local copies of what you have published — deleting a file there changes
-nothing, but keep them: R2 has no object versioning, so republishing over a
-note or unpublishing one is final.
+**The bucket is the only place a note lives.** A reader can open one and play
+with it, but nothing they do is saved anywhere, and publishing — the button or
+the command — is the only thing that changes what everyone sees. Nothing in
+this repo is authoritative about a note: `notes/` is git-ignored, and nothing
+under it is tracked.
 
-`scripts/notes.mjs` is the whole of publishing. It refuses a file the editor
-could not open, so a broken note never reaches a reader, and afterwards it
-rebuilds `notes.json` — the manifest `/notes` lists — from what is actually in
-the bucket, so there is no list to keep in step.
+`notes:pull` is how you get the notes onto a machine. It **mirrors** the
+bucket: it fetches what you do not have and deletes what the bucket no longer
+has, because a file the bucket does not have is not a note. A second pull in a
+row fetches nothing, so it costs nothing to run before reaching for anything
+else. An export you have not published yet does not belong in `notes/` —
+publish it from wherever the browser saved it, since `notes:publish` takes any
+path.
 
-Which bucket a build reads is `VITE_NOTES_BASE_URL`, inlined at build time:
-CI sets it per environment from the `DEV_NOTES_BASE_URL` /
-`PROD_NOTES_BASE_URL` repository variables, and `.env.example` is the local
-copy. A build without it runs fine — `/notes` says it was not told where the
-notes are.
+That leaves no second copy anywhere, and **R2 has no object versioning**, so
+republishing over a note or unpublishing one is final. That is the deliberate
+cost of one source of truth; [docs/notes-pull-from-r2.md](docs/notes-pull-from-r2.md)
+is where it is argued, and what to do if it ever bites.
 
-R2 speaks the S3 API, so publishing is the ordinary `aws` CLI pointed at the
-account's R2 endpoint — no new dependency.
+`scripts/notes.mjs` is the whole of publishing from a terminal. It refuses a
+file the editor could not open, so a broken note never reaches a reader, and
+afterwards it rebuilds `notes.json` — the manifest `/notes` lists — from what
+is actually in the bucket, so there is no list to keep in step. The button
+takes the same two cares at the other end: the backend checks the export's
+envelope before it writes, and adds the note's own line to the manifest rather
+than leaving it unlisted. `npm run notes:manifest` remains the repair for a
+manifest that has drifted either way.
 
-**The buckets themselves are not created by this repo.** Making them public,
-their CORS rule, the API token and the costs are in
+**Nothing about a note is baked into the build.** The browser asks
+`/api/notes` and `/api/notes/<name>` on its own origin — and `PUT`s to the
+second of those to publish; Caddy hands them to Flask, and
+`docker/app/backend/app/notes.py` fetches the object from R2 with boto3, or
+writes it. Which bucket that means is the backend's runtime setting, so the dev and
+prod web images are identical — see
+[docs/notes-via-s3-client.md](docs/notes-via-s3-client.md).
+
+Everything speaks the S3 API, in other words: publishing is the ordinary `aws`
+CLI pointed at the account's R2 endpoint, and reading is boto3 pointed at the
+same place. Nothing reads the bucket over HTTP, and the bucket is not public.
+
+**The buckets themselves are not created by this repo.** The API tokens — one
+for your laptop and one for the server, both **Object Read & Write** now that
+the server publishes too — and the costs are in
 [docs/notes-r2-storage.md](docs/notes-r2-storage.md).
 
 ## Layout
@@ -371,16 +489,15 @@ their CORS rule, the API token and the costs are in
 src/
   App.jsx                  state, toolbar, rows, exports, autosave
   components/TabEditor.jsx  the writable staves, keyboard nav, tie arming
-  components/GroupSection.jsx the running order above the staves, and its picker
+  components/GroupBar.jsx   one group's bar across the sheet, and the name typed into it
   components/StaffOverlay.jsx the SVG arcs and symbols over one staff line
   components/MarkBar.jsx    the rewind, tie and symbol buttons floating over the selected position
-  components/PositionStrip.jsx one control per position above a staff, shared by the shift anchors and copy mode
-  components/LiveMode.jsx   the full-screen player: playhead, scrolling tab, transport
-  components/Popover.jsx    the anchored panel behind the export, group and tempo menus
+  components/PositionStrip.jsx one control per position above a staff, shared by the shift anchors and edit mode's strips
+  components/Popover.jsx    the anchored panel behind the export and publish menus
+  components/PublishMenu.jsx the name a sheet is published under or the password it is changed with, and the press that writes it
   components/icons.jsx      the drawn symbols on the buttons that carry no words
   utils/tab.js              grid, tie and mark model; ASCII/JSON; downloads
-  utils/notes.js            the published notes' bucket: its URLs and reads
-  utils/live.js             the running order as a flat run of beats, and its timing
+  utils/notes.js            the published notes: the /api calls that fetch them, and the three that change one
   utils/audio.js            fret-to-pitch both ways, and the plucked-string synthesis
   utils/popover.js          where an anchored panel sits, kept inside the window
   utils/layout.js           staff geometry and the arc/symbol maths, shared by
@@ -394,44 +511,31 @@ contiguous slice — that is how it is edited and how every export walks it. Tie
 it in absolute grid positions: that is what lets one arc be clipped across a
 staff wrap, and it keeps a cell's value a plain string.
 
-Live mode reads that same grid rather than a copy of it: `songRuns` turns the
-running order into the list of stretches to play, each holding the column its
-row starts at. A group played three times is three runs pointing at the same
-columns, which is why a repeat costs nothing and why its arcs and symbols —
-kept in absolute columns — draw correctly every time round.
-
-Group ids live in a parallel `groups` array — one per staff row, in row order —
-and are what `structure` refers to. They are zero-based, which is exactly what
-the running order held back when a slot named a row by its index, so a file
-written before ids existed reads back unchanged: `readGroups` hands its rows
-identity ids and every slot in it still resolves. `songRuns` looks each slot up
-with `rowOfGroup` rather than indexing `rows` directly, which is the whole
-mechanism — reordering rows moves the tab and its name together, and the song
-is unaffected.
+Groups are kept the other way round from how they are drawn. The sheet holds a
+list of them — `{ id, name }`, ids handed out in turn and never reused — and
+`members` maps a **row id** to the group that row is in, so membership travels
+with the row exactly as its name does. Nothing records where a group stands:
+a group is drawn as one bar over the rows it holds, so it stands where they
+do, and `groupRuns` reads that layout back off the order of the rows. The one
+thing this asks of that order is that **a group's rows are adjacent**:
+`putRowInGroup` is what keeps them so, moving the row as it changes what it
+belongs to.
 
 Row lengths live in a parallel `rows` array — one bar count per staff line —
 while the grid stays one flat run of columns. Adding a bar therefore inserts
 columns *mid-grid*, which is why `addBar` also shifts every tie and mark past
-the insertion point. Files record `rows`; ones written before it existed
-(version 3) are read back as rows of 8 bars, the 32-position line they used.
-Version 6 added `bpm`; a file without one opens at 90. Version 7 added per-slot
-repeat counts, and version 8 `groups`.
+the insertion point. Imports accept the current version 12 sheet format only;
+older exports and browser saves are not loaded.
 
-The running order is a parallel `structure` array — one slot per position in
-the song, holding the index of the row played there or `null`. Because slots
-point at rows by index, dropping a row has to blank the slots that named it,
-which is what `clampStructure` does. Files written before groups existed
-(version 4 and earlier) simply load with an empty running order.
-
-Swapping two rows is the same bookkeeping run the other way. `swapRows` rebuilds
-the grid with each row's run of columns standing where the other's did — the
-rows caught between them slide by the difference in the two widths — and remaps
-every tie and mark through the same function, since both are held in absolute
-columns. `structure` is handed straight back untouched, which is what keeps the
-two orders apart: a slot names a group by index, so leaving the indices alone
-leaves the strip saying what it said, and the row that moved into a position is
-the one now played there. `swapGroupSlots` is the other half, reordering the
-strip without reaching into the grid at all.
+Rearranging the rows is the same bookkeeping run the other way, and all of it
+goes through one function. `reorderRows` takes the new order — one entry per
+place on the page, naming the row that now stands there — rebuilds the grid run
+by run in that order, and carries every tie and mark by the distance its own
+row moved, since both are held in absolute columns. Rows can differ in length,
+so the rows caught between two that trade places slide by the difference in
+their widths. `swapRows` is that function given a two-row order, and
+`putRowInGroup` and `collectGroups` are the same function given the order a
+group's bracket needs.
 
 `removeRow` takes the same view of a row as `removeBar` does of a bar, a whole
 row wide: it cuts that row's run of columns out of the grid, so everything
@@ -442,6 +546,6 @@ what **− Remove row** asks for; edit mode's per-row bin names one.
 
 TODO:
 - Groups need refactor so that rows can be grouped into sub groups 
-- Rows need custom name
 - Mb create new arrangement section, that arranges certain groups, and groups section exist purely for grouping rows. 
-- Add undo button
+- Once undo button is added, disable remove section confirmation 
+- Add guitar fretboard popup where you can play notes on the fretboard and it plays out loud. 

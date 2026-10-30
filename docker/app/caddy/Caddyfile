@@ -11,7 +11,10 @@
 	encode gzip zstd
 
 	# Everything under /api goes to the gunicorn/Flask container. `backend` is
-	# the compose service name, resolved on the shared network.
+	# the compose service name, resolved on the shared network. The published
+	# notes are among those routes — /api/notes and /api/notes/<name> — since
+	# the bucket they live in is private and only the backend holds a token for
+	# it. That is also why no CORS rule is involved: same origin.
 	handle /api/* {
 		reverse_proxy backend:8000
 	}
@@ -19,8 +22,9 @@
 	# Static build output. try_files sends unknown paths to index.html so the
 	# SPA keeps working on a deep link / refresh — including /notes and
 	# /notes/<name>, which are addresses in the app rather than files. The
-	# notes themselves are not here at all: the browser reads them straight
-	# out of this environment's R2 bucket.
+	# notes themselves are not here at all: they are fetched from /api/notes,
+	# handled above, and the handle blocks do not overlap — /api/notes is the
+	# data, /notes is the page that asks for it.
 	handle {
 		root * /srv
 		try_files {path} /index.html

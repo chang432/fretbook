@@ -23,9 +23,17 @@ Two containers:
 
 ```bash
 cd docker/app
+cp .env.example .env             # once: the bucket, the R2 token, the password
 docker compose up --build        # http://localhost:8080
 WEB_PORT=3000 docker compose up  # different host port
 ```
+
+`.env` is what compose reads the backend's settings out of, and
+`.env.example` says what each one is for. It is git-ignored; a shell variable
+beats it, so a credential can stay off disk. Without it the stack still comes
+up — `/api/notes` answers 503 and `/notes` is an empty shelf.
+`npm run stack` from the repo root is the same thing with the file copied for
+you and the credentials checked first.
 
 The published port is bound to `127.0.0.1` (see *Deployment* below), so the
 stack is reachable from the machine running it and nowhere else.
@@ -34,13 +42,12 @@ The frontend is built inside the image (`node:22-alpine` stage runs `npm ci &&
 npm run build`), so no local `npm run build` is needed first. The build context
 for `web` is the repo root; `backend` builds from `docker/app/backend`.
 
-`web` takes one build arg, `NOTES_BASE_URL` — the public R2 bucket this
-environment reads its published notes from, which Vite inlines into the bundle
-as `VITE_NOTES_BASE_URL`. It is unset locally, where `/notes` then says so; the
-deploy writes it into each environment's env file from the `DEV_NOTES_BASE_URL`
-/ `PROD_NOTES_BASE_URL` repository variables. Because it is baked in at build
-time, changing it means rebuilding the image, not restarting the container. See
-`docs/notes-r2-storage.md`.
+`web` takes no build args: nothing environment-specific is baked into the
+bundle, so dev and prod run the same image. Which bucket the published notes
+come from is the `backend` container's runtime setting — `FRETBOOK_NOTES_BUCKET`
+and `FRETBOOK_R2_ENDPOINT`, written into each environment's env file by the
+deploy — so pointing an environment at another bucket is a restart, not a
+rebuild. See `docs/notes-via-s3-client.md`.
 
 ## Layout
 
@@ -49,17 +56,19 @@ docker/
   README.md
   app/                    # one stack per environment
     docker-compose.yml    # the template; -p and an env file make it dev or prod
+    .env.example          # the shape of the git-ignored .env compose reads
     caddy/
       Dockerfile          # multi-stage: node build -> caddy
       Caddyfile           # static file server + /api reverse proxy
     backend/
       Dockerfile
       requirements.txt
-      gunicorn.conf.py    # bind/workers/timeout from env
+      gunicorn.conf.py    # bind/workers/timeout from env; the log-file tee
       wsgi.py             # gunicorn entrypoint
       app/
         __init__.py       # application factory
         api.py            # /api blueprint
+        notes.py          # the published notes, read from and written to R2
   edge/                   # one proxy per host
     docker-compose.yml
     Caddyfile             # TLS + hostname routing to each environment
@@ -86,7 +95,29 @@ gunicorn --config gunicorn.conf.py wsgi:app   # http://localhost:8000/api/health
 ```
 
 Environment knobs (set on the `backend` service in `docker-compose.yml`):
-`PORT`, `WEB_CONCURRENCY`, `GUNICORN_THREADS`, `GUNICORN_TIMEOUT`, `LOG_LEVEL`.
+`PORT`, `WEB_CONCURRENCY`, `GUNICORN_THREADS`, `GUNICORN_TIMEOUT`, `LOG_LEVEL`,
+`LOG_FILE`.
+
+### Logs
+
+Everything the backend writes — gunicorn's access and error logs, and any
+`print()` in the app — goes to **both** the container's streams and
+`/var/log/output.log` inside the container:
+
+```bash
+docker compose logs -f backend                        # as before
+docker compose exec backend cat /var/log/output.log   # the same lines, kept
+docker compose exec backend tail -f /var/log/output.log
+```
+
+`gunicorn.conf.py` does it by wrapping `sys.stdout`/`sys.stderr` in a tee
+before the arbiter builds its handlers and forks, so the workers and gunicorn
+itself are covered without anything opting in. The streams are kept because
+`docker compose logs` is what `npm run stack:logs` and `deploy-local.sh` read;
+the file is there because they are a tail, and a debug print scrolls out of
+them. It is a plain file in the image's writable layer, created in the
+Dockerfile and owned by `appuser` — it goes when the container does, and
+nothing rotates it. `LOG_FILE` moves it, and `LOG_FILE=` turns it off.
 
 ## Deployment
 
@@ -105,7 +136,7 @@ VPS
 | Namespaced by environment | dev | prod |
 |---------------------------|-----|------|
 | Checkout                  | `/opt/fretbook-dev` | `/opt/fretbook-prod` |
-| Notes bucket              | `DEV_NOTES_BASE_URL` | `PROD_NOTES_BASE_URL` |
+| Notes bucket              | `fretbook-notes-dev` | `fretbook-notes-prod` |
 | Compose project           | `fretbook-dev` | `fretbook-prod` |
 | Image tags                | `fretbook-*:dev` | `fretbook-*:prod` |
 | Loopback port             | `8082` | `8081` |
