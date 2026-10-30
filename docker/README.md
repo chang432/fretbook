@@ -55,7 +55,7 @@ docker/
     backend/
       Dockerfile
       requirements.txt
-      gunicorn.conf.py    # bind/workers/timeout from env
+      gunicorn.conf.py    # bind/workers/timeout from env; the log-file tee
       wsgi.py             # gunicorn entrypoint
       app/
         __init__.py       # application factory
@@ -86,7 +86,29 @@ gunicorn --config gunicorn.conf.py wsgi:app   # http://localhost:8000/api/health
 ```
 
 Environment knobs (set on the `backend` service in `docker-compose.yml`):
-`PORT`, `WEB_CONCURRENCY`, `GUNICORN_THREADS`, `GUNICORN_TIMEOUT`, `LOG_LEVEL`.
+`PORT`, `WEB_CONCURRENCY`, `GUNICORN_THREADS`, `GUNICORN_TIMEOUT`, `LOG_LEVEL`,
+`LOG_FILE`.
+
+### Logs
+
+Everything the backend writes — gunicorn's access and error logs, and any
+`print()` in the app — goes to **both** the container's streams and
+`/var/log/output.log` inside the container:
+
+```bash
+docker compose logs -f backend                        # as before
+docker compose exec backend cat /var/log/output.log   # the same lines, kept
+docker compose exec backend tail -f /var/log/output.log
+```
+
+`gunicorn.conf.py` does it by wrapping `sys.stdout`/`sys.stderr` in a tee
+before the arbiter builds its handlers and forks, so the workers and gunicorn
+itself are covered without anything opting in. The streams are kept because
+`docker compose logs` is what `npm run stack:logs` and `deploy-local.sh` read;
+the file is there because they are a tail, and a debug print scrolls out of
+them. It is a plain file in the image's writable layer, created in the
+Dockerfile and owned by `appuser` — it goes when the container does, and
+nothing rotates it. `LOG_FILE` moves it, and `LOG_FILE=` turns it off.
 
 ## Deployment
 
