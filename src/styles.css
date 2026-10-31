@@ -1017,18 +1017,19 @@ button.link {
  * and a column of this grid that grew to hold one would move the staff.
  *
  * The three parts below it keep the order they are written in — string
- * labels, the scroller, the bar controls — and `minmax(0, max-content)` on the
- * middle track is what `flex: 0 1 auto` used to do for the scroller: as wide
- * as its staff and no wider, shrinking only when the row is too long for the
- * sheet. Items are top-aligned rather than centred so the string labels stay
- * level with the strings even when a scrollbar takes up room below them.
+ * labels, the scroller, the bar controls — and `minmax(0, 1fr)` on the middle
+ * track hands it every bit of room the other two leave: the bar controls hold
+ * the same column at the right edge of the sheet on every row rather than
+ * following the end of whichever row they sit beside, and a row too long for
+ * that room scrolls inside it. Items are top-aligned rather than centred so
+ * the string labels stay level with the strings even when a scrollbar takes up
+ * room below them.
  */
 .staff {
   position: relative;
   display: grid;
-  grid-template-columns: max-content minmax(0, max-content) max-content;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
   align-items: start;
-  justify-content: start;
   padding-top: 32px;
   border-top: 1px solid var(--bar);
 }
@@ -1146,10 +1147,10 @@ button.link {
  * Each row scrolls by itself, so reading the end of a long row leaves every
  * other row where it was.
  *
- * Its width comes from .staff's middle column, which is max-content up to
- * whatever room the sheet has: the +/- buttons stay against the end of a short
- * row, and only a row too long for the sheet gets shrunk and scrolls.
- * `min-width: 0` is what allows that shrinking at all.
+ * Its width comes from .staff's middle column, which takes whatever room the
+ * sheet has left over once the labels and the bar controls have theirs: the
+ * staff is drawn from the left of it, and only a row too long for that room
+ * scrolls. `min-width: 0` is what allows the track to shrink that far at all.
  */
 .staff-scroll {
   min-width: 0;
@@ -1161,9 +1162,10 @@ button.link {
   scrollbar-width: thin;
 }
 
-/* One column of controls past the end of the staff — shift left, shift right,
-   then add and remove a bar. Sitting after the scroller means a row that has
-   been widened pushes them right rather than moving any other row. */
+/* One column of controls at the right edge of the row — shift left, shift
+   right, then add and remove a bar. Sitting past the scroller rather than
+   inside it means they keep that edge whatever the row is holding: widening a
+   row fills the scroller instead of pushing them along. */
 /* `display: flex` would otherwise outrank the browser's own rule for the
    hidden attribute, which is how edit mode stands these down. */
 .row-bars[hidden] {
