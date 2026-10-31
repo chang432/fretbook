@@ -8,8 +8,9 @@ multiple levels; the existing `+ New group` still adds a top-level group.
 
 ## Behavior
 
-- Add a **+ New group** button inside each expanded group. It creates an empty
-  child at the end of that group. Empty children stay in their chosen position.
+- The only **+ New group** button is at the bottom of the page; it creates an
+  empty top-level group. To nest it, pick it up in edit mode and move it into
+  another group. Empty groups stay in their chosen position.
 - Draw each child with the existing group bar and spine, indented inside its
   parent. Folding a group hides all descendants; its counts include descendant
   rows, bars and notes once. A child's fold state survives folding its parent.
@@ -19,9 +20,11 @@ multiple levels; the existing `+ New group` still adds a top-level group.
   its entire subtree using the same pick-up-and-drop interaction. Disallow
   dropping a group into itself or any descendant. A gap identifies both its
   parent and position, including gaps next to empty groups.
-- Deleting a group removes only its bar: promote its direct rows and child
-  groups into its parent at the same position (or to the top level). Remove
-  arrangement entries for the deleted group only. Undo restores the whole edit.
+- Deleting a group removes the group, all descendant groups and rows, and the
+  music in those rows. Remove arrangement entries for every deleted group.
+  Undo restores the entire subtree and its arrangement entries in one step.
+  If no rows remain, create one blank, ungrouped row so the sheet stays usable;
+  a sheet can then have no groups until another is added.
 - The arrangement picker offers any group containing descendant rows. An
   arranged parent plays all its descendant rows once in sheet order; an
   arranged child plays only its own subtree. Arranging both plays each selected
@@ -58,8 +61,10 @@ the editor usable on narrow screens.
   operations with tree-based equivalents. Tree edits that change row order must
   call the existing row reordering machinery so grid slices, ties and marks
   travel with their rows. Add, delete, move and swap rows must update the tree
-  and music together as one sheet update. Deleting the last row still leaves
-  at least one row, as today.
+  and music together as one sheet update. Subtree deletion removes its grid
+  slices, names, ties and marks, adjusts remaining annotations, and creates a
+  blank ungrouped row if needed. Update sheet validation to allow zero groups
+  while retaining the requirement for at least one row.
 
 ```js
 // Sketch: playback and counts share this traversal.
@@ -104,6 +109,8 @@ existing published notes.
 
 Run `npm run lint` and `npm run build`. Add focused tests for migration and
 round trips, malformed/duplicate/deep trees, subtree moves and cycle rejection,
-row swaps and annotation preservation, promotion on deletion, and playback of
-parent, child, repeated and empty groups. In the app, exercise nested creation,
-gaps, folding, undo, reload and arrangement on desktop and a narrow screen.
+row swaps and annotation preservation, subtree deletion and undo (including
+deleting all rows), and playback of parent, child, repeated and empty groups.
+In the app, exercise creating a group at the bottom and moving it inside
+another, gaps, folding, undo, reload and arrangement on desktop and a narrow
+screen.
