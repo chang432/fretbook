@@ -989,122 +989,112 @@ export default function TabEditor({
               ))}
             </div>
 
-            {/* Past the barline closing the row, where another bar would go.
-                They are part of the staff rather than of the sheet, and they
-                stand down in edit mode with the rest of the bar controls. */}
-            <div className="row-bars row-bars--inline" hidden={editing}>
-              <button
-                type="button"
-                className="bar-button"
-                onClick={() => onAddBar(staff)}
-                title={`Add a bar to this row (${bars} so far)`}
-                aria-label={`Add a bar to row ${label(staff)}`}
-              >
-                +
-              </button>
-              <button
-                type="button"
-                className={`bar-button${pendingRemove === staff ? ' is-armed' : ''}`}
-                onClick={() => onRemoveBar(staff)}
-                onBlur={onCancelRemove}
-                disabled={bars <= 1}
-                title={
-                  pendingRemove === staff
-                    ? 'Press again to delete this bar and the notes in it'
-                    : `Remove the last bar of this row (${bars} so far)`
-                }
-                aria-label={`Remove the last bar of row ${label(staff)}`}
-              >
-                −
-              </button>
-            </div>
+            {/* Every control a row has, past the barline that closes it.
+                Edit mode has the one button that takes the whole row off the
+                sheet; the rest of the time it is shift, then add and remove a
+                bar. Standing inside the scroller, they travel with the row
+                they act on rather than waiting at the edge of the sheet. */}
+            {editing ? (
+              <div className="row-bars row-bars--edit">
+                <button
+                  type="button"
+                  className="bar-button bar-button--delete"
+                  onClick={() => onDeleteRow(staff)}
+                  onKeyDown={dropOnEscape}
+                  disabled={rows.length <= 1}
+                  title={
+                    rows.length <= 1
+                      ? 'The sheet keeps at least one row'
+                      : 'Delete this row — Undo takes it back'
+                  }
+                  aria-label={`Delete row ${label(staff)}`}
+                >
+                  <TrashIcon />
+                </button>
+              </div>
+            ) : (
+              <div className="row-bars">
+                {/* Kept behind one button, which opens out into the two arrows in
+                    place rather than into a row of three standing all the time. */}
+                {shiftRows.has(staff) ? (
+                  <>
+                    {/* Nothing else puts the arrows away, so they close on their
+                        own terms rather than the moment attention moves. It leads
+                        the group it closes, leaving the two arrows side by side. */}
+                    <button
+                      type="button"
+                      className="bar-button bar-button--close"
+                      onClick={() => closeShift(staff)}
+                      onKeyDown={closeShiftOnEscape(staff)}
+                      aria-expanded
+                      title="Done shifting this row"
+                      aria-label={`Hide row ${label(staff)}'s shift controls`}
+                    >
+                      ×
+                    </button>
+                    <button
+                      type="button"
+                      className="bar-button"
+                      // Taken as the arrows appear, so the press that opened them
+                      // does not leave focus behind on a button that has gone.
+                      autoFocus
+                      onClick={() => shift(staff, -1)}
+                      onKeyDown={closeShiftOnEscape(staff)}
+                      title="Move this row's notes one position left"
+                      aria-label={`Move row ${label(staff)}'s notes left`}
+                    >
+                      ←
+                    </button>
+                    <button
+                      type="button"
+                      className="bar-button"
+                      onClick={() => shift(staff, 1)}
+                      onKeyDown={closeShiftOnEscape(staff)}
+                      title="Move this row's notes one position right"
+                      aria-label={`Move row ${label(staff)}'s notes right`}
+                    >
+                      →
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="bar-button"
+                    onClick={() => openShift(staff)}
+                    aria-expanded={false}
+                    title="Slide this row's notes along"
+                    aria-label={`Shift row ${label(staff)}'s notes`}
+                  >
+                    ↔
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="bar-button"
+                  onClick={() => onAddBar(staff)}
+                  title={`Add a bar to this row (${bars} so far)`}
+                  aria-label={`Add a bar to row ${label(staff)}`}
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  className={`bar-button${pendingRemove === staff ? ' is-armed' : ''}`}
+                  onClick={() => onRemoveBar(staff)}
+                  onBlur={onCancelRemove}
+                  disabled={bars <= 1}
+                  title={
+                    pendingRemove === staff
+                      ? 'Press again to delete this bar and the notes in it'
+                      : `Remove the last bar of this row (${bars} so far)`
+                  }
+                  aria-label={`Remove the last bar of row ${label(staff)}`}
+                >
+                  −
+                </button>
+              </div>
+            )}
           </div>
-        </div>
-
-        {/* Edit mode is where a row other than the last can be taken off
-            the sheet, so its one button stands at the end of the staff,
-            where the bar controls stand the rest of the time. It has to
-            sit above the press-sheet, which covers the whole row. */}
-        {editing && (
-          <div className="row-bars row-bars--edit">
-            <button
-              type="button"
-              className="bar-button bar-button--delete"
-              onClick={() => onDeleteRow(staff)}
-              onKeyDown={dropOnEscape}
-              disabled={rows.length <= 1}
-              title={
-                rows.length <= 1
-                  ? 'The sheet keeps at least one row'
-                  : 'Delete this row — Undo takes it back'
-              }
-              aria-label={`Delete row ${label(staff)}`}
-            >
-              <TrashIcon />
-            </button>
-          </div>
-        )}
-
-        {/* Shifting a row is the one errand that acts on the whole of it
-            rather than on its end, so it waits at the edge of the sheet,
-            holding the same column down every row, while adding and removing
-            a bar rides along at the end of the staff. None of what it does is
-            reordering, so it stands down for as long as the mode is on. */}
-        <div className="row-bars" hidden={editing}>
-          {/* Kept behind one button, which opens out into the two arrows in
-              place rather than into a row of three standing all the time. */}
-          {shiftRows.has(staff) ? (
-            <>
-              {/* Nothing else puts the arrows away, so they close on their
-                  own terms rather than the moment attention moves. It leads
-                  the group it closes, leaving the two arrows side by side. */}
-              <button
-                type="button"
-                className="bar-button bar-button--close"
-                onClick={() => closeShift(staff)}
-                onKeyDown={closeShiftOnEscape(staff)}
-                aria-expanded
-                title="Done shifting this row"
-                aria-label={`Hide row ${label(staff)}'s shift controls`}
-              >
-                ×
-              </button>
-              <button
-                type="button"
-                className="bar-button"
-                // Taken as the arrows appear, so the press that opened them
-                // does not leave focus behind on a button that has gone.
-                autoFocus
-                onClick={() => shift(staff, -1)}
-                onKeyDown={closeShiftOnEscape(staff)}
-                title="Move this row's notes one position left"
-                aria-label={`Move row ${label(staff)}'s notes left`}
-              >
-                ←
-              </button>
-              <button
-                type="button"
-                className="bar-button"
-                onClick={() => shift(staff, 1)}
-                onKeyDown={closeShiftOnEscape(staff)}
-                title="Move this row's notes one position right"
-                aria-label={`Move row ${label(staff)}'s notes right`}
-              >
-                →
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              className="bar-button"
-              onClick={() => openShift(staff)}
-              aria-expanded={false}
-              title="Slide this row's notes along"
-              aria-label={`Shift row ${label(staff)}'s notes`}
-            >
-              ↔
-            </button>
-          )}
         </div>
       </div>
     )

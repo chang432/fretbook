@@ -1066,19 +1066,17 @@ button.link {
  * that a long name widens nothing — the name is written beside the number,
  * and a column of this grid that grew to hold one would move the staff.
  *
- * The three parts below it keep the order they are written in — string
- * labels, the scroller, the bar controls — and `minmax(0, 1fr)` on the middle
- * track hands it every bit of room the other two leave: the bar controls hold
- * the same column at the right edge of the sheet on every row rather than
- * following the end of whichever row they sit beside, and a row too long for
- * that room scrolls inside it. Items are top-aligned rather than centred so
- * the string labels stay level with the strings even when a scrollbar takes up
- * room below them.
+ * The two parts below it are the string labels and the scroller, which holds
+ * the staff and every control that acts on it. `minmax(0, 1fr)` on the second
+ * track hands it all the room the labels leave, so a long row has the whole
+ * width of the sheet to be read across before it has to scroll. Items are
+ * top-aligned rather than centred so the string labels stay level with the
+ * strings even when a scrollbar takes up room below them.
  */
 .staff {
   position: relative;
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  grid-template-columns: max-content minmax(0, 1fr);
   align-items: start;
   padding-top: 32px;
   border-top: 1px solid var(--bar);
@@ -1197,10 +1195,10 @@ button.link {
  * Each row scrolls by itself, so reading the end of a long row leaves every
  * other row where it was.
  *
- * Its width comes from .staff's middle column, which takes whatever room the
- * sheet has left over once the labels and the bar controls have theirs: the
- * staff is drawn from the left of it, and only a row too long for that room
- * scrolls. `min-width: 0` is what allows the track to shrink that far at all.
+ * Its width comes from .staff's second column, which takes whatever room the
+ * sheet has left once the string labels have theirs: the staff is drawn from
+ * the left of it, and only a row too long for that room scrolls.
+ * `min-width: 0` is what allows the track to shrink that far at all.
  */
 .staff-scroll {
   min-width: 0;
@@ -1212,32 +1210,21 @@ button.link {
   scrollbar-width: thin;
 }
 
-/* A column of controls, in two places: the shift control past the scroller, at
-   the right edge of the row, and add/remove a bar inside it at the end of the
-   staff. Both are the same stack of buttons, so both are drawn the same. */
-/* `display: flex` would otherwise outrank the browser's own rule for the
-   hidden attribute, which is how edit mode stands these down. */
-.row-bars[hidden] {
-  display: none;
-}
+/* One column of controls at the end of the staff — shift the row's notes, then
+   add and remove a bar, or edit mode's single bin in place of all three. It
+   stands inside the scroller, past the barline closing the row, so it travels
+   with the row it acts on: a row too long for the sheet carries it off the
+   right, and the scroll that reaches the last bar reaches it.
 
+   The staff's own air is given back either side, so the buttons neither sit
+   flush against the barline nor end flush with the scroll. */
 .row-bars {
   display: flex;
   flex: none;
   flex-direction: column;
   align-items: center;
-  align-self: center;
   gap: 6px;
-  margin-left: 10px;
-}
-
-/* Inside the scroller, where the room to the right of the staff is the
-   scroller's own padding rather than the sheet's: the staff's air is given
-   back on this side so the buttons do not sit flush against the barline, and
-   again past them so the scroll has somewhere to end. */
-.row-bars--inline {
-  margin-right: var(--staff-air);
-  margin-left: var(--staff-air);
+  margin: 0 var(--staff-air);
 }
 
 .bar-button {
@@ -1278,15 +1265,14 @@ button.link {
 }
 
 .staff--folded .staff-labels,
-.staff--folded .staff-scroll,
-.staff--folded .row-bars {
+.staff--folded .staff-scroll {
   display: none;
 }
 
-/* Edit mode's column at the end of a staff, holding the one button it has
-   there. The press-sheet over the row is laid at z-index 5 and would otherwise
-   swallow it, so this stands above it — the only part of the row that is still
-   its own thing to press while the order is being edited. */
+/* The same column while the order is being edited, holding the one button it
+   has then. The press-sheet over the row is laid at z-index 5 and would
+   otherwise swallow it, so this stands above it — the only part of the row
+   that is still its own thing to press while the order is being edited. */
 .row-bars--edit {
   position: relative;
   z-index: 6;
