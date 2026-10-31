@@ -594,6 +594,15 @@ export default function App({ published = null }) {
     setAudioOn(true)
   }
 
+  /* Edit mode repaints the whole window rather than just the sheet, so the
+     class goes on <body>: the page showing either side of .app takes the tint
+     too, and the palette the class swaps is inherited from there by
+     everything drawn inside. */
+  useEffect(() => {
+    document.body.classList.toggle('is-editing', editing)
+    return () => document.body.classList.remove('is-editing')
+  }, [editing])
+
   /**
    * Turn edit mode on or off. It is the one mode the sheet has: the whole of
    * working on a sheet rather than writing in it — picking a row up to swap
@@ -1048,20 +1057,8 @@ export default function App({ published = null }) {
         </div>
 
         <div className="toolbar-group">
-          <button
-            type="button"
-            className={`icon-button${editing ? ' is-on' : ''}`}
-            aria-pressed={editing}
-            aria-label={editing ? 'Finish editing' : 'Edit the sheet'}
-            onClick={toggleEditing}
-            title={
-              editing
-                ? 'Edit mode — swap rows, move one into a group, or copy a stretch of notes'
-                : 'Rearrange the rows and copy notes about'
-            }
-          >
-            <PencilIcon />
-          </button>
+          {/* The edit switch used to stand here; it is pinned to the corner of
+              the window now — see .edit-fab at the end of this render. */}
           <button
             type="button"
             className={`icon-button${audioOn ? ' is-on' : ''}`}
@@ -1262,6 +1259,26 @@ export default function App({ published = null }) {
         </button>
         {showText && <pre className="output-pre">{empty ? '(nothing written yet)' : asciiTab}</pre>}
       </section>
+
+      {/* Edit mode changes what every press on the sheet does, so its switch
+          is not one more button among the ones that each do a single thing:
+          it stands pinned to the corner of the window, within reach however
+          far down a long sheet has been scrolled, and says which mode is on
+          both in its own colour and in the word it carries. */}
+      <button
+        type="button"
+        className={`edit-fab${editing ? ' is-on' : ''}`}
+        aria-pressed={editing}
+        onClick={toggleEditing}
+        title={
+          editing
+            ? 'Edit mode — swap rows, move one into a group, or copy a stretch of notes'
+            : 'Rearrange the rows and copy notes about'
+        }
+      >
+        <PencilIcon />
+        {editing ? 'Done' : 'Edit'}
+      </button>
 
       {live && (
         <LiveMode

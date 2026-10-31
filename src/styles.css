@@ -61,6 +61,26 @@ body {
   background: var(--page);
   color: var(--ink);
   font: 16px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  transition: background-color 160ms ease;
+}
+
+/* Edit mode, said in colour. The whole page turns from warm paper to cool
+   slate while the mode is on, so there is no reading a button to tell which
+   mode the sheet is in — see the effect in App that puts this class on
+   <body>. It is swapped there, not on .app, so the page either side of the
+   sheet turns with it and so every rule below inherits the new values.
+
+   The group tones are deliberately left alone: a group is the same group in
+   either mode, and the four have to stay told apart from each other. */
+body.is-editing {
+  --paper: #eef4fa;
+  --page: #c6d7e6;
+  --string: #27384a;
+  --bar: #9ab1c6;
+  --grid: #d3e1ed;
+  --barline: #8aa2b8;
+  --muted: #5c7285;
+  --accent: #15567f;
 }
 
 .app {
@@ -68,7 +88,9 @@ body {
      rows wider than it scroll within themselves. */
   max-width: 1300px;
   margin: 0 auto;
-  padding: 32px 10px 64px;
+  /* The foot is deep enough for the pinned edit switch to stand over nothing
+     — see .edit-fab. */
+  padding: 32px 10px 110px;
 }
 
 .header {
@@ -189,6 +211,36 @@ button.is-on {
   width: 34px;
   height: 34px;
   padding: 0;
+}
+
+/* The edit switch, pinned to the bottom-left corner of the window. Fixed
+   rather than absolute for the reason it was moved out of the toolbar at all:
+   an absolutely placed button scrolls away with the page, and the mode is
+   most often wanted partway down a long sheet. Larger than a toolbar button,
+   and carrying a word as well as the pencil, because it is the one control
+   that changes what every other press means. */
+.edit-fab {
+  position: fixed;
+  left: 20px;
+  bottom: 20px;
+  /* Over the sheet and its popovers, under the full-screen player. */
+  z-index: 30;
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  padding: 15px 24px;
+  border-radius: 999px;
+  box-shadow: 0 6px 20px rgb(22 32 43 / 24%);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+/* Drawn to match the bigger button it sits in, rather than the 16px box the
+   toolbar's symbols share. */
+.edit-fab .icon {
+  width: 22px;
+  height: 22px;
+  stroke-width: 1.8;
 }
 
 button.link {
