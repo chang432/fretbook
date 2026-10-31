@@ -117,11 +117,16 @@ export default function GroupBar({
 
       {/* Takes the group off the sheet. The rows it holds are not touched, so
           this goes on one press and Undo is the way back — the same bargain
-          the bin at the end of a row makes. */}
+          the bin at the end of a row makes.
+
+          Open in edit mode as well: a group that turned out to be the wrong
+          way to divide the sheet is found while the sheet is being put in
+          order, and because no row moves, nothing the mode is carrying goes
+          stale. While a row is actually held the drop button below covers the
+          whole bar, so the bar is one errand at a time either way. */}
       <button
         type="button"
         className="group-delete"
-        disabled={editing}
         onClick={() => onDelete(group.id)}
         title={
           rows

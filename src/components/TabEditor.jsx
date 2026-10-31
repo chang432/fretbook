@@ -362,8 +362,10 @@ export default function TabEditor({
   if (rowCount !== rows.length) {
     setRowCount(rows.length)
     setShiftRows((prev) => new Map([...prev].filter(([row]) => row < rows.length)))
-    // A range pointing into a row that has gone would paste from nowhere.
-    setRange((prev) => (prev && prev.row < rows.length ? prev : null))
+    // A range names its row by position, so a row added or deleted anywhere
+    // above it leaves it pointing at tab that was never picked out — not only
+    // when the row it named has gone. Dropped either way.
+    setRange(null)
     setPendingPaste(null)
     // A held row is held by position, so deleting any row leaves what is held
     // naming different tab. It is put back down rather than quietly re-aimed.
@@ -1104,14 +1106,18 @@ export default function TabEditor({
    * Another row for this group, at the foot of the rows it already holds —
    * the only way a row is added, so every group carries one. Dashed and
    * quiet, the way `+ New group` is: somewhere to write rather than something
-   * written. It takes no press while the order is being edited, where a press
-   * means picking a row up.
+   * written.
+   *
+   * It takes a press in edit mode too: putting the sheet in order is when it
+   * is clearest that a row is missing. The row is added inside the group's
+   * run rather than at the end of the sheet, which moves every row after it
+   * along — so anything the mode was holding by position is put down, which
+   * the row-count guard above does for all of it at once.
    */
   const addRowButton = (groupId) => (
     <button
       type="button"
       className="row-add"
-      disabled={editing}
       onClick={() => onAddRow(groupId)}
       title={`Add a row to ${groupLabel(groups, groupId)}`}
     >
@@ -1217,11 +1223,14 @@ export default function TabEditor({
 
       {/* Another group, past the last of them — at a bar's own full width,
           and dashed, the way somewhere to write is drawn rather than
-          something written. */}
+          something written. Open in edit mode as well: a new group is a bar
+          with nothing under it, and sending rows to it is the mode's own
+          errand, so refusing one here only meant leaving the mode to make it
+          and coming back. Adding a group moves no row, so nothing the mode is
+          holding goes stale. */}
       <button
         type="button"
         className="group-add"
-        disabled={editing}
         onClick={onAddGroup}
         title="Add another group"
       >
