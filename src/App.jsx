@@ -594,15 +594,6 @@ export default function App({ published = null }) {
     setAudioOn(true)
   }
 
-  /* Edit mode repaints the whole window rather than just the sheet, so the
-     class goes on <body>: the page showing either side of .app takes the tint
-     too, and the palette the class swaps is inherited from there by
-     everything drawn inside. */
-  useEffect(() => {
-    document.body.classList.toggle('is-editing', editing)
-    return () => document.body.classList.remove('is-editing')
-  }, [editing])
-
   /**
    * Turn edit mode on or off. It is the one mode the sheet has: the whole of
    * working on a sheet rather than writing in it — picking a row up to swap

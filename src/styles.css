@@ -49,6 +49,17 @@
   --spine-w: 6px;
   --group-indent: 14px;
 
+  /* Edit mode's marking. Only what the mode can act on carries these — the
+     rows it picks up, the places it drops them, the strips it copies with,
+     and the bin — so what is doable while the mode is on is told from what
+     is merely still on the page by the wash and the dashed line, with no
+     need to try a press to find out. Three weights: at rest, under the
+     pointer, and held. */
+  --edit-wash: rgb(168 73 47 / 5%);
+  --edit-wash-hover: rgb(168 73 47 / 10%);
+  --edit-wash-held: rgb(168 73 47 / 16%);
+  --edit-line: rgb(168 73 47 / 45%);
+
   color-scheme: light;
 }
 
@@ -61,26 +72,6 @@ body {
   background: var(--page);
   color: var(--ink);
   font: 16px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-  transition: background-color 160ms ease;
-}
-
-/* Edit mode, said in colour. The whole page turns from warm paper to cool
-   slate while the mode is on, so there is no reading a button to tell which
-   mode the sheet is in — see the effect in App that puts this class on
-   <body>. It is swapped there, not on .app, so the page either side of the
-   sheet turns with it and so every rule below inherits the new values.
-
-   The group tones are deliberately left alone: a group is the same group in
-   either mode, and the four have to stay told apart from each other. */
-body.is-editing {
-  --paper: #eef4fa;
-  --page: #c6d7e6;
-  --string: #27384a;
-  --bar: #9ab1c6;
-  --grid: #d3e1ed;
-  --barline: #8aa2b8;
-  --muted: #5c7285;
-  --accent: #15567f;
 }
 
 .app {
@@ -312,7 +303,11 @@ button.link {
    the status line beside the buttons clears itself after a few seconds, which
    is right for something that has just happened and wrong for a mode. */
 .edit-hint {
-  margin: 0 0 4px;
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+  background: var(--edit-wash);
   color: var(--accent);
   font-size: 13px;
 }
@@ -353,7 +348,7 @@ button.link {
   border-radius: 1px;
   background: repeating-linear-gradient(
     to right,
-    rgb(168 73 47 / 45%) 0 7px,
+    var(--edit-line) 0 7px,
     transparent 7px 13px
   );
 }
@@ -394,14 +389,17 @@ button.link {
   inset: 2px;
   z-index: 5;
   padding: 0;
-  border: 1px dashed transparent;
+  /* Drawn at rest, not only under the pointer: a row is one of the things the
+     mode acts on, and the dashed box is how it says so without having to be
+     found by hovering every row in turn. */
+  border: 1px dashed var(--edit-line);
   border-radius: 3px;
-  background: none;
+  background: var(--edit-wash);
 }
 
 .row-select:hover:not(:disabled) {
   border-color: var(--accent);
-  background: rgb(168 73 47 / 6%);
+  background: var(--edit-wash-hover);
 }
 
 /* Held, and waiting for the row it swaps with. Solid rather than dashed: the
@@ -410,7 +408,7 @@ button.link {
 .row-select.is-selected:hover {
   border-style: solid;
   border-color: var(--accent);
-  background: rgb(168 73 47 / 12%);
+  background: var(--edit-wash-held);
 }
 
 /* Popovers ------------------------------------------------------------- */
@@ -1304,10 +1302,23 @@ button.link {
   justify-content: center;
 }
 
-/* Not coloured until it is armed: it sits on every row at once, and six red
-   buttons would read as a warning about the sheet rather than as something to
-   press. */
+/* The mode's marking, in the same dashed line as the row it stands at the end
+   of — and only there, because this button exists only in edit mode. */
+.row-bars--edit .bar-button--delete:not(:disabled) {
+  border-style: dashed;
+  border-color: var(--edit-line);
+  background: var(--edit-wash);
+  color: var(--accent);
+}
+
+/* Filled only under the pointer: the bin stands at the end of every row at
+   once, and a column of red buttons would read as a warning about the sheet
+   rather than as something to press — which is why its resting state is the
+   mode's quiet marking above and not this. */
 .bar-button--delete:hover:not(:disabled) {
+  /* Solid, over the dashed line it carries at rest: the dashes are the offer,
+     the fill is the press about to happen. */
+  border-style: solid;
   border-color: var(--accent);
   background: var(--accent);
   color: #fff;
@@ -1346,6 +1357,16 @@ button.link {
   align-items: center;
   width: max-content;
   height: var(--strip-h);
+}
+
+/* Edit mode's two strips, washed as a band so the row of circles and the row
+   of paste buttons read as the mode's own controls sitting over the staff
+   rather than as part of it. The shift anchors use the same geometry and are
+   deliberately left plain: they belong to the sheet, not to this mode. */
+.range-strip,
+.paste-strip {
+  background: var(--edit-wash);
+  border-radius: 3px;
 }
 
 .position-cell {
