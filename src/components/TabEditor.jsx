@@ -442,7 +442,7 @@ export default function TabEditor({
       groupOf(selectedRow) === groupId
 
     if (selectedRow === null || standing) {
-      return <div className="row-gap" key={key} aria-hidden="true" />
+      return <div className="row-gap" data-edit-area="" key={key} aria-hidden="true" />
     }
 
     const where =
@@ -459,7 +459,7 @@ export default function TabEditor({
           }`
 
     return (
-      <div className="row-gap" key={key}>
+      <div className="row-gap" data-edit-area="" key={key}>
         <button
           type="button"
           className="row-gap-drop"
@@ -695,6 +695,7 @@ export default function TabEditor({
     return (
       <div
         className={`staff${folded ? ' staff--folded' : ''}`}
+        data-edit-area=""
         style={{ '--strips': strips }}
         key={staff}
         role="group"
@@ -1158,6 +1159,7 @@ export default function TabEditor({
         block.group ? (
           <section
             className={`group${isGroupFolded(block.group.id) ? ' group--folded' : ''}`}
+            data-edit-area=""
             key={`group-${block.group.id}`}
             style={{ '--group': groupTone(block.group.id) }}
             role="group"
@@ -1198,6 +1200,7 @@ export default function TabEditor({
       {emptyGroups(members, rowIds, groups).map((group) => (
         <section
           className="group group--empty"
+          data-edit-area=""
           key={`group-${group.id}`}
           style={{ '--group': groupTone(group.id) }}
           role="group"
@@ -1231,6 +1234,7 @@ export default function TabEditor({
       <button
         type="button"
         className="group-add"
+        data-edit-area=""
         onClick={onAddGroup}
         title="Add another group"
       >

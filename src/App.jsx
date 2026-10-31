@@ -68,6 +68,11 @@ const STORAGE_KEY = 'fretboard-notebook:v1'
 // page before `fromJson` can apply its structural limits.
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024
 
+/* What the status line says while edit mode is on. Named because leaving the
+   mode has to tell the message it put there itself apart from one the press
+   on the way out has just reported — see `leaveEditing`. */
+const EDIT_STATUS = 'Edit mode on'
+
 /** What the Export menu offers, in the order it lists them. */
 const EXPORTS = [
   { key: 'text', name: 'Text file', hint: 'ASCII tab, .txt' },
@@ -223,9 +228,9 @@ export default function App({ published = null }) {
    * has changed since disarms it rather than letting the next press delete
    * against a warning the reader has stopped reading.
    */
-  const disarmRemovals = () => {
+  const disarmRemovals = useCallback(() => {
     setPendingRemove(null)
-  }
+  }, [])
 
   /**
    * Take down how the editor stands, for the Undo button to put back. A
@@ -453,7 +458,7 @@ export default function App({ published = null }) {
       disarmRemovals()
       setStatus(`Swapped rows ${a + 1} and ${b + 1}`)
     },
-    [applySheet, remember],
+    [applySheet, remember, disarmRemovals],
   )
 
   /**
@@ -605,12 +610,58 @@ export default function App({ published = null }) {
    * underneath is put away rather than left waiting for a press that can no
    * longer reach it.
    */
-  const toggleEditing = () => {
-    const next = !editing
-    setEditing(next)
+  const leaveEditing = useCallback(() => {
+    setEditing(false)
     disarmRemovals()
-    setStatus(next ? 'Edit mode on' : '')
+    // Takes back only what the mode said itself. A press that leaves the mode
+    // runs its own handler first — React's listeners sit on the root, this
+    // one on the document — so clearing the line outright would wipe whatever
+    // that press has just reported, while leaving it alone would leave 'Edit
+    // mode on' standing over a sheet that is no longer in it.
+    setStatus((prev) => (prev === EDIT_STATUS ? '' : prev))
+  }, [disarmRemovals])
+
+  const toggleEditing = () => {
+    if (editing) {
+      leaveEditing()
+      return
+    }
+    setEditing(true)
+    disarmRemovals()
+    setStatus(EDIT_STATUS)
   }
+
+  /**
+   * A press that lands outside the sheet leaves edit mode. The mode takes the
+   * sheet over rather than opening anything, so there is nothing to close and
+   * no obvious moment to turn it off — which left it on under presses that
+   * have nothing to do with it, and the sheet refusing type for a reason that
+   * had scrolled out of sight.
+   *
+   * What counts as inside is marked `data-edit-area` where it is rendered,
+   * rather than listed as selectors here: the rows and the places between
+   * them, the groups and their bars, the two buttons that grow the sheet, and
+   * the mode's own switch, hint and Undo. Everything else — the header, the
+   * rest of the toolbar, the note, the running order, the page either side —
+   * is a press the mode has no part in, so it steps out of the way.
+   *
+   * On `click` rather than `pointerdown`: the press that leaves runs its own
+   * handler first and the sheet is laid out once afterwards, instead of the
+   * hint vanishing between a button being pressed and the press landing.
+   *
+   * What the status line does on the way out is `leaveEditing`'s business.
+   */
+  useEffect(() => {
+    if (!editing) return undefined
+
+    const dismiss = (event) => {
+      if (event.target?.closest?.('[data-edit-area]')) return
+      leaveEditing()
+    }
+
+    document.addEventListener('click', dismiss)
+    return () => document.removeEventListener('click', dismiss)
+  }, [editing, leaveEditing])
 
   /**
    * Write a copied stretch down starting at `at`. The decision of whether to
@@ -1089,9 +1140,13 @@ export default function App({ published = null }) {
               on the near side of the one control that leaves the editor: it is
               reached after one of them has gone wrong rather than alongside
               them, and it is the same button whatever the last action was. */}
+          {/* Inside the mode as far as dismissing it goes: Undo is how a
+              press made in edit mode is taken back, so reaching for it must
+              not also drop the mode that press was made in. */}
           <button
             type="button"
             className="icon-button"
+            data-edit-area=""
             onClick={handleUndo}
             disabled={history.length === 0}
             aria-label={undoing ? `Undo ${undoing}` : 'Nothing to undo'}
@@ -1115,7 +1170,7 @@ export default function App({ published = null }) {
           which is right for something that has just happened and wrong for a
           mode that is still on. So the mode says what it is here instead. */}
       {editing && (
-        <p className="edit-hint">
+        <p className="edit-hint" data-edit-area="">
           Press a row, then press another, and the two exchange places — a row
           swapped into a group joins it. While a row is held, the lines between
           the rows light up: press one to move the held row there instead of
@@ -1259,6 +1314,7 @@ export default function App({ published = null }) {
       <button
         type="button"
         className={`edit-fab${editing ? ' is-on' : ''}`}
+        data-edit-area=""
         aria-pressed={editing}
         onClick={toggleEditing}
         title={
