@@ -13,10 +13,9 @@ import { MAX_GROUP_NAME } from '../utils/tab.js'
  * in, so the draft is the one thing this keeps; the name itself is the
  * sheet's, and goes back to it when the box closes.
  *
- * While edit mode holds a row, the bar stops being any of that and becomes
- * one thing to press: where the held row is sent. That is the only way a row
- * joins or leaves a group, so it is also why nothing else here takes a press
- * for as long as a row is being carried.
+ * In edit mode the name or Move button picks up a group. While a row or
+ * group is held, the bar becomes a destination, or cancels the selection
+ * when it belongs to the group being carried.
  */
 export default function GroupBar({
   group,
@@ -27,6 +26,7 @@ export default function GroupBar({
   folded,
   editing,
   holding,
+  selected,
   onRename,
   onToggleFold,
   onDelete,
@@ -53,10 +53,6 @@ export default function GroupBar({
     }
     onRename(group.id, draft)
   }
-
-  // Which way the press on the bar goes while a row is held: into the group,
-  // or out of it when the row being carried is already one of its own.
-  const takes = holding !== null
 
   return (
     <div className="group-bar">
@@ -100,9 +96,8 @@ export default function GroupBar({
         <button
           type="button"
           className="group-bar-name"
-          disabled={editing}
-          onClick={startNaming}
-          title={group.name ? 'Rename this group' : 'Name this group'}
+          onClick={editing ? onPick : startNaming}
+          title={editing ? `Move ${label}` : group.name ? 'Rename this group' : 'Name this group'}
         >
           {label}
         </button>
@@ -118,7 +113,7 @@ export default function GroupBar({
       </span>
 
       {editing && holding === null && <button type="button" className="group-pick"
-        onClick={onPick} aria-label={`Move ${label}`} title={`Pick up ${label} to move it`}>↕</button>}
+        onClick={onPick} aria-label={`Move ${label}`} title={`Pick up ${label} to move it`}>↕ Move</button>}
       {/* Delete the group and everything nested inside it; Undo restores it. */}
       <button
         type="button"
@@ -134,29 +129,21 @@ export default function GroupBar({
         ×
       </button>
 
-      {/* While a row is held, the whole bar is where that row is sent. It is
+      {/* While an item is held, the whole bar is where it is sent. It is
           laid over everything above rather than replacing it, so the group
           being aimed at still reads as itself. */}
       {holding !== null && (
         <button
           type="button"
           className="group-drop"
-          onClick={() => onDrop(group.id, takes)}
+          onClick={selected ? onCancel : onDrop}
           onKeyDown={(event) => {
             if (event.key === 'Escape') { event.preventDefault(); onCancel() }
           }}
-          title={
-            takes
-              ? `Put ${holding.kind} ${holding.label} in ${label}`
-              : `Take ${holding.kind} ${holding.label} out of ${label}`
-          }
-          aria-label={
-            takes
-              ? `Put ${holding.kind} ${holding.label} in ${label}`
-              : `Take ${holding.kind} ${holding.label} out of ${label}`
-          }
+          title={selected ? `Cancel moving ${label}` : `Put ${holding.kind} ${holding.label} in ${label}`}
+          aria-label={selected ? `Cancel moving ${label}` : `Put ${holding.kind} ${holding.label} in ${label}`}
         >
-          <span className="group-drop-hint">{takes ? 'Put here' : 'Take out'}</span>
+          <span className="group-drop-hint">{selected ? 'Cancel move' : 'Put here'}</span>
         </button>
       )}
     </div>

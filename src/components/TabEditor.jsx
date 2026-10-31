@@ -1071,6 +1071,7 @@ export default function TabEditor({
           bars={indices.reduce((n, staff) => n + rows[staff], 0)}
           notes={indices.reduce((n, staff) => n + rowNoteCount(grid, rows, staff), 0)}
           folded={folded} editing={editing} holding={held(group.id)}
+          selected={selectedGroup === group.id}
           onRename={onRenameGroup} onToggleFold={toggleGroupFold} onDelete={onDeleteGroup}
           onPick={() => { setSelectedRow(null); setSelectedGroup(selectedGroup === group.id ? null : group.id) }}
           onCancel={() => { setSelectedRow(null); setSelectedGroup(null) }}

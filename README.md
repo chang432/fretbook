@@ -157,7 +157,8 @@ rearranges a sheet lives there: swapping rows, moving a row between groups,
 deleting a row, and copying a stretch of notes from one place to another.
 
 Press a row, then press another, and the two exchange places. To move a group,
-press its ↕ button, then a group bar or a gap; all its contents move with it.
+press its name or **↕ Move**, then a group bar or a gap; all its contents move
+with it. Press the picked-up group again or <kbd>esc</kbd> to cancel.
 A row can also be moved rather than traded: while one is held, **the places between the rows
 light up as dashed lines**, and pressing one takes the held row there, with
 everything in between closing up behind it.
@@ -197,8 +198,8 @@ put it too** — pressing it appends the row to that group.
   somewhere else now.
 - **Writing is off while the mode is on.** A press anywhere on a row means
   *this row* rather than *this position*, so the cells stop taking type and the
-  per-row bar buttons stand down. Turning the mode back off gives all of it
-  back, with the cursor where you left it.
+  per-row bar buttons stand down. Press **Done** to return to writing; clicking
+  elsewhere leaves edit mode on.
 - **The bin at the end of a row deletes that row**, which is the only place a
   row other than the last can be taken off. It stands where the bar buttons
   stand the rest of the time. The row goes on one press, notes and all, and
