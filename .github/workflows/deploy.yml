@@ -147,6 +147,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Test the sheet model
+        run: npm test
+
       - name: Build the frontend
         run: npm run build
 

@@ -17,13 +17,10 @@ import {
   fitGrid,
   fromJson,
   groupLabel,
-  groupOfRow,
-  moveRowTo,
-  putRowInGroup,
+  moveNode,
   removeGroup,
   isGridEmpty,
   isSameTie,
-  isSheetWritten,
   lastBarNoteCount,
   makeTie,
   markAt,
@@ -84,18 +81,12 @@ const EXPORTS = [
 /**
  * Load the last session so a page refresh never loses written-down fingerings.
  *
- * A saved sheet with nothing written in it is treated as nothing saved. The
- * autosave below runs the moment the editor opens, so merely visiting the page
- * once leaves a sheet in storage — and restoring that would hand back the
- * layout the editor happened to start on then, in place of the blank page it
- * starts on now. Only work is worth keeping; an empty page is the same empty
- * page wherever it comes from.
  */
 function loadSaved() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     const sheet = raw ? fromJson(raw) : null
-    return sheet && isSheetWritten(sheet) ? sheet : null
+    return sheet
   } catch {
     return null
   }
@@ -116,6 +107,10 @@ export default function App({ published = null }) {
   // from whichever it was.
   // Nothing published and nothing saved means a blank page, which is a sheet
   // of its own rather than an absence: `createSheet` says what it holds.
+  const [unreadableSave] = useState(() => {
+    if (published) return false
+    try { const raw = localStorage.getItem(STORAGE_KEY); return !!raw && !fromJson(raw) } catch { return false }
+  })
   const [saved] = useState(() => published?.sheet ?? loadSaved() ?? createSheet())
   const [title, setTitle] = useState(saved.title ?? '')
   // The note written above the running order: prose about the sheet — a
@@ -130,16 +125,12 @@ export default function App({ published = null }) {
   // The names rows have been given, keyed by row id — so a name travels with
   // its row the way the id does. Rows nobody has named are absent.
   const [names, setNames] = useState(saved.names)
-  // The groups the sheet holds, and which group each row is in — kept against
-  // the row id, so a row carries its group around the page with it. Where a
-  // group stands is not kept at all: a group is drawn over the rows it holds,
-  // so it stands where they do. A sheet always has at least one group.
+  // Group labels and the ordered tree of groups and rows.
   const [groups, setGroups] = useState(saved.groups)
-  const [members, setMembers] = useState(saved.members)
+  const [structure, setStructure] = useState(saved.structure)
   // The order the groups are played in, as group ids: the song's structure,
-  // which the staves themselves cannot say. Empty until it is written, and
-  // absent from sheets saved before it existed.
-  const [arrangement, setArrangement] = useState(saved.arrangement ?? [])
+  // which the staves themselves cannot say. Empty until it is written.
+  const [arrangement, setArrangement] = useState(saved.arrangement)
   const [grid, setGrid] = useState(() => fitGrid(saved.grid, saved.rows))
   const [ties, setTies] = useState(saved.ties)
   const [marks, setMarks] = useState(saved.marks)
@@ -176,8 +167,8 @@ export default function App({ published = null }) {
   const audioRef = useRef(null)
 
   const sheet = useMemo(
-    () => ({ grid, rows, rowIds, names, groups, members, arrangement, ties, marks }),
-    [grid, rows, rowIds, names, groups, members, arrangement, ties, marks],
+    () => ({ grid, rows, rowIds, names, groups, structure, arrangement, ties, marks }),
+    [grid, rows, rowIds, names, groups, structure, arrangement, ties, marks],
   )
   const asciiTab = useMemo(() => toAsciiTab(sheet, STANDARD_TUNING), [sheet])
   // The sheet as the bucket would hold it. One memo serves both the writes
@@ -259,7 +250,7 @@ export default function App({ published = null }) {
     if (next.rowIds) setRowIds(next.rowIds)
     if (next.names) setNames(next.names)
     if (next.groups) setGroups(next.groups)
-    if (next.members) setMembers(next.members)
+    if (next.structure) setStructure(next.structure)
     if (next.arrangement) setArrangement(next.arrangement)
     if (next.grid) setGrid(next.grid)
     if (next.ties) setTies(next.ties)
@@ -344,6 +335,7 @@ export default function App({ published = null }) {
     remember('adding a group')
     const next = addGroup(groups)
     setGroups(next)
+    setStructure([...structure, { groupId: next[next.length - 1].id, children: [] }])
     setStatus(`Added ${groupLabel(next, next[next.length - 1].id)}`)
   }
 
@@ -361,23 +353,18 @@ export default function App({ published = null }) {
     setStatus(`That group is now ${groupLabel(next, groupId)}`)
   }
 
-  /**
-   * Take a group off the sheet. The rows it held stay exactly where they
-   * stand and are in no group afterwards — the bar goes, the music does not,
-   * which is why this goes on one press with Undo as the way back rather
-   * than asking first.
-   */
+  /** Delete the group and everything inside it as one undoable edit. */
   const handleDeleteGroup = (groupId) => {
     const was = groupLabel(groups, groupId)
-    const held = rowsInGroup(members, rowIds, groupId).length
+    const held = rowsInGroup(structure, rowIds, groupId).length
 
     remember(`deleting ${was}`)
     // Takes the group out of the running order along with the sheet, since a
     // block there stands for a group that exists.
-    applySheet(removeGroup(groups, members, arrangement, groupId))
+    applySheet(removeGroup(sheet, groupId))
     setStatus(
       held
-        ? `Deleted ${was} — its ${held === 1 ? 'row is' : `${held} rows are`} in no group now`
+        ? `Deleted ${was} and its ${held === 1 ? 'row' : `${held} rows`}`
         : `Deleted ${was}`,
     )
   }
@@ -414,35 +401,13 @@ export default function App({ published = null }) {
    * run it has left. The row therefore has a new number afterwards, which is
    * what the sheet is told about — the old one no longer points at it.
    */
-  const handleSetRowGroup = (rowIndex, groupId) => {
-    if (groupOfRow(members, rowIds[rowIndex]) === groupId) return
-
-    remember(`moving row ${rowLabel(rowIndex)}`)
-    const next = putRowInGroup(sheet, rowIndex, groupId)
+  const handleMoveNode = (key, id, parentId, childIndex) => {
+    const next = moveNode(sheet, key, id, parentId, childIndex)
+    if (!next) { setStatus('That group cannot be moved there'); return }
+    remember(`moving ${key === 'rowId' ? 'a row' : 'a group'}`)
     applySheet(next)
     disarmRemovals()
-    setStatus(
-      Number.isInteger(groupId)
-        ? `Row ${rowLabel(next.at)} is in ${groupLabel(groups, groupId)}`
-        : `Row ${rowLabel(next.at)} is in no group`,
-    )
-  }
-
-  /**
-   * Move a row to a place between two others, and into whatever group that
-   * place belongs to. The other half of edit mode's reordering: a swap trades
-   * two rows, this one takes a row somewhere else and lets everything between
-   * close up behind it.
-   */
-  const handleMoveRow = (from, to, groupId) => {
-    remember(`moving row ${rowLabel(from)}`)
-    const next = moveRowTo(sheet, from, to, groupId)
-    applySheet(next)
-    disarmRemovals()
-    setStatus(
-      `Row ${rowLabel(from)} moved to row ${rowLabel(next.at)}` +
-        (Number.isInteger(groupId) ? `, in ${groupLabel(groups, groupId)}` : ', in no group'),
-    )
+    setStatus(`${key === 'rowId' ? 'Row' : 'Group'} moved`)
   }
 
   /**
@@ -562,13 +527,13 @@ export default function App({ published = null }) {
     // A published note is the server's, and the reader has a sheet of their
     // own that this one is only being read in front of. Saving here would
     // write over it, so a note is read and nothing more.
-    if (published) return
+    if (published || unreadableSave) return
     try {
       localStorage.setItem(STORAGE_KEY, toJson({ ...sheet, memo }, STANDARD_TUNING, title))
     } catch {
       // Private-mode / quota failures are not worth interrupting the user for.
     }
-  }, [published, sheet, memo, title])
+  }, [published, unreadableSave, sheet, memo, title])
 
   useEffect(() => {
     if (!status) return undefined
@@ -1258,13 +1223,14 @@ export default function App({ published = null }) {
       )}
 
       <main className="sheet">
+        {unreadableSave && <p role="alert">Your saved sheet uses an unsupported format. It has been kept in browser storage; changes on this page will not be autosaved.</p>}
         <TabEditor
           grid={grid}
           rows={rows}
           rowIds={rowIds}
           names={names}
           groups={groups}
-          members={members}
+          structure={structure}
           tuning={STANDARD_TUNING}
           ties={ties}
           marks={marks}
@@ -1279,8 +1245,7 @@ export default function App({ published = null }) {
           onAddRow={handleAddRow}
           onAddGroup={handleAddGroup}
           onRenameGroup={handleRenameGroup}
-          onSetRowGroup={handleSetRowGroup}
-          onMoveRow={handleMoveRow}
+          onMoveNode={handleMoveNode}
           onDeleteGroup={handleDeleteGroup}
           onCellChange={handleCellChange}
           onCreateTie={createTie}

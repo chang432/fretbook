@@ -31,6 +31,8 @@ export default function GroupBar({
   onToggleFold,
   onDelete,
   onDrop,
+  onPick,
+  onCancel,
 }) {
   const [naming, setNaming] = useState(false)
   const [draft, setDraft] = useState('')
@@ -54,7 +56,7 @@ export default function GroupBar({
 
   // Which way the press on the bar goes while a row is held: into the group,
   // or out of it when the row being carried is already one of its own.
-  const takes = holding !== null && !holding.inGroup
+  const takes = holding !== null
 
   return (
     <div className="group-bar">
@@ -115,22 +117,16 @@ export default function GroupBar({
         {folded && notes > 0 && ` · ${notes} note${notes === 1 ? '' : 's'}`}
       </span>
 
-      {/* Takes the group off the sheet. The rows it holds are not touched, so
-          this goes on one press and Undo is the way back — the same bargain
-          the bin at the end of a row makes.
-
-          Open in edit mode as well: a group that turned out to be the wrong
-          way to divide the sheet is found while the sheet is being put in
-          order, and because no row moves, nothing the mode is carrying goes
-          stale. While a row is actually held the drop button below covers the
-          whole bar, so the bar is one errand at a time either way. */}
+      {editing && holding === null && <button type="button" className="group-pick"
+        onClick={onPick} aria-label={`Move ${label}`} title={`Pick up ${label} to move it`}>↕</button>}
+      {/* Delete the group and everything nested inside it; Undo restores it. */}
       <button
         type="button"
         className="group-delete"
         onClick={() => onDelete(group.id)}
         title={
           rows
-            ? `Delete ${label} — its rows stay, in no group`
+            ? `Delete ${label} and everything inside it`
             : `Delete ${label}`
         }
         aria-label={`Delete ${label}`}
@@ -147,17 +143,17 @@ export default function GroupBar({
           className="group-drop"
           onClick={() => onDrop(group.id, takes)}
           onKeyDown={(event) => {
-            if (event.key === 'Escape') event.currentTarget.blur()
+            if (event.key === 'Escape') { event.preventDefault(); onCancel() }
           }}
           title={
             takes
-              ? `Put row ${holding.label} in ${label}`
-              : `Take row ${holding.label} out of ${label}`
+              ? `Put ${holding.kind} ${holding.label} in ${label}`
+              : `Take ${holding.kind} ${holding.label} out of ${label}`
           }
           aria-label={
             takes
-              ? `Put row ${holding.label} in ${label}`
-              : `Take row ${holding.label} out of ${label}`
+              ? `Put ${holding.kind} ${holding.label} in ${label}`
+              : `Take ${holding.kind} ${holding.label} out of ${label}`
           }
         >
           <span className="group-drop-hint">{takes ? 'Put here' : 'Take out'}</span>

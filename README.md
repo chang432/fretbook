@@ -12,6 +12,7 @@ npm run dev      # http://localhost:5173
 npm run build    # static output in dist/
 npm run preview  # serve dist/ the way the server does
 npm run lint
+npm test
 
 npm run stack       # the whole thing in Docker, as the VPS runs it
 npm run stack:logs  # follow both containers
@@ -117,7 +118,7 @@ a tuning, a capo, who it is by, what to listen for.
 
 ### Groups
 
-A **group** is a run of rows that belong together — a verse, a chorus, the four
+A **group** is a run of rows and other groups that belong together — a verse, a chorus, the four
 bars that come back later. A group is drawn where its rows are: one **bar
 across the full width of the sheet**, with the rows it holds indented under it
 behind a vertical spine in the group's own colour, so the bar and the spine
@@ -131,10 +132,9 @@ read as one bracket around the group.
   notes* — so a long sheet can be read as its sections. A fold is a way of
   handling the page rather than part of the song, so it is not saved.
 - **Delete a group with the × at the right of its bar.** The rows it held are
-  not touched: they stay exactly where they stand and are in no group
-  afterwards. It goes on one press and **Undo** takes it back, the same
-  bargain the bin at the end of a row makes.
-- **Rows join and leave groups in edit mode** — see below. There is nothing on
+  deleted along with all nested groups, rows and notes. **Undo** takes the
+  entire deletion back. If no rows remain, a blank ungrouped row is added.
+- **Rows and groups move into groups in edit mode** — see below. There is nothing on
   a row's own line to press, since the bar above it already says which group
   it is in.
 - **A group's rows are always next to each other**, since the bar brackets
@@ -144,10 +144,10 @@ read as one bracket around the group.
   number changes, because the number is where it stands.
 - A row in no group stands on its own, flush left, with no bar over it.
 - **+ New group** at the end of the sheet adds one. It holds no rows yet, so it
-  waits there as a bar until a row is sent to it — and the next group made
+  waits there as a bar until a row or group is sent to it — and the next group made
   takes the next colour, four of them before they come round again.
-- Deleting a row takes it out of its group with it. A group that loses its
-  last row that way stays on the sheet, waiting at the end as an empty bar.
+- Deleting a row takes it out of its group with it. An empty group stays where
+  it is, including inside its parent.
 
 ### Reordering the sheet
 
@@ -156,15 +156,16 @@ worked on rather than written in — the one mode it has. Everything that
 rearranges a sheet lives there: swapping rows, moving a row between groups,
 deleting a row, and copying a stretch of notes from one place to another.
 
-Press a row, then press another, and the two exchange places. A row can also
-be moved rather than traded: while one is held, **the places between the rows
+Press a row, then press another, and the two exchange places. To move a group,
+press its ↕ button, then a group bar or a gap; all its contents move with it.
+A row can also be moved rather than traded: while one is held, **the places between the rows
 light up as dashed lines**, and pressing one takes the held row there, with
 everything in between closing up behind it.
 
 It is also the one place a row joins or leaves a group. A line inside a
 group's bracket puts the row in that group; a line between two blocks leaves
-it in none. **Every group's bar is somewhere to put it too** — *Put here* on
-the groups it could join, *Take out* on the one it is already in.
+it in its enclosing group or at the root. **Every group's bar is somewhere to
+put it too** — pressing it appends the row to that group.
 
 - The first press picks something up and holds it, drawn in the accent colour.
   The second says what to swap it with, or where to move it to. Pressing the
@@ -321,8 +322,8 @@ leftwards underneath it, the way a DAW moves a track past its play position.
 
 - **The arrangement is what plays.** Each block of the running order comes past
   in turn, and a block is played as the rows its group holds, in the order they
-  stand on the sheet. So a chorus written once and arranged three times comes
-  past three times — the same tab, three stretches of the song.
+  stand on the sheet, including rows in nested groups. A chorus written once
+  and arranged three times comes past three times — the same tab, three stretches of the song.
 - **A sheet with nothing arranged has no song**, and the button stays down
   until something is in the running order. The staves say what the music is;
   the arrangement says what order it is played in, and there is nothing
@@ -598,7 +599,6 @@ what **− Remove row** asks for; edit mode's per-row bin names one.
 
 
 TODO:
-- Groups need refactor so that rows can be grouped into sub groups 
 - Mb create new arrangement section, that arranges certain groups, and groups section exist purely for grouping rows. 
 - Once undo button is added, disable remove section confirmation 
-- Add guitar fretboard popup where you can play notes on the fretboard and it plays out loud. 
+- Add guitar fretboard popup where you can play notes on the fretboard and it plays out loud.

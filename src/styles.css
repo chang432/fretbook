@@ -1990,3 +1990,14 @@ button.link {
   clip-path: inset(50%);
   overflow: hidden;
 }
+
+/* Pick up a group in edit mode, then place it in a gap or another group. */
+.group-pick {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 4px 8px;
+}
+.group-pick:focus-visible { outline: 2px solid currentColor; }

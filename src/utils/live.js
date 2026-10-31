@@ -17,7 +17,7 @@
  * sensible guess to make about the second from the first.
  */
 
-import { COLS_PER_BAR, createRowIds, rowStarts, rowWidth, rowsInGroup } from './tab.js'
+import { COLS_PER_BAR, rowStarts, rowWidth, rowsInGroup } from './tab.js'
 
 /** Beats in a bar. One column is one beat, so this is the bar width. */
 export const BEATS_PER_BAR = COLS_PER_BAR
@@ -64,9 +64,9 @@ export const secondsPerBeat = (bpm) => 60 / bpm
  */
 export function songRuns({
   rows,
-  rowIds = createRowIds(rows.length),
-  members = {},
-  arrangement = [],
+  rowIds,
+  structure,
+  arrangement,
 }) {
   const starts = rowStarts(rows)
 
@@ -75,7 +75,7 @@ export function songRuns({
   let block = 0
 
   arrangement.forEach((groupId, at) => {
-    const held = rowsInGroup(members, rowIds, groupId)
+    const held = rowsInGroup(structure, rowIds, groupId)
     // A block whose group has lost its last row plays nothing. The block
     // itself stays in the arrangement — emptying a group is not a way of
     // rewriting the song's shape — but there is no tab under it to sound.

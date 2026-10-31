@@ -79,7 +79,7 @@ MANIFEST = "notes.json"
 #: spending ten lines to avoid. A bumped version refuses uploads until this
 #: constant is bumped with it.
 SHEET_FORMAT = "fretboard-notebook"
-SHEET_VERSION = 12
+SHEET_VERSION = 13
 
 #: The largest upload accepted. A note is a few KB and a long sheet tens, so
 #: this is wide enough for anything the editor produces and narrow enough that
@@ -428,6 +428,9 @@ def _sheet_title(data) -> str | None:
     if not isinstance(data.get("columns"), list) or not data["columns"]:
         return None
     if not isinstance(data.get("rows"), list) or not data["rows"]:
+        return None
+
+    if not isinstance(data.get("structure"), list) or not isinstance(data.get("arrangement"), list):
         return None
 
     # Untitled sheets are listed under their name, the way notes.mjs lists one.
