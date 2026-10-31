@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Popover from './Popover.jsx'
+import { groupTone } from '../utils/layout.js'
 import { groupLabel } from '../utils/tab.js'
 
 /**
@@ -29,7 +30,6 @@ export default function ArrangementSection({
   groups,
   addable,
   arrangement,
-  tone,
   editing,
   onAdd,
   onRemove,
@@ -77,7 +77,7 @@ export default function ArrangementSection({
             // one group are two blocks.
             <li className="arrangement-step" key={at}>
               {at > 0 && arrow}
-              <span className="arrangement-block" style={{ '--group': tone(groupId) }}>
+              <span className="arrangement-block" style={{ '--group': groupTone(groupId) }}>
                 <span className="arrangement-name">{groupLabel(groups, groupId)}</span>
                 {/* Takes this one block out. The group stays on the sheet, so
                     this goes on one press, the way a group's own × does. */}
@@ -134,7 +134,7 @@ export default function ArrangementSection({
                 key={group.id}
                 type="button"
                 className="arrangement-option"
-                style={{ '--group': tone(group.id) }}
+                style={{ '--group': groupTone(group.id) }}
                 onClick={() => {
                   onAdd(group.id)
                   setPicking(null)

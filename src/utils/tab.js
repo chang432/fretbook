@@ -175,26 +175,7 @@ function appendRow({ rows, rowIds, grid, ties, marks }) {
   }
 }
 
-/* Groups ------------------------------------------------------------------
- *
- * A group is a collection of rows — a verse, a chorus, the four bars that
- * come back later. A sheet holds a list of them, each with a name of its own,
- * and starts with a single empty group to put rows in.
- *
- * Which rows a group holds is kept the other way round, as one entry per row:
- * `members` maps a row id to the group that row is in, and a row that has not
- * been put in one is simply absent. Kept that way because a row is in at most
- * one group, and because membership then travels with the row id exactly as
- * the row's name does — reordering and renaming rows need no bookkeeping here
- * at all, and deleting one is a single entry to drop.
- *
- * A group is drawn on the sheet as one bar across the top of the rows it
- * holds, which asks one thing of the order those rows stand in: **a group's
- * rows are always next to each other**. A group is therefore a place as well
- * as a collection — it stands where its rows stand — and joining or leaving
- * one moves the row, which is what `putRowInGroup` is for. Nothing else here
- * may break that run; `groupRuns` reads the sheet back out as it is laid out.
- */
+/* Groups and the ordered sheet tree -------------------------------------- */
 
 /** Longest a group name can be: enough to name a section, not a sentence. */
 export const MAX_GROUP_NAME = 24
@@ -225,95 +206,94 @@ export function groupLabel(groups, id) {
   return at < 0 ? '' : groups[at].name || `Group ${at + 1}`
 }
 
-/** The group this row is in, or null when it is in none. */
-export const groupOfRow = (members, rowId) =>
-  Number.isInteger(members[rowId]) ? members[rowId] : null
-
-/** Put a row in a group, or take it out of the one it is in with null. */
-export function setRowGroup(members, rowId, groupId) {
-  const rest = { ...members }
-  delete rest[rowId]
-  return Number.isInteger(groupId) ? { ...rest, [rowId]: groupId } : rest
-}
-
-/** The rows a group holds, as row indices, in the order they stand on the page. */
-export const rowsInGroup = (members, rowIds, groupId) =>
-  rowIds
-    .map((id, rowIndex) => (groupOfRow(members, id) === groupId ? rowIndex : -1))
-    .filter((rowIndex) => rowIndex >= 0)
-
-/**
- * The sheet as it is laid out, top to bottom: one block per group, holding the
- * run of rows that group holds, and one block of its own for each row that is
- * in no group.
- *
- * Reading the blocks off the rows rather than off the list of groups is what
- * puts each group where its rows are. A sheet whose groups have somehow been
- * left scattered still reads back correctly — such a group simply comes out as
- * more than one block — so nothing drawn from this can be made nonsense by a
- * file written elsewhere.
- */
-export function groupRuns(members, rowIds, groups) {
-  const blocks = []
-
-  rowIds.forEach((id, rowIndex) => {
-    const groupId = groupOfRow(members, id)
-    const last = blocks[blocks.length - 1]
-
-    if (groupId !== null && last?.group?.id === groupId) {
-      last.rows.push(rowIndex)
-      return
+/** Find a node and its containing list in the ordered tree. */
+export function findNode(structure, key, id, parentId = null) {
+  for (let index = 0; index < structure.length; index += 1) {
+    const node = structure[index]
+    if (node[key] === id) return { node, list: structure, index, parentId }
+    if (node.children) {
+      const found = findNode(node.children, key, id, node.groupId)
+      if (found) return found
     }
-
-    const group = groupId === null ? null : (groups.find((one) => one.id === groupId) ?? null)
-    blocks.push({ group, rows: [rowIndex] })
-  })
-
-  return blocks
-}
-
-/**
- * The groups holding no rows at all. They have nowhere of their own to stand
- * on the sheet, so the view gathers them at the end: a group is somewhere to
- * put rows before it is a bar over any.
- */
-export const emptyGroups = (members, rowIds, groups) =>
-  groups.filter((group) => rowsInGroup(members, rowIds, group.id).length === 0)
-
-/**
- * The groups holding at least one row: the ones there is something to play.
- * An empty group is somewhere to put rows rather than a part of the song, so
- * it is not yet a thing the running order can be built out of.
- */
-export const filledGroups = (members, rowIds, groups) =>
-  groups.filter((group) => rowsInGroup(members, rowIds, group.id).length > 0)
-
-/**
- * Take a group off the sheet. The rows it held are not touched — they stay
- * exactly where they stand and are simply in no group afterwards, which is
- * what keeps deleting a group a thing done to the sheet's structure rather
- * than to its music.
- */
-export function removeGroup(groups, members, arrangement, groupId) {
-  const kept = groups.filter((group) => group.id !== groupId)
-  return {
-    groups: kept,
-    members: Object.fromEntries(
-      Object.entries(members).filter(([, id]) => id !== groupId),
-    ),
-    // A block in the running order stands for a group, so a group that has
-    // gone cannot be left standing in it.
-    arrangement: clampArrangement(arrangement, kept),
   }
+  return null
 }
 
-/** Drop memberships whose row, or whose group, has gone. */
-export const clampMembers = (members, rowIds, groups) =>
-  Object.fromEntries(
-    Object.entries(keptForRows(members, rowIds)).filter(([, groupId]) =>
-      groups.some((group) => group.id === groupId),
-    ),
-  )
+export const descendantRowIds = (node) =>
+  'rowId' in node ? [node.rowId] : node.children.flatMap(descendantRowIds)
+
+export const groupOfRow = (structure, rowId) =>
+  findNode(structure, 'rowId', rowId)?.parentId ?? null
+
+export const rowsInGroup = (structure, rowIds, groupId) => {
+  const group = findNode(structure, 'groupId', groupId)?.node
+  const held = new Set(group ? descendantRowIds(group) : [])
+  return rowIds.flatMap((id, at) => held.has(id) ? [at] : [])
+}
+
+export const filledGroups = (structure, rowIds, groups) =>
+  groups.filter((group) => rowsInGroup(structure, rowIds, group.id).length > 0)
+
+/** Move a row or a whole group to an exact child-list position. */
+export function moveNode(sheet, key, id, parentId, childIndex) {
+  const structure = structuredClone(sheet.structure)
+  const source = findNode(structure, key, id)
+  const parent = parentId === null ? null : findNode(structure, 'groupId', parentId)
+  if (!source || (parentId !== null && !parent)) return null
+  if (key === 'groupId' && (id === parentId || findNode(source.node.children, 'groupId', parentId))) return null
+  const destination = parent ? parent.node.children : structure
+  if (!Number.isInteger(childIndex) || childIndex < 0 || childIndex > destination.length) return null
+  const adjusted = source.list === destination && source.index < childIndex ? childIndex - 1 : childIndex
+  source.list.splice(source.index, 1)
+  destination.splice(adjusted, 0, source.node)
+  if (!validStructure(structure, sheet.rowIds, sheet.groups, false)) return null
+  const ordered = structure.flatMap(descendantRowIds)
+  const order = ordered.map((rowId) => sheet.rowIds.indexOf(rowId))
+  return { ...reorderRows(sheet, order), structure, at: key === 'rowId' ? ordered.indexOf(id) : undefined }
+}
+
+/** Validate coverage, order and nesting before accepting a sheet or a move. */
+export function validStructure(structure, rowIds, groups, checkOrder = true) {
+  if (!Array.isArray(structure)) return false
+  const rows = []
+  const seenGroups = new Set()
+  const walk = (nodes, depth) => nodes.every((node) => {
+    if (!node || typeof node !== 'object' || Array.isArray(node)) return false
+    const keys = Object.keys(node)
+    if (keys.length === 1 && Number.isInteger(node.rowId)) {
+      rows.push(node.rowId)
+      return true
+    }
+    if (keys.length !== 2 || !Number.isInteger(node.groupId) || !Array.isArray(node.children) ||
+        depth >= 8 || seenGroups.has(node.groupId) || !groups.some((group) => group.id === node.groupId)) return false
+    seenGroups.add(node.groupId)
+    return walk(node.children, depth + 1)
+  })
+  return walk(structure, 0) && seenGroups.size === groups.length && rows.length === rowIds.length &&
+    new Set(rows).size === rows.length && rows.every((id, i) => checkOrder ? id === rowIds[i] : rowIds.includes(id))
+}
+
+export function removeGroup(sheet, groupId) {
+  const structure = structuredClone(sheet.structure)
+  const found = findNode(structure, 'groupId', groupId)
+  if (!found) return sheet
+  const removedRows = new Set(descendantRowIds(found.node))
+  const removedGroups = new Set()
+  const collect = (node) => { if (node.children) { removedGroups.add(node.groupId); node.children.forEach(collect) } }
+  collect(found.node)
+  found.list.splice(found.index, 1)
+  let next = sheet
+  for (let i = sheet.rowIds.length - 1; i >= 0; i -= 1) {
+    if (removedRows.has(sheet.rowIds[i]) && next.rows.length > 1) next = { ...next, ...removeRow(next, i) }
+  }
+  if (removedRows.size === sheet.rowIds.length) {
+    const rowId = nextRowId(sheet.rowIds)
+    next = { ...next, rows: [DEFAULT_BARS], rowIds: [rowId], grid: createGrid(rowWidth(DEFAULT_BARS)), names: {}, ties: [], marks: [] }
+    structure.push({ rowId })
+  }
+  const groups = sheet.groups.filter((group) => !removedGroups.has(group.id))
+  return { ...next, structure, groups, arrangement: clampArrangement(sheet.arrangement, groups) }
+}
 
 /* The arrangement -------------------------------------------------------- */
 
@@ -360,7 +340,7 @@ export function createSheet() {
     rowIds,
     names: {},
     groups,
-    members: Object.fromEntries(rowIds.map((id) => [id, groups[0].id])),
+    structure: [{ groupId: groups[0].id, children: rowIds.map((rowId) => ({ rowId })) }],
     grid: createGrid(totalColumns(rows)),
     // Nothing is arranged until the writer says so: the running order starts
     // empty even though the sheet starts with a group.
@@ -391,11 +371,11 @@ export function rowNoteCount(grid, rows, rowIndex = rows.length - 1) {
  * `removeBar`, a whole row wide. A sheet never drops below one row.
  */
 export function removeRow(
-  { rows, rowIds, names, members, grid, ties, marks },
+  { rows, rowIds, names, structure, grid, ties, marks },
   rowIndex = rows.length - 1,
 ) {
   if (rows.length <= 1 || rowIndex < 0 || rowIndex >= rows.length) {
-    return { rows, rowIds, names, members, grid, ties, marks }
+    return { rows, rowIds, names, structure, grid, ties, marks }
   }
 
   const [at, end] = rowRange(rows, rowIndex)
@@ -416,7 +396,7 @@ export function removeRow(
     marks: marks.filter((mark) => !inside(mark.col)).map((mark) => ({ ...mark, col: shift(mark.col) })),
     // Neither the name the row was given nor the group it was in outlives it.
     names: clampRowNames(names, kept),
-    members: keptForRows(members, kept),
+    structure: (() => { const copy = structuredClone(structure); const found = findNode(copy, 'rowId', rowIds[rowIndex]); if (found) found.list.splice(found.index, 1); return copy })(),
   }
 }
 
@@ -478,103 +458,24 @@ export function reorderRows({ rows, rowIds, grid, ties, marks }, order) {
  * group it has left. Anything else would carry a row out of its bracket and
  * leave the group drawn over a row that is not in it.
  */
-export function swapRows({ rows, rowIds, members, grid, ties, marks }, a, b) {
-  const last = rows.length - 1
-  if (a === b || a < 0 || b < 0 || a > last || b > last) {
-    return { rows, rowIds, members, grid, ties, marks }
-  }
-
-  const order = rows.map((_, at) => (at === a ? b : at === b ? a : at))
-  const swapped = reorderRows({ rows, rowIds, grid, ties, marks }, order)
-
-  // The two memberships stay behind with the places, which is the one thing
-  // about a row that does not travel with it.
-  const groupOfA = groupOfRow(members, rowIds[a])
-  const groupOfB = groupOfRow(members, rowIds[b])
-
-  return {
-    ...swapped,
-    members: setRowGroup(setRowGroup(members, rowIds[a], groupOfB), rowIds[b], groupOfA),
-  }
+export function swapRows(sheet, a, b) {
+  const { rows, rowIds } = sheet
+  if (a === b || a < 0 || b < 0 || a >= rows.length || b >= rows.length) return sheet
+  const structure = structuredClone(sheet.structure)
+  const first = findNode(structure, 'rowId', rowIds[a]).node
+  const second = findNode(structure, 'rowId', rowIds[b]).node
+  first.rowId = rowIds[b]
+  second.rowId = rowIds[a]
+  const order = rows.map((_, at) => at === a ? b : at === b ? a : at)
+  return { ...reorderRows(sheet, order), structure }
 }
 
-/**
- * Move a row to a given place on the sheet, and into the group that place
- * belongs to — `null` for a place in no group.
- *
- * `to` names a gap rather than a row: the place *before* the row standing
- * there now, counting from 0 above the first row to `rows.length` below the
- * last. That is what a press between two rows means, and it is the one way of
- * saying "here" that does not change meaning as the row is lifted out.
- *
- * Which group the row lands in is told rather than worked out, because only
- * the gap pressed knows it: the place between two rows of a group is inside
- * that group's bracket, and the place between two groups is inside neither.
- *
- * Hands back the sheet, the memberships, and the place the row ended up in —
- * which is what it has to be called by afterwards.
- */
-export function moveRowTo(sheet, from, to, groupId = null) {
-  const { rows, rowIds, members } = sheet
-  if (from < 0 || from >= rows.length || to < 0 || to > rows.length) {
-    return { ...sheet, members, at: from }
-  }
-
-  // Lifted out of the order, then put back down in the gap. The gap is named
-  // in the order as it stands, so one past the row lifted out is one fewer
-  // place once it is gone.
-  const order = rows.map((_, at) => at)
-  order.splice(from, 1)
-  const at = to > from ? to - 1 : to
-  order.splice(at, 0, from)
-
-  return {
-    ...reorderRows(sheet, order),
-    members: setRowGroup(members, rowIds[from], groupId),
-    at,
-  }
-}
-
-/**
- * Put a row in a group, or take it out of the one it is in with null — and
- * move the row to where that leaves it standing.
- *
- * A group is one bar over a run of rows, so joining a group gathers the row to
- * the end of that group's run, and leaving one drops the row just past the run
- * it was in. A row joining a group that holds nothing yet stays exactly where
- * it is: that row is where the group now stands.
- */
-export function putRowInGroup(sheet, rowIndex, groupId) {
-  const { rows, rowIds, members } = sheet
-  if (rowIndex < 0 || rowIndex >= rows.length) return { ...sheet, members, at: rowIndex }
-
-  // The group whose run the move is about: the one being joined, or — when
-  // the row is leaving every group — the one it is stepping out of.
-  const was = groupOfRow(members, rowIds[rowIndex])
-  const concerned = Number.isInteger(groupId) ? groupId : was
-  const run = rowsInGroup(members, rowIds, concerned).filter((at) => at !== rowIndex)
-
-  // Past the end of that run, or — for a group holding nothing yet — the
-  // place the row already stands in.
-  const to = run.length ? run[run.length - 1] + 1 : rowIndex
-  return moveRowTo(sheet, rowIndex, to, groupId)
-}
-
-/**
- * Add an empty row to the end of a group — the one way the sheet grows, since
- * a row is written inside a group rather than beside one.
- *
- * The row is appended and then gathered to the end of that group's run, which
- * is `putRowInGroup`'s business: a group's rows stand next to each other, so
- * where the new row lands is decided by where the group already is. A group
- * holding nothing yet takes it where that group stands, at the end.
- *
- * Hands back the sheet and the place the new row ended up in, which is what
- * it has to be called by afterwards.
- */
 export function addRowToGroup(sheet, groupId) {
   const grown = { ...sheet, ...appendRow(sheet) }
-  return putRowInGroup(grown, grown.rows.length - 1, groupId)
+  const rowId = grown.rowIds[grown.rowIds.length - 1]
+  grown.structure = [...structuredClone(sheet.structure), { rowId }]
+  const parent = findNode(grown.structure, 'groupId', groupId)
+  return moveNode(grown, 'rowId', rowId, groupId, parent.node.children.length)
 }
 
 /** Grow the grid so it exactly covers `rows`, keeping what is already written. */
@@ -889,23 +790,6 @@ export function pasteRange(sheet, range, at) {
 export const isGridEmpty = (grid) =>
   grid.every((column) => column.every((cell) => cell === ''))
 
-/**
- * Whether anything has actually been written on a sheet: a note, a row or
- * group name, a title, a memo.
- *
- * The layout by itself does not count. The editor saves on every keystroke,
- * so a page that was only ever opened leaves a saved sheet behind anyway, and
- * the rows and groups it came up with say that the editor was once open — not
- * that anyone wrote anything in it.
- */
-export const isSheetWritten = ({ grid, names, groups, title, memo, arrangement }) =>
-  !isGridEmpty(grid) ||
-  title.trim() !== '' ||
-  memo.trim() !== '' ||
-  Object.values(names).some((name) => name) ||
-  groups.some((group) => group.name) ||
-  (arrangement?.length ?? 0) > 0
-
 /** Index of the last column holding a note, or -1 when the grid is empty. */
 export const lastUsedColumn = (grid) => {
   for (let col = grid.length - 1; col >= 0; col -= 1) {
@@ -1055,7 +939,7 @@ export function toAsciiTab({ grid, rows, ties, marks }, tuning = STANDARD_TUNING
 
 /** Machine-readable export that can round-trip back into the editor. */
 export function toJson(
-  { grid, rows, rowIds, names, groups, members, arrangement, ties, marks, memo },
+  { grid, rows, rowIds, names, groups, structure, arrangement, ties, marks, memo },
   tuning = STANDARD_TUNING,
   title = '',
 ) {
@@ -1079,14 +963,11 @@ export function toJson(
       // have one. Keyed by id rather than by place, since the name belongs to
       // the row and not to the line it happens to be written on.
       names: clampRowNames(names, rowIds),
-      // The groups the sheet holds. Which rows each one holds is read from
-      // `members`, and where it stands is read from where those rows stand.
       groups,
-      // Which group each row is in, keyed by row id. Rows in none are absent.
-      members: clampMembers(members, rowIds, groups),
+      structure,
       // The order the groups are played in, as group ids. Repeats are the
       // point of it; an empty list means nothing has been arranged.
-      arrangement: clampArrangement(arrangement ?? [], groups),
+      arrangement: clampArrangement(arrangement, groups),
       // Emitted high-string-first, the same order as `tuning`.
       columns: grid.slice(0, totalColumns(rows)),
       ties,
@@ -1097,7 +978,7 @@ export function toJson(
   )
 }
 
-const SHEET_VERSION = 12
+const SHEET_VERSION = 13
 
 /** Parse the current sheet format. Returns null when invalid. */
 export function fromJson(text) {
@@ -1112,7 +993,7 @@ export function fromJson(text) {
       !Array.isArray(data.rows) || !Array.isArray(data.rowIds) ||
       !Array.isArray(data.groups) || !Array.isArray(data.ties) || !Array.isArray(data.marks) ||
       !data.names || typeof data.names !== 'object' || Array.isArray(data.names) ||
-      !data.members || typeof data.members !== 'object' || Array.isArray(data.members) ||
+      !Array.isArray(data.structure) || !Array.isArray(data.arrangement) ||
       typeof data.memo !== 'string' || typeof data.title !== 'string' || !Array.isArray(data.tuning)) {
     return null
   }
@@ -1165,22 +1046,12 @@ export function fromJson(text) {
       rows.some((bars) => !Number.isInteger(bars) || bars <= 0 || bars > MAX_IMPORT_BARS_PER_ROW) ||
       totalColumns(rows) !== columns.length ||
       rowIds.length !== rows.length || rowIds.some((id) => !Number.isInteger(id) || id < 0) ||
-      new Set(rowIds).size !== rowIds.length || !groups.length ||
+      new Set(rowIds).size !== rowIds.length ||
       groups.some((group) => !group || !Number.isInteger(group.id) || group.id < 0 || typeof group.name !== 'string') ||
       new Set(groups.map((group) => group.id)).size !== groups.length) return null
 
-  const members = readMembers(data.members, rowIds, groups)
-  // A group must occupy one continuous run in the current format.
-  const completed = new Set()
-  let previous = null
-  for (const id of rowIds) {
-    const group = groupOfRow(members, id)
-    if (group !== previous) {
-      if (previous !== null) completed.add(previous)
-      if (group !== null && completed.has(group)) return null
-      previous = group
-    }
-  }
+  if (!validStructure(data.structure, rowIds, groups)) return null
+  if (data.arrangement.some((id) => !Number.isInteger(id) || !groups.some((group) => group.id === id))) return null
 
   return {
     title: data.title,
@@ -1189,37 +1060,12 @@ export function fromJson(text) {
     rowIds,
     names: readRowNames(data.names, rowIds),
     groups,
-    members,
-    arrangement: readArrangement(data.arrangement, groups),
+    structure: data.structure,
+    arrangement: data.arrangement,
     memo: readMemo(data.memo),
     ties,
     marks,
   }
-}
-
-/**
- * The running order from a file. The field arrived after the format did, so a
- * file without one is read as a sheet nobody has arranged rather than as a
- * malformed sheet — the same answer an empty list gives. Blocks naming a
- * group the file does not hold are dropped.
- */
-function readArrangement(raw, groups) {
-  if (!Array.isArray(raw)) return []
-  return clampArrangement(raw.filter(Number.isInteger), groups)
-}
-
-/**
- * Which group each row is in, keyed by row id. An entry naming a row or a
- * group the file does not hold is dropped rather than left pointing at
- * nothing.
- */
-function readMembers(raw, rowIds, groups) {
-  const kept = Object.entries(raw).reduce((all, [key, value]) => {
-    const rowId = Number(key)
-    if (!Number.isInteger(rowId) || !Number.isInteger(value)) return all
-    return { ...all, [rowId]: value }
-  }, {})
-  return clampMembers(kept, rowIds, groups)
 }
 
 /**

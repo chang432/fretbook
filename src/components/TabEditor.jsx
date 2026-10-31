@@ -7,15 +7,14 @@ import PositionStrip from './PositionStrip.jsx'
 import StaffOverlay from './StaffOverlay.jsx'
 import { PasteIcon, TrashIcon } from './icons.jsx'
 import { cellMidi, noteName, nudgeTarget } from '../utils/audio.js'
+import { groupTone } from '../utils/layout.js'
 import {
   MARK_ZIGZAG,
   MAX_ROW_NAME,
   STRING_COUNT,
-  emptyGroups,
   filledGroups,
   groupLabel,
-  groupOfRow,
-  groupRuns,
+  descendantRowIds,
   isSameTie,
   makeRange,
   makeTie,
@@ -38,18 +37,6 @@ const TIE_KEY = 't'
 /** Keyboard equivalent of the rewind button beside it. */
 const COPY_KEY = 'r'
 
-/** How many colours the group bars run through before coming round again. */
-const GROUP_TONES = 4
-
-/**
- * The colour a group is drawn in — its bar, the spine down the rows it holds,
- * and the swatch on the chip that moves a row into it. Taken from the group's
- * id rather than from where it stands, so a group keeps its colour for as
- * long as it exists, and two groups made one after the other never share one:
- * ids are handed out in turn and never reused.
- */
-const groupTone = (id) => `var(--group-${(id % GROUP_TONES) + 1})`
-
 /**
  * The whole writable sheet: one staff per row, top to bottom. `rows` is the
  * bar count of each — rows can differ in length, so every width here is read
@@ -62,7 +49,7 @@ export default function TabEditor({
   rowIds,
   names,
   groups,
-  members,
+  structure,
   memo,
   onMemoChange,
   arrangement,
@@ -74,8 +61,7 @@ export default function TabEditor({
   onAddRow,
   onAddGroup,
   onRenameGroup,
-  onSetRowGroup,
-  onMoveRow,
+  onMoveNode,
   onDeleteGroup,
   tuning,
   ties,
@@ -113,6 +99,7 @@ export default function TabEditor({
   // The row edit mode has picked up and is waiting to swap, by its place on
   // the page. Null between swaps, and whenever the mode is not on.
   const [selectedRow, setSelectedRow] = useState(null)
+  const [selectedGroup, setSelectedGroup] = useState(null)
   // The range copy's stretch of positions. `to` is null between the first press
   // and the second, which is the state the strip draws as one circle filled and
   // nothing carried yet. Null when nothing is picked out.
@@ -159,9 +146,6 @@ export default function TabEditor({
 
   /** True while this row is folded away to its name line. */
   const isFolded = (rowIndex) => foldedRows.has(rowIds[rowIndex])
-
-  /** The group this row is in, or null when it is in none. */
-  const groupOf = (rowIndex) => groupOfRow(members, rowIds[rowIndex])
 
   /** How a row is spoken of: its number, and its name where it has one. */
   const rowTitle = (rowIndex) =>
@@ -373,8 +357,10 @@ export default function TabEditor({
   if (rowCount !== rows.length) {
     setRowCount(rows.length)
     setShiftRows((prev) => new Map([...prev].filter(([row]) => row < rows.length)))
-    // A range pointing into a row that has gone would paste from nowhere.
-    setRange((prev) => (prev && prev.row < rows.length ? prev : null))
+    // A range names its row by position, so a row added or deleted anywhere
+    // above it leaves it pointing at tab that was never picked out — not only
+    // when the row it named has gone. Dropped either way.
+    setRange(null)
     setPendingPaste(null)
     // A held row is held by position, so deleting any row leaves what is held
     // naming different tab. It is put back down rather than quietly re-aimed.
@@ -387,6 +373,7 @@ export default function TabEditor({
    * it back down.
    */
   const chooseRow = (rowIndex) => {
+    if (selectedGroup !== null) return
     if (selectedRow === null) {
       setSelectedRow(rowIndex)
       return
@@ -395,102 +382,31 @@ export default function TabEditor({
     setSelectedRow(null)
   }
 
-  /**
-   * The row edit mode is carrying, as the bars above need it: which row it
-   * is called by, and whether this group is the one it is already in — which
-   * is what decides whether pressing that bar takes the row in or lets it go.
-   * Null whenever nothing is held, which is when a bar is not a target.
-   */
-  const held = (groupId) =>
-    selectedRow === null
-      ? null
-      : { label: label(selectedRow), inGroup: groupOf(selectedRow) === groupId }
+  const held = () => {
+    if (selectedGroup !== null) return { label: groupLabel(groups, selectedGroup), kind: 'group', inGroup: false }
+    return selectedRow === null ? null : { label: label(selectedRow), kind: 'row', inGroup: false }
+  }
 
-  /**
-   * Send the held row to a group, or take it out of the one it is in. The row
-   * moves to the end of that group's run, so it is somewhere else afterwards
-   * and what was being held is no longer where it was: it is put back down
-   * rather than quietly re-aimed, the same bargain a deleted row makes.
-   */
-  const dropHeldRow = (groupId, takes) => {
-    if (selectedRow === null) return
-    onSetRowGroup(selectedRow, takes ? groupId : null)
+  const dropHeld = (parentId, index) => {
+    if (selectedGroup !== null) onMoveNode('groupId', selectedGroup, parentId, index)
+    else if (selectedRow !== null) onMoveNode('rowId', rowIds[selectedRow], parentId, index)
     setSelectedRow(null)
+    setSelectedGroup(null)
   }
 
-  /**
-   * Send the held row to a place between two rows — and into whichever group
-   * that place belongs to, which is what the gap pressed knows and the row
-   * being carried does not.
-   *
-   * Put back down afterwards, as a row sent to a bar is: it is somewhere else
-   * now, and what was held is no longer where it was picked up from.
-   */
-  const moveHeldRow = (to, groupId) => {
-    if (selectedRow === null) return
-    onMoveRow(selectedRow, to, groupId)
-    setSelectedRow(null)
-  }
-
-  /**
-   * The place between two rows, as something to press while a row is held.
-   * `to` is the gap it stands in — 0 above the first row of the sheet, one
-   * more for each row after that — and `groupId` the group the gap is inside,
-   * which is what makes the place under a group's bar a different offer from
-   * the place just above it.
-   *
-   * The band is there for as long as the mode is, so picking a row up lights
-   * the places it could go rather than moving the whole sheet about. The two
-   * gaps either side of the held row are left unlit: they are where it is.
-   */
-  const gap = (to, groupId) => {
-    const key = `gap-${to}-${groupId ?? 'loose'}`
-    const standing =
-      selectedRow !== null &&
-      (to === selectedRow || to === selectedRow + 1) &&
-      groupOf(selectedRow) === groupId
-
-    if (selectedRow === null || standing) {
-      return <div className="row-gap" key={key} aria-hidden="true" />
-    }
-
-    const where =
-      groupId === null
-        ? to === 0
-          ? 'to the top of the sheet, in no group'
-          : to === rows.length
-            ? 'to the end of the sheet, in no group'
-            : `between rows ${label(to - 1)} and ${label(to)}, in no group`
-        : `into ${groupLabel(groups, groupId)}, ${
-            to === 0 || groupOf(to - 1) !== groupId
-              ? 'at its top'
-              : `after row ${label(to - 1)}`
-          }`
-
-    return (
-      <div className="row-gap" key={key}>
-        <button
-          type="button"
-          className="row-gap-drop"
-          onClick={() => moveHeldRow(to, groupId)}
-          onKeyDown={dropOnEscape}
-          title={`Move row ${label(selectedRow)} ${where}`}
-          aria-label={`Move row ${label(selectedRow)} ${where}`}
-        >
-          <span className="row-gap-line" />
-        </button>
-      </div>
-    )
-  }
-
-  /** The rows of one block, with the places between them to move a row to. */
-  const rowsWithGaps = (indices, groupId) => {
-    const out = []
-    for (const staff of indices) {
-      out.push(gap(staff, groupId), staffOf(staff))
-    }
-    out.push(gap(indices[indices.length - 1] + 1, groupId))
-    return out
+  const gap = (parentId, index) => {
+    const key = `gap-${parentId ?? 'root'}-${index}`
+    const active = selectedRow !== null || selectedGroup !== null
+    const target = parentId === null ? 'the top level' : groupLabel(groups, parentId)
+    const item = selectedGroup !== null ? groupLabel(groups, selectedGroup) : `row ${selectedRow === null ? '' : label(selectedRow)}`
+    return <div className="row-gap" data-edit-area="" key={key}>
+      {active && <button type="button" className="row-gap-drop"
+        onClick={() => dropHeld(parentId, index)} onKeyDown={dropOnEscape}
+        title={`Move ${item} into ${target}, position ${index + 1}`}
+        aria-label={`Move ${item} into ${target}, position ${index + 1}`}>
+        <span className="row-gap-line" />
+      </button>}
+    </div>
   }
 
   /** Put down whatever is held, the same as pressing it a second time. */
@@ -498,6 +414,7 @@ export default function TabEditor({
     if (event.key !== 'Escape') return
     event.preventDefault()
     setSelectedRow(null)
+    setSelectedGroup(null)
   }
 
   // Edit mode takes the sheet over, so everything aimed at a cell — the tie
@@ -513,6 +430,7 @@ export default function TabEditor({
   if (wasEditing !== editing) {
     setWasEditing(editing)
     setSelectedRow(null)
+    setSelectedGroup(null)
     setShiftRows(new Map())
     setFocused(null)
     setArming(false)
@@ -704,6 +622,7 @@ export default function TabEditor({
     return (
       <div
         className={`staff${folded ? ' staff--folded' : ''}`}
+        data-edit-area=""
         style={{ '--strips': strips }}
         key={staff}
         role="group"
@@ -912,196 +831,200 @@ export default function TabEditor({
             </>
           )}
 
-          <div className="staff-body">
-            <StaffOverlay
-              ties={ties}
-              marks={marks}
-              staffStart={start}
-              cols={cols}
-              preview={preview}
-            />
+          {/* The staff and the two buttons that say how many bars it holds,
+              side by side inside the scroller. What those two do happens at
+              the end of the row, so they stand at the end of the row: a row
+              too long for the sheet carries them off the right of it, and the
+              same scroll that reaches its last bar reaches them. */}
+          <div className="staff-run">
+            <div className="staff-body">
+              <StaffOverlay
+                ties={ties}
+                marks={marks}
+                staffStart={start}
+                cols={cols}
+                preview={preview}
+              />
 
-            {tuning.map((_, stringIndex) => (
-              <div className="string-row" key={stringIndex}>
-                {staffColumns.map((column, indexInStaff) => {
-                  const col = start + indexInStaff
-                  const value = column[stringIndex]
-                  const target = isTieTarget(col, stringIndex)
-                  const isSource =
-                    arming && focused?.col === col && focused?.string === stringIndex
+              {tuning.map((_, stringIndex) => (
+                <div className="string-row" key={stringIndex}>
+                  {staffColumns.map((column, indexInStaff) => {
+                    const col = start + indexInStaff
+                    const value = column[stringIndex]
+                    const target = isTieTarget(col, stringIndex)
+                    const isSource =
+                      arming && focused?.col === col && focused?.string === stringIndex
 
-                  return (
-                    <input
-                      key={col}
-                      ref={registerCell(`${col}:${stringIndex}`)}
-                      className={[
-                        'cell',
-                        value ? 'cell--filled' : '',
-                        target ? 'cell--tie-target' : '',
-                        target && col === cursor ? 'cell--tie-cursor' : '',
-                        isSource ? 'cell--tie-source' : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      value={value}
-                      data-col={col}
-                      data-string={stringIndex}
-                      // Nothing is written while the order is being edited:
-                      // the overlay above takes every press, and this keeps
-                      // the cells out of the tab order behind it.
-                      readOnly={editing}
-                      tabIndex={editing ? -1 : undefined}
-                      inputMode="numeric"
-                      autoComplete="off"
-                      spellCheck="false"
-                      aria-label={`String ${tuning[stringIndex]}, position ${col + 1}`}
-                      title={target ? tieHint(col, stringIndex) : undefined}
-                      onChange={(event) =>
-                        onCellChange(col, stringIndex, normalizeCell(event.target.value))
-                      }
-                      onMouseDown={(event) => {
-                        if (target) {
-                          // Taking a tie target keeps the source note
-                          // selected, so the press must not move focus here.
-                          event.preventDefault()
-                          onPlayNote(focused.string, valueAt(focused.col, focused.string))
-                          commitTie(focused.col, focused.string, col)
-                          return
+                    return (
+                      <input
+                        key={col}
+                        ref={registerCell(`${col}:${stringIndex}`)}
+                        className={[
+                          'cell',
+                          value ? 'cell--filled' : '',
+                          target ? 'cell--tie-target' : '',
+                          target && col === cursor ? 'cell--tie-cursor' : '',
+                          isSource ? 'cell--tie-source' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        value={value}
+                        data-col={col}
+                        data-string={stringIndex}
+                        // Nothing is written while the order is being edited:
+                        // the overlay above takes every press, and this keeps
+                        // the cells out of the tab order behind it.
+                        readOnly={editing}
+                        tabIndex={editing ? -1 : undefined}
+                        inputMode="numeric"
+                        autoComplete="off"
+                        spellCheck="false"
+                        aria-label={`String ${tuning[stringIndex]}, position ${col + 1}`}
+                        title={target ? tieHint(col, stringIndex) : undefined}
+                        onChange={(event) =>
+                          onCellChange(col, stringIndex, normalizeCell(event.target.value))
                         }
-                        // Pressing a note sounds it, every press — focus only
-                        // changes the first time, so it cannot carry this.
-                        onPlayNote(stringIndex, value)
-                      }}
-                      // Hover aims the same cursor the arrow keys move, so the
-                      // preview arc always shows what a press would draw.
-                      onMouseEnter={() => target && setCursor(col)}
-                      onFocus={(event) => {
-                        event.target.select()
-                        disarm()
-                        // The element rides along so the bar can anchor to it.
-                        setFocused({ col, string: stringIndex, element: event.target })
-                      }}
-                      onBlur={() => {
-                        disarm()
-                        setFocused(null)
-                      }}
-                      onDragStart={(event) => event.preventDefault()}
-                      onKeyDown={(event) => handleKeyDown(event, col, stringIndex)}
-                    />
-                  )
-                })}
+                        onMouseDown={(event) => {
+                          if (target) {
+                            // Taking a tie target keeps the source note
+                            // selected, so the press must not move focus here.
+                            event.preventDefault()
+                            onPlayNote(focused.string, valueAt(focused.col, focused.string))
+                            commitTie(focused.col, focused.string, col)
+                            return
+                          }
+                          // Pressing a note sounds it, every press — focus only
+                          // changes the first time, so it cannot carry this.
+                          onPlayNote(stringIndex, value)
+                        }}
+                        // Hover aims the same cursor the arrow keys move, so the
+                        // preview arc always shows what a press would draw.
+                        onMouseEnter={() => target && setCursor(col)}
+                        onFocus={(event) => {
+                          event.target.select()
+                          disarm()
+                          // The element rides along so the bar can anchor to it.
+                          setFocused({ col, string: stringIndex, element: event.target })
+                        }}
+                        onBlur={() => {
+                          disarm()
+                          setFocused(null)
+                        }}
+                        onDragStart={(event) => event.preventDefault()}
+                        onKeyDown={(event) => handleKeyDown(event, col, stringIndex)}
+                      />
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+
+            {/* Every control a row has, past the barline that closes it.
+                Edit mode has the one button that takes the whole row off the
+                sheet; the rest of the time it is shift, then add and remove a
+                bar. Standing inside the scroller, they travel with the row
+                they act on rather than waiting at the edge of the sheet. */}
+            {editing ? (
+              <div className="row-bars row-bars--edit">
+                <button
+                  type="button"
+                  className="bar-button bar-button--delete"
+                  onClick={() => onDeleteRow(staff)}
+                  onKeyDown={dropOnEscape}
+                  disabled={rows.length <= 1}
+                  title={
+                    rows.length <= 1
+                      ? 'The sheet keeps at least one row'
+                      : 'Delete this row — Undo takes it back'
+                  }
+                  aria-label={`Delete row ${label(staff)}`}
+                >
+                  <TrashIcon />
+                </button>
               </div>
-            ))}
+            ) : (
+              <div className="row-bars">
+                {/* Kept behind one button, which opens out into the two arrows in
+                    place rather than into a row of three standing all the time. */}
+                {shiftRows.has(staff) ? (
+                  <>
+                    {/* Nothing else puts the arrows away, so they close on their
+                        own terms rather than the moment attention moves. It leads
+                        the group it closes, leaving the two arrows side by side. */}
+                    <button
+                      type="button"
+                      className="bar-button bar-button--close"
+                      onClick={() => closeShift(staff)}
+                      onKeyDown={closeShiftOnEscape(staff)}
+                      aria-expanded
+                      title="Done shifting this row"
+                      aria-label={`Hide row ${label(staff)}'s shift controls`}
+                    >
+                      ×
+                    </button>
+                    <button
+                      type="button"
+                      className="bar-button"
+                      // Taken as the arrows appear, so the press that opened them
+                      // does not leave focus behind on a button that has gone.
+                      autoFocus
+                      onClick={() => shift(staff, -1)}
+                      onKeyDown={closeShiftOnEscape(staff)}
+                      title="Move this row's notes one position left"
+                      aria-label={`Move row ${label(staff)}'s notes left`}
+                    >
+                      ←
+                    </button>
+                    <button
+                      type="button"
+                      className="bar-button"
+                      onClick={() => shift(staff, 1)}
+                      onKeyDown={closeShiftOnEscape(staff)}
+                      title="Move this row's notes one position right"
+                      aria-label={`Move row ${label(staff)}'s notes right`}
+                    >
+                      →
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="bar-button"
+                    onClick={() => openShift(staff)}
+                    aria-expanded={false}
+                    title="Slide this row's notes along"
+                    aria-label={`Shift row ${label(staff)}'s notes`}
+                  >
+                    ↔
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="bar-button"
+                  onClick={() => onAddBar(staff)}
+                  title={`Add a bar to this row (${bars} so far)`}
+                  aria-label={`Add a bar to row ${label(staff)}`}
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  className={`bar-button${pendingRemove === staff ? ' is-armed' : ''}`}
+                  onClick={() => onRemoveBar(staff)}
+                  onBlur={onCancelRemove}
+                  disabled={bars <= 1}
+                  title={
+                    pendingRemove === staff
+                      ? 'Press again to delete this bar and the notes in it'
+                      : `Remove the last bar of this row (${bars} so far)`
+                  }
+                  aria-label={`Remove the last bar of row ${label(staff)}`}
+                >
+                  −
+                </button>
+              </div>
+            )}
           </div>
-        </div>
-
-        {/* Edit mode is where a row other than the last can be taken off
-            the sheet, so its one button stands at the end of the staff,
-            where the bar controls stand the rest of the time. It has to
-            sit above the press-sheet, which covers the whole row. */}
-        {editing && (
-          <div className="row-bars row-bars--edit">
-            <button
-              type="button"
-              className="bar-button bar-button--delete"
-              onClick={() => onDeleteRow(staff)}
-              onKeyDown={dropOnEscape}
-              disabled={rows.length <= 1}
-              title={
-                rows.length <= 1
-                  ? 'The sheet keeps at least one row'
-                  : 'Delete this row — Undo takes it back'
-              }
-              aria-label={`Delete row ${label(staff)}`}
-            >
-              <TrashIcon />
-            </button>
-          </div>
-        )}
-
-        {/* The bar controls sit under the overlay, where nothing could
-            reach them, and none of what they do is reordering. They stand
-            down for as long as the mode is on. */}
-        <div className="row-bars" hidden={editing}>
-          {/* Shifting a row is the rarer errand of the four, so it is kept
-              behind one button and opens out into the two arrows in place,
-              above the buttons that change how many bars the row holds. */}
-          {shiftRows.has(staff) ? (
-            <>
-              {/* Nothing else puts the arrows away, so they close on their
-                  own terms rather than the moment attention moves. It leads
-                  the group it closes, leaving the two arrows side by side. */}
-              <button
-                type="button"
-                className="bar-button bar-button--close"
-                onClick={() => closeShift(staff)}
-                onKeyDown={closeShiftOnEscape(staff)}
-                aria-expanded
-                title="Done shifting this row"
-                aria-label={`Hide row ${label(staff)}'s shift controls`}
-              >
-                ×
-              </button>
-              <button
-                type="button"
-                className="bar-button"
-                // Taken as the arrows appear, so the press that opened them
-                // does not leave focus behind on a button that has gone.
-                autoFocus
-                onClick={() => shift(staff, -1)}
-                onKeyDown={closeShiftOnEscape(staff)}
-                title="Move this row's notes one position left"
-                aria-label={`Move row ${label(staff)}'s notes left`}
-              >
-                ←
-              </button>
-              <button
-                type="button"
-                className="bar-button"
-                onClick={() => shift(staff, 1)}
-                onKeyDown={closeShiftOnEscape(staff)}
-                title="Move this row's notes one position right"
-                aria-label={`Move row ${label(staff)}'s notes right`}
-              >
-                →
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              className="bar-button"
-              onClick={() => openShift(staff)}
-              aria-expanded={false}
-              title="Slide this row's notes along"
-              aria-label={`Shift row ${label(staff)}'s notes`}
-            >
-              ↔
-            </button>
-          )}
-          <button
-            type="button"
-            className="bar-button"
-            onClick={() => onAddBar(staff)}
-            title={`Add a bar to this row (${bars} so far)`}
-            aria-label={`Add a bar to row ${label(staff)}`}
-          >
-            +
-          </button>
-          <button
-            type="button"
-            className={`bar-button${pendingRemove === staff ? ' is-armed' : ''}`}
-            onClick={() => onRemoveBar(staff)}
-            onBlur={onCancelRemove}
-            disabled={bars <= 1}
-            title={
-              pendingRemove === staff
-                ? 'Press again to delete this bar and the notes in it'
-                : `Remove the last bar of this row (${bars} so far)`
-            }
-            aria-label={`Remove the last bar of row ${label(staff)}`}
-          >
-            −
-          </button>
         </div>
       </div>
     )
@@ -1111,20 +1034,54 @@ export default function TabEditor({
    * Another row for this group, at the foot of the rows it already holds —
    * the only way a row is added, so every group carries one. Dashed and
    * quiet, the way `+ New group` is: somewhere to write rather than something
-   * written. It takes no press while the order is being edited, where a press
-   * means picking a row up.
+   * written.
+   *
+   * It takes a press in edit mode too: putting the sheet in order is when it
+   * is clearest that a row is missing. The row is added inside the group's
+   * run rather than at the end of the sheet, which moves every row after it
+   * along — so anything the mode was holding by position is put down, which
+   * the row-count guard above does for all of it at once.
    */
   const addRowButton = (groupId) => (
     <button
       type="button"
       className="row-add"
-      disabled={editing}
       onClick={() => onAddRow(groupId)}
       title={`Add a row to ${groupLabel(groups, groupId)}`}
     >
       + New row
     </button>
   )
+
+  const renderNodes = (nodes, parentId) => {
+    const out = []
+    nodes.forEach((node, index) => {
+      if (editing) out.push(gap(parentId, index))
+      if ('rowId' in node) {
+        out.push(staffOf(rowIds.indexOf(node.rowId)))
+        return
+      }
+      const group = groups.find((item) => item.id === node.groupId)
+      const indices = descendantRowIds(node).map((id) => rowIds.indexOf(id))
+      const folded = isGroupFolded(group.id)
+      out.push(<section className={`group${folded ? ' group--folded' : ''}`}
+        data-edit-area="" key={`group-${group.id}`} style={{ '--group': groupTone(group.id) }}
+        role="group" aria-label={groupLabel(groups, group.id)}>
+        <GroupBar group={group} label={groupLabel(groups, group.id)} rows={indices.length}
+          bars={indices.reduce((n, staff) => n + rows[staff], 0)}
+          notes={indices.reduce((n, staff) => n + rowNoteCount(grid, rows, staff), 0)}
+          folded={folded} editing={editing} holding={held(group.id)}
+          selected={selectedGroup === group.id}
+          onRename={onRenameGroup} onToggleFold={toggleGroupFold} onDelete={onDeleteGroup}
+          onPick={() => { setSelectedRow(null); setSelectedGroup(selectedGroup === group.id ? null : group.id) }}
+          onCancel={() => { setSelectedRow(null); setSelectedGroup(null) }}
+          onDrop={() => dropHeld(group.id, node.children.length)} />
+        {!folded && <div className="group-body">{renderNodes(node.children, group.id)}{addRowButton(group.id)}</div>}
+      </section>)
+    })
+    if (editing) out.push(gap(parentId, nodes.length))
+    return out
+  }
 
   return (
     <div className="editor">
@@ -1140,96 +1097,26 @@ export default function TabEditor({
           stand down for as long as a row is being carried. */}
       <ArrangementSection
         groups={groups}
-        addable={filledGroups(members, rowIds, groups)}
+        addable={filledGroups(structure, rowIds, groups)}
         arrangement={arrangement}
-        tone={groupTone}
         editing={editing}
         onAdd={onAddToArrangement}
         onRemove={onRemoveFromArrangement}
       />
 
-      {/* The sheet, top to bottom. A group is a bar across the page with the
-          rows it holds indented under it behind a spine in the group's own
-          colour, and a row in no group stands on its own where that bracket
-          would be. The rows are in sheet order either way: `groupRuns` only
-          reads the layout off the order the rows already stand in. */}
-      {groupRuns(members, rowIds, groups).flatMap((block) => [
-        // Between two blocks, which is a place in no group — and above the
-        // bar rather than under it, so it reads as outside the bracket.
-        editing ? gap(block.rows[0], null) : null,
-        block.group ? (
-          <section
-            className={`group${isGroupFolded(block.group.id) ? ' group--folded' : ''}`}
-            key={`group-${block.group.id}`}
-            style={{ '--group': groupTone(block.group.id) }}
-            role="group"
-            aria-label={groupLabel(groups, block.group.id)}
-          >
-            <GroupBar
-              group={block.group}
-              label={groupLabel(groups, block.group.id)}
-              rows={block.rows.length}
-              bars={block.rows.reduce((n, staff) => n + rows[staff], 0)}
-              notes={block.rows.reduce((n, staff) => n + rowNoteCount(grid, rows, staff), 0)}
-              folded={isGroupFolded(block.group.id)}
-              editing={editing}
-              holding={held(block.group.id)}
-              onRename={onRenameGroup}
-              onToggleFold={toggleGroupFold}
-              onDelete={onDeleteGroup}
-              onDrop={dropHeldRow}
-            />
-            {!isGroupFolded(block.group.id) && (
-              <div className="group-body">
-                {editing ? rowsWithGaps(block.rows, block.group.id) : block.rows.map(staffOf)}
-                {addRowButton(block.group.id)}
-              </div>
-            )}
-          </section>
-        ) : (
-          staffOf(block.rows[0])
-        ),
-      ])}
-
-      {/* The end of the sheet, past every block. */}
-      {editing && gap(rows.length, null)}
-
-      {/* A group holding no rows has no rows to stand over, so it waits at the
-          end of the sheet: a bar to name, and somewhere for a row to be sent
-          to from its own chip. */}
-      {emptyGroups(members, rowIds, groups).map((group) => (
-        <section
-          className="group group--empty"
-          key={`group-${group.id}`}
-          style={{ '--group': groupTone(group.id) }}
-          role="group"
-          aria-label={groupLabel(groups, group.id)}
-        >
-          <GroupBar
-            group={group}
-            label={groupLabel(groups, group.id)}
-            rows={0}
-            bars={0}
-            notes={0}
-            folded={false}
-            editing={editing}
-            holding={held(group.id)}
-            onRename={onRenameGroup}
-            onToggleFold={toggleGroupFold}
-            onDelete={onDeleteGroup}
-            onDrop={dropHeldRow}
-          />
-          <div className="group-body">{addRowButton(group.id)}</div>
-        </section>
-      ))}
+      {renderNodes(structure, null)}
 
       {/* Another group, past the last of them — at a bar's own full width,
           and dashed, the way somewhere to write is drawn rather than
-          something written. */}
+          something written. Open in edit mode as well: a new group is a bar
+          with nothing under it, and sending rows to it is the mode's own
+          errand, so refusing one here only meant leaving the mode to make it
+          and coming back. Adding a group moves no row, so nothing the mode is
+          holding goes stale. */}
       <button
         type="button"
         className="group-add"
-        disabled={editing}
+        data-edit-area=""
         onClick={onAddGroup}
         title="Add another group"
       >
