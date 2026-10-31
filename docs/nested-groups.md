@@ -93,22 +93,42 @@ function descendantRowIds(node) {
 ## Saved sheets
 
 `toJson` / `fromJson` currently use version 12 for local storage, downloaded
-JSON and published notes. Write version 13 with `structure` in place of
-`members`. Explicitly read version 12 and convert its existing group runs into
-top-level tree nodes; append its empty groups in their current displayed order.
-Keep group IDs, arrangement, row order and music intact. Read version 13 only
-after validating the tree. This migration is needed to keep existing autosaves,
-exports and published notes usable; the next save writes version 13. Older app
-versions will not read newly saved version 13 files. The CLI publisher uses
-`fromJson`; the upload validator in `docker/app/backend/app/notes.py` also
-checks the version and required fields, so update it for version 13. Deploy
-the reader and upload validator together and keep version 12 readable for
-existing published notes.
+JSON and published notes. Write and accept only version 13, with `structure` in
+place of `members`, and validate the tree on read. The CLI publisher uses
+`fromJson`; update the upload validator in `docker/app/backend/app/notes.py`
+to require the same version and fields. Remove existing old-format fallbacks
+throughout the repository, including the missing `arrangement` fallback and
+any obsolete readers, validators and tests. Search the app, backend, scripts
+and tests for legacy sheet versions and fields to verify this.
+
+As part of implementation, migrate both `fretbook-notes-dev` and
+`fretbook-notes-prod`:
+
+1. Pull and preserve a backup of every note and manifest from each bucket.
+   Inventory all note objects, including any absent from the manifest.
+2. Use a temporary, one-off converter outside the repository to turn each
+   version 12 group run into a top-level tree node, appending empty groups in
+   their displayed order. Preserve IDs, arrangement, row order, music, titles
+   and annotations. Stop on invalid input; validate every result with the new
+   reader and compare it with its source.
+3. Publish the converted notes back to their respective buckets, preserving
+   slugs and manifest entries. Coordinate each bucket's cutover with deployment
+   of its new frontend and backend: old and new formats cannot be read by the
+   other release, so there may be a brief interruption. Verify every published
+   object and manifest afterwards. Retain the backups for recovery, then remove
+   the temporary converter; no compatibility logic remains in the repository.
+
+Old browser autosaves and downloaded JSON files will not open in the new app.
+An unrecognized autosave must not be silently overwritten; surface the failure
+so its existing data can be recovered separately. Older app versions cannot
+open the converted notes; rollback requires restoring the corresponding bucket
+backup alongside the old app.
 
 ## Checks
 
-Run `npm run lint` and `npm run build`. Add focused tests for migration and
-round trips, malformed/duplicate/deep trees, subtree moves and cycle rejection,
+Run `npm run lint` and `npm run build`. Check the one-off conversion against
+every pulled note and verify that old-format imports are rejected. Add focused
+tests for round trips, malformed/duplicate/deep trees, subtree moves and cycle rejection,
 row swaps and annotation preservation, subtree deletion and undo (including
 deleting all rows), and playback of parent, child, repeated and empty groups.
 In the app, exercise creating a group at the bottom and moving it inside
