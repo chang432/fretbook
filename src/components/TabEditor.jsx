@@ -901,86 +901,123 @@ export default function TabEditor({
             </>
           )}
 
-          <div className="staff-body">
-            <StaffOverlay
-              ties={ties}
-              marks={marks}
-              staffStart={start}
-              cols={cols}
-              preview={preview}
-            />
+          {/* The staff and the two buttons that say how many bars it holds,
+              side by side inside the scroller. What those two do happens at
+              the end of the row, so they stand at the end of the row: a row
+              too long for the sheet carries them off the right of it, and the
+              same scroll that reaches its last bar reaches them. */}
+          <div className="staff-run">
+            <div className="staff-body">
+              <StaffOverlay
+                ties={ties}
+                marks={marks}
+                staffStart={start}
+                cols={cols}
+                preview={preview}
+              />
 
-            {tuning.map((_, stringIndex) => (
-              <div className="string-row" key={stringIndex}>
-                {staffColumns.map((column, indexInStaff) => {
-                  const col = start + indexInStaff
-                  const value = column[stringIndex]
-                  const target = isTieTarget(col, stringIndex)
-                  const isSource =
-                    arming && focused?.col === col && focused?.string === stringIndex
+              {tuning.map((_, stringIndex) => (
+                <div className="string-row" key={stringIndex}>
+                  {staffColumns.map((column, indexInStaff) => {
+                    const col = start + indexInStaff
+                    const value = column[stringIndex]
+                    const target = isTieTarget(col, stringIndex)
+                    const isSource =
+                      arming && focused?.col === col && focused?.string === stringIndex
 
-                  return (
-                    <input
-                      key={col}
-                      ref={registerCell(`${col}:${stringIndex}`)}
-                      className={[
-                        'cell',
-                        value ? 'cell--filled' : '',
-                        target ? 'cell--tie-target' : '',
-                        target && col === cursor ? 'cell--tie-cursor' : '',
-                        isSource ? 'cell--tie-source' : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      value={value}
-                      data-col={col}
-                      data-string={stringIndex}
-                      // Nothing is written while the order is being edited:
-                      // the overlay above takes every press, and this keeps
-                      // the cells out of the tab order behind it.
-                      readOnly={editing}
-                      tabIndex={editing ? -1 : undefined}
-                      inputMode="numeric"
-                      autoComplete="off"
-                      spellCheck="false"
-                      aria-label={`String ${tuning[stringIndex]}, position ${col + 1}`}
-                      title={target ? tieHint(col, stringIndex) : undefined}
-                      onChange={(event) =>
-                        onCellChange(col, stringIndex, normalizeCell(event.target.value))
-                      }
-                      onMouseDown={(event) => {
-                        if (target) {
-                          // Taking a tie target keeps the source note
-                          // selected, so the press must not move focus here.
-                          event.preventDefault()
-                          onPlayNote(focused.string, valueAt(focused.col, focused.string))
-                          commitTie(focused.col, focused.string, col)
-                          return
+                    return (
+                      <input
+                        key={col}
+                        ref={registerCell(`${col}:${stringIndex}`)}
+                        className={[
+                          'cell',
+                          value ? 'cell--filled' : '',
+                          target ? 'cell--tie-target' : '',
+                          target && col === cursor ? 'cell--tie-cursor' : '',
+                          isSource ? 'cell--tie-source' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        value={value}
+                        data-col={col}
+                        data-string={stringIndex}
+                        // Nothing is written while the order is being edited:
+                        // the overlay above takes every press, and this keeps
+                        // the cells out of the tab order behind it.
+                        readOnly={editing}
+                        tabIndex={editing ? -1 : undefined}
+                        inputMode="numeric"
+                        autoComplete="off"
+                        spellCheck="false"
+                        aria-label={`String ${tuning[stringIndex]}, position ${col + 1}`}
+                        title={target ? tieHint(col, stringIndex) : undefined}
+                        onChange={(event) =>
+                          onCellChange(col, stringIndex, normalizeCell(event.target.value))
                         }
-                        // Pressing a note sounds it, every press — focus only
-                        // changes the first time, so it cannot carry this.
-                        onPlayNote(stringIndex, value)
-                      }}
-                      // Hover aims the same cursor the arrow keys move, so the
-                      // preview arc always shows what a press would draw.
-                      onMouseEnter={() => target && setCursor(col)}
-                      onFocus={(event) => {
-                        event.target.select()
-                        disarm()
-                        // The element rides along so the bar can anchor to it.
-                        setFocused({ col, string: stringIndex, element: event.target })
-                      }}
-                      onBlur={() => {
-                        disarm()
-                        setFocused(null)
-                      }}
-                      onDragStart={(event) => event.preventDefault()}
-                      onKeyDown={(event) => handleKeyDown(event, col, stringIndex)}
-                    />
-                  )
-                })}
-              </div>
-            ))}
+                        onMouseDown={(event) => {
+                          if (target) {
+                            // Taking a tie target keeps the source note
+                            // selected, so the press must not move focus here.
+                            event.preventDefault()
+                            onPlayNote(focused.string, valueAt(focused.col, focused.string))
+                            commitTie(focused.col, focused.string, col)
+                            return
+                          }
+                          // Pressing a note sounds it, every press — focus only
+                          // changes the first time, so it cannot carry this.
+                          onPlayNote(stringIndex, value)
+                        }}
+                        // Hover aims the same cursor the arrow keys move, so the
+                        // preview arc always shows what a press would draw.
+                        onMouseEnter={() => target && setCursor(col)}
+                        onFocus={(event) => {
+                          event.target.select()
+                          disarm()
+                          // The element rides along so the bar can anchor to it.
+                          setFocused({ col, string: stringIndex, element: event.target })
+                        }}
+                        onBlur={() => {
+                          disarm()
+                          setFocused(null)
+                        }}
+                        onDragStart={(event) => event.preventDefault()}
+                        onKeyDown={(event) => handleKeyDown(event, col, stringIndex)}
+                      />
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+
+            {/* Past the barline closing the row, where another bar would go.
+                They are part of the staff rather than of the sheet, and they
+                stand down in edit mode with the rest of the bar controls. */}
+            <div className="row-bars row-bars--inline" hidden={editing}>
+              <button
+                type="button"
+                className="bar-button"
+                onClick={() => onAddBar(staff)}
+                title={`Add a bar to this row (${bars} so far)`}
+                aria-label={`Add a bar to row ${label(staff)}`}
+              >
+                +
+              </button>
+              <button
+                type="button"
+                className={`bar-button${pendingRemove === staff ? ' is-armed' : ''}`}
+                onClick={() => onRemoveBar(staff)}
+                onBlur={onCancelRemove}
+                disabled={bars <= 1}
+                title={
+                  pendingRemove === staff
+                    ? 'Press again to delete this bar and the notes in it'
+                    : `Remove the last bar of this row (${bars} so far)`
+                }
+                aria-label={`Remove the last bar of row ${label(staff)}`}
+              >
+                −
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1008,13 +1045,14 @@ export default function TabEditor({
           </div>
         )}
 
-        {/* The bar controls sit under the overlay, where nothing could
-            reach them, and none of what they do is reordering. They stand
-            down for as long as the mode is on. */}
+        {/* Shifting a row is the one errand that acts on the whole of it
+            rather than on its end, so it waits at the edge of the sheet,
+            holding the same column down every row, while adding and removing
+            a bar rides along at the end of the staff. None of what it does is
+            reordering, so it stands down for as long as the mode is on. */}
         <div className="row-bars" hidden={editing}>
-          {/* Shifting a row is the rarer errand of the four, so it is kept
-              behind one button and opens out into the two arrows in place,
-              above the buttons that change how many bars the row holds. */}
+          {/* Kept behind one button, which opens out into the two arrows in
+              place rather than into a row of three standing all the time. */}
           {shiftRows.has(staff) ? (
             <>
               {/* Nothing else puts the arrows away, so they close on their
@@ -1067,30 +1105,6 @@ export default function TabEditor({
               ↔
             </button>
           )}
-          <button
-            type="button"
-            className="bar-button"
-            onClick={() => onAddBar(staff)}
-            title={`Add a bar to this row (${bars} so far)`}
-            aria-label={`Add a bar to row ${label(staff)}`}
-          >
-            +
-          </button>
-          <button
-            type="button"
-            className={`bar-button${pendingRemove === staff ? ' is-armed' : ''}`}
-            onClick={() => onRemoveBar(staff)}
-            onBlur={onCancelRemove}
-            disabled={bars <= 1}
-            title={
-              pendingRemove === staff
-                ? 'Press again to delete this bar and the notes in it'
-                : `Remove the last bar of this row (${bars} so far)`
-            }
-            aria-label={`Remove the last bar of row ${label(staff)}`}
-          >
-            −
-          </button>
         </div>
       </div>
     )

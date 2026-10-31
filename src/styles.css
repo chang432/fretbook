@@ -1214,10 +1214,9 @@ button.link {
   scrollbar-width: thin;
 }
 
-/* One column of controls at the right edge of the row — shift left, shift
-   right, then add and remove a bar. Sitting past the scroller rather than
-   inside it means they keep that edge whatever the row is holding: widening a
-   row fills the scroller instead of pushing them along. */
+/* A column of controls, in two places: the shift control past the scroller, at
+   the right edge of the row, and add/remove a bar inside it at the end of the
+   staff. Both are the same stack of buttons, so both are drawn the same. */
 /* `display: flex` would otherwise outrank the browser's own rule for the
    hidden attribute, which is how edit mode stands these down. */
 .row-bars[hidden] {
@@ -1232,6 +1231,15 @@ button.link {
   align-self: center;
   gap: 6px;
   margin-left: 10px;
+}
+
+/* Inside the scroller, where the room to the right of the staff is the
+   scroller's own padding rather than the sheet's: the staff's air is given
+   back on this side so the buttons do not sit flush against the barline, and
+   again past them so the scroll has somewhere to end. */
+.row-bars--inline {
+  margin-right: var(--staff-air);
+  margin-left: var(--staff-air);
 }
 
 .bar-button {
@@ -1418,6 +1426,17 @@ button.link {
   padding-right: 10px;
   color: var(--muted);
   font: 600 13px ui-monospace, Menlo, monospace;
+}
+
+/* The staff and the bar buttons at the end of it, side by side inside the
+   scroller so the two scroll as one thing. `max-content` is what keeps the
+   staff its full width: a flex item shrinks to its container by default, and
+   this box is as wide as the sheet, so the staff would be squeezed rather than
+   scrolled. */
+.staff-run {
+  display: flex;
+  align-items: center;
+  width: max-content;
 }
 
 .staff-body {
