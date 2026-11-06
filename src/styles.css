@@ -1,13 +1,11 @@
 /*
- * Layout note: the staff is built on a fixed 36px column pitch. The vertical
- * guides are painted as a repeating gradient on .staff-body using that same
- * pitch, so the guides and the input cells stay locked together without any
- * per-column DOM for the lines.
+ * Layout note: the staff is built on a fixed 36px column pitch. The strings
+ * are drawn as horizontal rules and nothing is ruled vertically, so a column
+ * is defined by the width of its input cell alone.
  */
 :root {
   --cell-w: 36px;
   --row-h: 34px;
-  --bar-w: calc(var(--cell-w) * 4);
 
   /* The column of string letters down the left of a row. Everything written
      on the sheet starts after it — the bars, and the group strip above them —
@@ -29,7 +27,6 @@
   --ink: #16202b;
   --string: #2f3a45;
   --bar: #b9c2cc;
-  --grid: #dde3e9;
   --barline: #a3aeb9;
   --muted: #7d8894;
   --accent: #a8492f;
@@ -1212,12 +1209,12 @@ button.link {
 
 /* One column of controls at the end of the staff — shift the row's notes, then
    add and remove a bar, or edit mode's single bin in place of all three. It
-   stands inside the scroller, past the barline closing the row, so it travels
+   stands inside the scroller, past the end of the strings, so it travels
    with the row it acts on: a row too long for the sheet carries it off the
    right, and the scroll that reaches the last bar reaches it.
 
    The staff's own air is given back either side, so the buttons neither sit
-   flush against the barline nor end flush with the scroll. */
+   flush against the strings nor end flush with the scroll. */
 .row-bars {
   display: flex;
   flex: none;
@@ -1450,35 +1447,6 @@ button.link {
   position: relative;
   /* Never shrink to the scroller: the staff keeps its full width and scrolls. */
   width: max-content;
-}
-
-/* Two guide layers: a faint tick on every column, a firmer barline every 4.
-   Both are inset by half a row so they stop at the outer strings. Shared with
-   live mode's strip, so a bar is ruled the same wherever it is drawn.
-
-   Each layer draws its line at the start of a column, so the run of them stops
-   one column short of the end — the line closing the last bar would fall just
-   past the edge of the box and be clipped. The staff draws that one itself. */
-.staff-body,
-.live-run {
-  background-image:
-    repeating-linear-gradient(to right, var(--barline) 0 1px, transparent 1px var(--bar-w)),
-    repeating-linear-gradient(to right, var(--grid) 0 1px, transparent 1px var(--cell-w));
-  background-size: 100% calc(100% - var(--row-h));
-  background-position: 0 calc(var(--row-h) / 2);
-  background-repeat: no-repeat;
-}
-
-/* The barline closing the end of the row, kept to the same height as the ones
-   the gradient draws. The PNG export has always drawn it. */
-.staff-body::after {
-  content: '';
-  position: absolute;
-  top: calc(var(--row-h) / 2);
-  right: 0;
-  bottom: calc(var(--row-h) / 2);
-  width: 1px;
-  background: var(--barline);
 }
 
 .string-row {

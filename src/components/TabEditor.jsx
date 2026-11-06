@@ -919,7 +919,7 @@ export default function TabEditor({
               ))}
             </div>
 
-            {/* Every control a row has, past the barline that closes it.
+            {/* Every control a row has, past the end of its strings.
                 Edit mode has the one button that takes the whole row off the
                 sheet; the rest of the time it is shift, then add and remove a
                 bar. Standing inside the scroller, they travel with the row

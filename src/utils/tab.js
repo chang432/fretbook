@@ -16,8 +16,9 @@ export const STRING_COUNT = 6
 export const STANDARD_TUNING = ['e', 'B', 'G', 'D', 'A', 'E']
 
 /**
- * Positions between two heavier guide lines — one bar, and the unit a row is
- * measured and grown in. Mirrored by `--bar-w` in styles.css.
+ * Positions in one bar — the unit a row is measured and grown in. Nothing is
+ * ruled on the staff to show where a bar ends; this is the step the add and
+ * remove buttons work in.
  */
 export const COLS_PER_BAR = 4
 

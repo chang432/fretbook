@@ -6,7 +6,7 @@
  * but it is drawn independently of the DOM to keep the export free of styling
  * and font-loading surprises.
  */
-import { COLS_PER_BAR, STRING_COUNT, rowStarts, rowWidth, contentRows } from './tab.js'
+import { STRING_COUNT, rowStarts, rowWidth, contentRows } from './tab.js'
 import {
   CELL_W,
   LABEL_W,
@@ -24,7 +24,6 @@ const TITLE_H = 44
 const COLORS = {
   paper: '#fbf8f1',
   line: '#2f3a45',
-  bar: '#c3ccd6',
   ink: '#16202b',
   label: '#7d8894',
   tie: '#a8492f',
@@ -68,20 +67,7 @@ export function renderTabToCanvas({ grid, rows, ties, marks }, tuning, title, sc
     const start = starts[staff]
     const slice = grid.slice(start, start + cols)
 
-    // Vertical guides: a light tick per column, a stronger barline every bar.
-    for (let col = 0; col <= cols; col += 1) {
-      const x = Math.round(gridLeft + col * CELL_W) + 0.5
-      const isBar = col % COLS_PER_BAR === 0
-      ctx.strokeStyle = COLORS.bar
-      ctx.lineWidth = isBar ? 1.4 : 1
-      ctx.globalAlpha = isBar ? 0.9 : 0.45
-      ctx.beginPath()
-      ctx.moveTo(x, top + ROW_H / 2)
-      ctx.lineTo(x, top + staffH - ROW_H / 2)
-      ctx.stroke()
-    }
-    ctx.globalAlpha = 1
-
+    // No vertical ruling: the staff is the strings and what is written on them.
     for (let stringIndex = 0; stringIndex < STRING_COUNT; stringIndex += 1) {
       const y = Math.round(top + stringIndex * ROW_H + ROW_H / 2) + 0.5
 
