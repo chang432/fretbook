@@ -18,9 +18,11 @@
  * still drawn as a cell, and still reads out as one, because it still
  * stands in the run.
  *
- * `repeat` is the count a repeat column carries. It rides on the slot as
- * an attribute rather than being written into the cell, because the cell
- * holds no note and the count is not one: the stylesheet prints it.
+ * `repeat` is the count a repeat column carries, and the cell on the top
+ * string of that column is the one that says it. The cell writes the count
+ * out itself — it is the cell's own content, and the stylesheet only says
+ * how it looks. Nothing is written in the model's cell underneath: a count
+ * is not a note, and the column takes no typing anyway.
  *
  * `row` and `col` are counted from 0, the way the sheet counts them, and are
  * spoken as 1 and up, the way a person does.
@@ -31,14 +33,20 @@
  * `cell--unstrung` to the class list below is what skips one.
  */
 export default function Cell({ cell, row, col, string, mode = false, repeat = null, onChange }) {
+  // The top cell of a repeat column is the one that says the count. The
+  // model's cell knows which string it is on, so there is nothing for the
+  // editor to tell it.
+  const count = repeat === null || cell.string !== 0 ? null : `x${repeat}`
+
+  const classes = ['cell']
+  if (count) classes.push('cell--repeat')
+  else if (!cell.isEmpty) classes.push('cell--filled')
+
   return (
-    <span
-      className={`cell-slot${mode ? ` cell-slot--${mode}` : ''}`}
-      data-repeat={repeat ?? undefined}
-    >
+    <span className={`cell-slot${mode ? ` cell-slot--${mode}` : ''}`}>
       <input
-        className={`cell${cell.isEmpty ? '' : ' cell--filled'}`}
-        value={cell.value}
+        className={classes.join(' ')}
+        value={count ?? cell.value}
         inputMode="numeric"
         autoComplete="off"
         spellCheck="false"
@@ -50,7 +58,11 @@ export default function Cell({ cell, row, col, string, mode = false, repeat = nu
         // Positions start again at 1 on every row, so the row is named here
         // too: "position 1" alone would point at one cell per row rather than
         // at one cell.
-        aria-label={`Row ${row + 1}, string ${string}, position ${col + 1}`}
+        aria-label={
+          count
+            ? `Row ${row + 1}, the group before here is played ${repeat} times`
+            : `Row ${row + 1}, string ${string}, position ${col + 1}`
+        }
         // What was typed, as typed: a cell settles what it will take when the
         // model writes it, so there is nothing to check here.
         onChange={(event) => onChange(event.target.value)}

@@ -112,33 +112,25 @@
   border-bottom: var(--group-arrow) solid var(--ink);
 }
 
-/* How many times the group is played, written just past the bar that closes
-   it, on the top cell of that column and nowhere else — the other five
-   cells of the column are blank staff. The box takes the paper's own colour
-   so the string behind it does not run through the count, the same way a
-   written fret punches a hole in the string it sits on. */
-.string-row:first-child .cell-slot--group-repeat::before {
-  content: '';
-  position: absolute;
-  z-index: 3;
-  /* In from the cell either side, so two of these never touch. */
-  inset: 3px 2px;
-  border: var(--group-bar-w) solid var(--ink);
-  background: var(--paper);
-}
+/* How many times the group is played, on the top cell of the column just
+   past the bar that closes it and nowhere else — the other five cells of
+   that column are blank staff.
 
-/* The count itself, over the box. `repeat` is carried on the slot rather
-   than written into the cell, because the cell holds no note and this is
-   not one: it is what the column says. */
-.string-row:first-child .cell-slot--group-repeat::after {
-  content: 'x' attr(data-repeat);
-  position: absolute;
-  z-index: 4;
-  inset: 3px 2px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--ink);
-  font: 600 13px/1 ui-monospace, Menlo, monospace;
-  pointer-events: none;
+   The cell writes the count itself; this is only how it is drawn. Boxed to
+   the same thickness as the bracket, both being the one token, and filled
+   with the paper's own colour so the string does not run through the count
+   — the same way a written fret punches a hole in the string it sits on.
+
+   Three classes deep so it beats `.string-row--segmented .cell`, which
+   would otherwise go on drawing that string straight through the box. */
+.cell-slot--group-repeat .cell.cell--repeat {
+  z-index: 3;
+  /* In from its position either side, so two of these never touch. */
+  width: calc(var(--cell-w) - 4px);
+  height: calc(var(--row-h) - 6px);
+  border: var(--group-bar-w) solid var(--ink);
+  border-radius: 2px;
+  background-color: var(--paper);
+  background-image: none;
+  font-size: 13px;
 }

@@ -39,6 +39,13 @@
   position: relative;
   display: flex;
   flex: none;
+  /* Its own size rather than the input's: a cell drawn smaller than its
+     position — the one carrying a group's repeat count — must not pull the
+     column in after it and take the staff out of line. */
+  width: var(--cell-w);
+  height: var(--row-h);
+  align-items: center;
+  justify-content: center;
 }
 
 .string-row--segmented .cell {
