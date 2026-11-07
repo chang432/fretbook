@@ -102,7 +102,24 @@ export default function TabEditorV2({ rows, tuning, onCellChange, onRepeatChange
                   {tuning.map((_, stringIndex) => (
                     // Each cell draws its own piece of the string, so that a
                     // position can be left out of the line — see Cell.
-                    <div className="string-row string-row--segmented" key={stringIndex}>
+                    //
+                    // The outer two rows say so themselves rather than being
+                    // picked out as the first and last of their parent:
+                    // anything else drawn inside the staff — the cover over
+                    // an open group, say — would otherwise take the name of
+                    // last child away from the bottom string, and with it
+                    // the foot of every bracket on the row.
+                    <div
+                      className={[
+                        'string-row',
+                        'string-row--segmented',
+                        stringIndex === 0 ? 'string-row--top' : '',
+                        stringIndex === tuning.length - 1 ? 'string-row--bottom' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      key={stringIndex}
+                    >
                       {row.columns.map((column) => {
                         const at = column.rowPosition
                         const group = groups.find(

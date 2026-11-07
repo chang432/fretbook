@@ -49,13 +49,13 @@
 /* The two ends of the run stop at the outer strings, the way everything
    ruled on a staff does, rather than running on into the air above and
    below them. */
-.string-row:first-child .cell-slot--group-start::before,
-.string-row:first-child .cell-slot--group-end::before {
+.string-row--top .cell-slot--group-start::before,
+.string-row--top .cell-slot--group-end::before {
   top: 50%;
 }
 
-.string-row:last-child .cell-slot--group-start::before,
-.string-row:last-child .cell-slot--group-end::before {
+.string-row--bottom .cell-slot--group-start::before,
+.string-row--bottom .cell-slot--group-end::before {
   bottom: 50%;
 }
 
@@ -63,10 +63,10 @@
    the group holds. Each is one border of a box with no size: a solid edge
    running in off the bar, and a transparent one beside it cutting the slope
    back. Half an arrowhead — the bar is the other half. */
-.string-row:first-child .cell-slot--group-start::after,
-.string-row:last-child .cell-slot--group-start::after,
-.string-row:first-child .cell-slot--group-end::after,
-.string-row:last-child .cell-slot--group-end::after {
+.string-row--top .cell-slot--group-start::after,
+.string-row--bottom .cell-slot--group-start::after,
+.string-row--top .cell-slot--group-end::after,
+.string-row--bottom .cell-slot--group-end::after {
   content: '';
   position: absolute;
   /* With the bar they finish: over the cover, not under it. */
@@ -162,29 +162,29 @@
 }
 
 /* Opening: off the left bar, pointing right. */
-.string-row:first-child .cell-slot--group-start::after,
-.string-row:last-child .cell-slot--group-start::after {
+.string-row--top .cell-slot--group-start::after,
+.string-row--bottom .cell-slot--group-start::after {
   left: var(--group-bar-w);
   border-right: var(--group-arrow) solid transparent;
 }
 
 /* Closing: off the right bar, pointing left. */
-.string-row:first-child .cell-slot--group-end::after,
-.string-row:last-child .cell-slot--group-end::after {
+.string-row--top .cell-slot--group-end::after,
+.string-row--bottom .cell-slot--group-end::after {
   right: var(--group-bar-w);
   border-left: var(--group-arrow) solid transparent;
 }
 
 /* Top of the bracket: flat along the top, sloping back down to the bar. */
-.string-row:first-child .cell-slot--group-start::after,
-.string-row:first-child .cell-slot--group-end::after {
+.string-row--top .cell-slot--group-start::after,
+.string-row--top .cell-slot--group-end::after {
   top: 50%;
   border-top: var(--group-arrow) solid var(--ink);
 }
 
 /* And the foot of it, mirrored. */
-.string-row:last-child .cell-slot--group-start::after,
-.string-row:last-child .cell-slot--group-end::after {
+.string-row--bottom .cell-slot--group-start::after,
+.string-row--bottom .cell-slot--group-end::after {
   bottom: 50%;
   border-bottom: var(--group-arrow) solid var(--ink);
 }
@@ -230,7 +230,7 @@
    until now; with the cell lifted away the slot draws it instead, so the
    top string runs through the column unbroken and the box hangs below it
    rather than out of a hole in it. */
-.string-row:first-child .cell-slot--group-repeat::before {
+.string-row--top .cell-slot--group-repeat::before {
   content: '';
   position: absolute;
   inset: 0;
