@@ -30,15 +30,19 @@ const MOCK_NOTES = [
   ],
 ]
 
-/** The mock sheet, built fresh each time so Reset really does start over. */
+/**
+ * The mock sheet, built fresh each time so Reset really does start over.
+ * Written through the model rather than around it: the notes above are what
+ * someone would have typed, and `writeCell` is what typing them does.
+ */
 function mockRows() {
-  return MOCK_LENGTHS.map((length, row) => {
-    const columns = createRow(length)
-    MOCK_NOTES[row].forEach(([col, string, value]) => {
-      columns[col][string] = value
+  let sheet = MOCK_LENGTHS.map(createRow)
+  MOCK_NOTES.forEach((notes, row) => {
+    notes.forEach(([col, string, value]) => {
+      sheet = writeCell(sheet, row, col, string, value)
     })
-    return columns
   })
+  return sheet
 }
 
 /**

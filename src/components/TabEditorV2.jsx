@@ -47,7 +47,7 @@ export default function TabEditorV2({ rows, tuning, onCellChange }) {
                     {columns.map((column, col) => (
                       <Cell
                         key={col}
-                        value={column[stringIndex]}
+                        cell={column[stringIndex]}
                         row={staff}
                         col={col}
                         string={tuning[stringIndex]}

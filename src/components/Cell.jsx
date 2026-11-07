@@ -1,14 +1,12 @@
-import { normalizeCell } from '../utils/tabV2.js'
-
 /**
  * One position on one string: the box a fret is written in, and the piece of
  * string it is written on.
  *
- * The cell owns how a position looks and behaves — what it is called out
- * loud, what it will accept, and which of its states it is in. Where it
- * stands is the editor's business: `row`, `col` and `string` are only ever
- * read back out in the name below, and a new value is handed straight up to
- * `onChange` rather than written anywhere here.
+ * This draws one: `cell` is the Cell itself, from utils/cell.js, which is
+ * what knows its value and what it will accept. Where it stands is the
+ * editor's business — `row`, `col` and `string` are only ever read back out
+ * in the name below — and what is typed goes straight up to `onChange`
+ * unexamined, since the model is what settles a written cell.
  *
  * `row` and `col` are counted from 0, the way the sheet counts them, and are
  * spoken as 1 and up, the way a person does.
@@ -18,11 +16,11 @@ import { normalizeCell } from '../utils/tabV2.js'
  * see `.string-row--segmented` in styles/staff-strings.css. Adding
  * `cell--unstrung` to the class list below is what skips one.
  */
-export default function Cell({ value, row, col, string, onChange }) {
+export default function Cell({ cell, row, col, string, onChange }) {
   return (
     <input
-      className={`cell${value ? ' cell--filled' : ''}`}
-      value={value}
+      className={`cell${cell.isEmpty ? '' : ' cell--filled'}`}
+      value={cell.value}
       inputMode="numeric"
       autoComplete="off"
       spellCheck="false"
@@ -30,9 +28,9 @@ export default function Cell({ value, row, col, string, onChange }) {
       // too: "position 1" alone would point at one cell per row rather than
       // at one cell.
       aria-label={`Row ${row + 1}, string ${string}, position ${col + 1}`}
-      // Frets are checked on the way in, so a cell can only ever hold
-      // something playable.
-      onChange={(event) => onChange(normalizeCell(event.target.value))}
+      // What was typed, as typed: a cell settles what it will take when the
+      // model writes it, so there is nothing to check here.
+      onChange={(event) => onChange(event.target.value)}
       onFocus={(event) => event.target.select()}
     />
   )
