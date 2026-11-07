@@ -131,15 +131,15 @@
    would otherwise go on drawing that string straight through the box. */
 .cell-slot--group-repeat .cell.cell--repeat {
   position: absolute;
-  z-index: 3;
+  z-index: 0;
   top: 100%;
-  left: 50%;
+  left: 15px; /* (cell_width / 2) - vertical_bar_thickness -> (36/2) - 3 -> 15px */
   transform: translate(-50%, -50%);
   /* In from its position either side, so two of these never touch. */
-  width: calc(var(--cell-w) - 4px);
-  height: calc(var(--row-h) - 6px);
+  /* width: calc(var(--cell-w) - 4px); */
+  /* height: calc(var(--row-h) - 6px); */
   border: var(--group-bar-w) solid var(--ink);
-  border-radius: 2px;
+  /* border-radius: 2px; */
   background-color: var(--paper);
   background-image: none;
   font-size: 13px;
