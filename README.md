@@ -603,3 +603,6 @@ TODO:
 - Mb create new arrangement section, that arranges certain groups, and groups section exist purely for grouping rows. 
 - Once undo button is added, disable remove section confirmation 
 - Add guitar fretboard popup where you can play notes on the fretboard and it plays out loud.
+- Add option to copy whole rows
+- This note displays always when clicking 'open my sheet': "Your saved sheet uses an unsupported format. It has been kept in browser storage; changes on this page will not be autosaved." 
+- play with idea of no arrangement section, make main view arrangement as well. 

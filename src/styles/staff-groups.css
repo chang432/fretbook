@@ -13,7 +13,7 @@
 
 :root {
   /* The bar down the edge of a group. */
-  --group-bar-w: 2px;
+  --group-bar-w: 3px;
   /* How far the half-arrows reach in off the bar, and how deep they are —
      the two are equal, so the slope is 45°. The reach is what is actually
      being said here: the point lands halfway across the cell the arrow is
