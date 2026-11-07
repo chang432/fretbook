@@ -73,15 +73,69 @@
   pointer-events: none;
 }
 
-/* A column given over to a group — either end of it, or the count past the
-   end — is not a position to write in: its cells take no pointer and no
-   caret, and the input itself is kept out of the tab order — see Cell. */
+/* The two columns marking a group's ends are pressed rather than written
+   in: pressing either opens the group. They take no caret and nothing in
+   them can be selected, but they do take the press — see Cell, which also
+   keeps them out of the tab order behind it. */
 .cell-slot--group-start .cell,
-.cell-slot--group-end .cell,
+.cell-slot--group-end .cell {
+  cursor: pointer;
+  user-select: none;
+  caret-color: transparent;
+}
+
+/* The rest of a repeat column is neither pressed nor written in — only its
+   top cell, which carries the count, is anything at all. */
 .cell-slot--group-repeat .cell {
   pointer-events: none;
   user-select: none;
   caret-color: transparent;
+}
+
+.cell-slot--group-repeat .cell--repeat {
+  pointer-events: auto;
+  user-select: auto;
+  caret-color: var(--accent);
+  cursor: text;
+}
+
+/* While a group is open its cells stand back, so that what is written in
+   them does not read over the name laid across the middle of it. The count
+   keeps its weight: it is the group's own, not something it holds. */
+.cell-slot--in-group .cell:not(.cell--repeat) {
+  opacity: 0.3;
+}
+
+/* The name itself, in the middle of the group and across the whole of it,
+   so it is centred on the group rather than on any one position. The box
+   around it is drawn like the repeat count's, the two being the only
+   things a group says in words. */
+.group-label {
+  position: absolute;
+  z-index: 5;
+  top: 50%;
+  left: calc(var(--cell-w) * var(--from));
+  width: calc(var(--cell-w) * var(--span));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
+  /* The span is only there to centre the name; the name itself is pressed. */
+  pointer-events: none;
+}
+
+.group-name {
+  width: calc(var(--row-h) - 2px);
+  height: calc(var(--row-h) - 2px);
+  padding: 0;
+  border: var(--group-bar-w) solid var(--ink);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 600 17px/1 Georgia, 'Times New Roman', serif;
+  text-align: center;
+  caret-color: var(--accent);
+  pointer-events: auto;
 }
 
 /* Opening: off the left bar, pointing right. */
@@ -131,7 +185,11 @@
    would otherwise go on drawing that string straight through the box. */
 .cell-slot--group-repeat .cell.cell--repeat {
   position: absolute;
-  z-index: 0;
+  /* Over the string rows either side of it. The box straddles the line
+     between two of them, and a slot is positioned, so at a lower layer the
+     row underneath would paint over its lower half — and take the press
+     meant for it along with the paint. */
+  z-index: 3;
   top: 100%;
   left: 15px; /* (cell_width / 2) - vertical_bar_thickness -> (36/2) - 3 -> 15px */
   transform: translate(-50%, -50%);

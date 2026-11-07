@@ -17,6 +17,31 @@ export const GROUP_END = 'group-end'
  */
 export const GROUP_REPEAT = 'group-repeat'
 
+/** What a group is called before anyone says otherwise. */
+export const DEFAULT_GROUP_NAME = 'A'
+
+/**
+ * A group's name is one capital letter and nothing else. The last letter
+ * typed is the one kept, so typing over a name replaces it rather than
+ * being refused, and anything that leaves no letter at all leaves the name
+ * as it was.
+ */
+export function normalizeGroupName(raw, fallback = DEFAULT_GROUP_NAME) {
+  const letters = String(raw).toUpperCase().replace(/[^A-Z]/g, '')
+  return letters === '' ? fallback : letters.slice(-1)
+}
+
+/**
+ * How many times a group is played: a whole number, one or more. Counted
+ * the way a fret is — the last two digits typed — so a miscount can be
+ * corrected without clearing the box first.
+ */
+export function normalizeRepeat(raw, fallback = 1) {
+  const digits = String(raw).replace(/\D/g, '').slice(-2)
+  if (digits === '') return fallback
+  return Math.max(1, Number(digits))
+}
+
 /**
  * One position of one row: the six strings sounding at once.
  *
@@ -37,14 +62,22 @@ export class Column {
    *   false for a plain position — how the column is drawn, and nothing
    *   more. A column marking a group is still a column: it holds its six
    *   cells and takes up its position like any other.
-   * @param {number|null} [repeat] how many times the group is played, on a
-   *   GROUP_REPEAT column and nowhere else.
+   * @param {object} [marks] what a group column says beyond being one:
+   *   `repeat`, how many times the group is played, on a GROUP_REPEAT
+   *   column; and `name`, what the group is called, on its GROUP_START
+   *   column. Both are null on every other column.
    */
-  constructor(rowPosition, cells = null, cssMode = false, repeat = null) {
+  constructor(rowPosition, cells = null, cssMode = false, { repeat = null, name = null } = {}) {
     this.rowPosition = rowPosition
     this.cssMode = cssMode
     this.repeat = repeat
+    this.name = name
     this.cells = cells ?? Array.from({ length: STRING_COUNT }, (_, string) => emptyCell(string))
+  }
+
+  /** What this column says past its mode, for handing to a new one. */
+  get marks() {
+    return { repeat: this.repeat, name: this.name }
   }
 
   /** What is written on one string here. */
@@ -69,12 +102,12 @@ export class Column {
 
   /**
    * This column drawn another way, or `this` when it is drawn that way
-   * already. The count rides along with the mode, since it is only ever
-   * read on a repeat column.
+   * already. What the column says rides along with the mode, since none of
+   * it means anything on a column that is not a group's.
    */
-  withMode(cssMode, repeat = null) {
-    if (cssMode === this.cssMode && repeat === this.repeat) return this
-    return new Column(this.rowPosition, this.cells, cssMode, repeat)
+  withMode(cssMode, { repeat = null, name = null } = {}) {
+    if (cssMode === this.cssMode && repeat === this.repeat && name === this.name) return this
+    return new Column(this.rowPosition, this.cells, cssMode, { repeat, name })
   }
 
   /**
@@ -93,7 +126,7 @@ export class Column {
       this.rowPosition,
       this.cells.map((each, s) => (s === string ? written : each)),
       this.cssMode,
-      this.repeat,
+      this.marks,
     )
   }
 }

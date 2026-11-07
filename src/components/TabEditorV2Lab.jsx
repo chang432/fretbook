@@ -21,8 +21,8 @@ import {
  * editor addresses them, and a group's notes are counted the same way rather
  * than from the group's own start.
  *
- * A group names the positions it opens and closes at, and how many times it
- * is played. Those two positions are columns of the row like any other —
+ * A group names the positions it opens and closes at, how many times it is
+ * played, and what it is called — one capital letter, A if it says nothing. Those two positions are columns of the row like any other —
  * they take up their place in the run — given over to saying where the
  * group begins and ends, so a group's own notes stand between them rather
  * than on them. The count takes a third column, the one just past the end,
@@ -42,6 +42,7 @@ const MOCK_SHEET = [
         start: 6,
         end: 11,
         repeat: 3,
+        name: 'B',
         notes: [
           [7, 4, '2'],
           [9, 3, '0'],
@@ -76,13 +77,13 @@ function mockRows() {
     }
 
     notes.forEach(write)
-    groups.forEach(({ start, end, repeat, notes: held }) => {
-      sheet = markColumn(sheet, row, start, GROUP_START)
+    groups.forEach(({ start, end, repeat, name, notes: held }) => {
+      sheet = markColumn(sheet, row, start, GROUP_START, { name })
       sheet = markColumn(sheet, row, end, GROUP_END)
       // The count stands in the column past the closing one. A group that
       // ends on a row's last position has nowhere to put it, and the mark
       // comes to nothing rather than running off the end.
-      sheet = markColumn(sheet, row, end + 1, GROUP_REPEAT, repeat)
+      sheet = markColumn(sheet, row, end + 1, GROUP_REPEAT, { repeat })
       held.forEach(write)
     })
   })
@@ -115,6 +116,18 @@ export default function TabEditorV2Lab() {
   const handleCellChange = (row, col, string, value) =>
     setRows((prev) => writeCell(prev, row, col, string, value))
 
+  /**
+   * How many times a group is played, and what it is called. Both are
+   * written on one of the group's own columns — the count on the one past
+   * its end, the name on the one it opens at — so both are a re-mark of
+   * that column rather than anything new.
+   */
+  const handleRepeatChange = (row, col, repeat) =>
+    setRows((prev) => markColumn(prev, row, col, GROUP_REPEAT, { repeat }))
+
+  const handleNameChange = (row, col, name) =>
+    setRows((prev) => markColumn(prev, row, col, GROUP_START, { name }))
+
   return (
     <div className="app">
       <header
@@ -135,7 +148,13 @@ export default function TabEditorV2Lab() {
       </header>
 
       <main className="sheet">
-        <TabEditorV2 rows={rows} tuning={STANDARD_TUNING} onCellChange={handleCellChange} />
+        <TabEditorV2
+          rows={rows}
+          tuning={STANDARD_TUNING}
+          onCellChange={handleCellChange}
+          onRepeatChange={handleRepeatChange}
+          onNameChange={handleNameChange}
+        />
       </main>
     </div>
   )

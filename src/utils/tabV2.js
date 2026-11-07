@@ -30,7 +30,15 @@
  * whole of the other. Nothing V2 touches imports from there.
  */
 export { Cell, STRING_COUNT, MAX_FRET } from './cell.js'
-export { Column, GROUP_START, GROUP_END, GROUP_REPEAT } from './column.js'
+export {
+  Column,
+  DEFAULT_GROUP_NAME,
+  GROUP_START,
+  GROUP_END,
+  GROUP_REPEAT,
+  normalizeGroupName,
+  normalizeRepeat,
+} from './column.js'
 export { Row } from './row.js'
 
 /** Top-to-bottom string labels in standard tuning. */
@@ -65,11 +73,11 @@ export function writeCell(sheet, row, col, string, value) {
  * does, and hands back the same sheet when the column is already drawn that
  * way or there is no such column to mark.
  */
-export function markColumn(sheet, row, col, cssMode, repeat = null) {
+export function markColumn(sheet, row, col, cssMode, marks = {}) {
   const standing = sheet[row]
   if (!standing) return sheet
 
-  const marked = standing.withMode(col, cssMode, repeat)
+  const marked = standing.withMode(col, cssMode, marks)
   if (marked === standing) return sheet
 
   return sheet.map((each, r) => (r === row ? marked : each))
