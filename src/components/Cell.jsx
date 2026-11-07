@@ -13,6 +13,11 @@
  * bracket. The slot around the input is what carries it, because an input
  * is a replaced element and draws no ::before or ::after of its own.
  *
+ * A cell in such a column is not a position to write in — the column is
+ * given over to saying where the group begins or ends — so it takes no
+ * typing and no focus. It is still drawn as a cell, and still reads out as
+ * one, because it still stands in the run.
+ *
  * `row` and `col` are counted from 0, the way the sheet counts them, and are
  * spoken as 1 and up, the way a person does.
  *
@@ -30,6 +35,11 @@ export default function Cell({ cell, row, col, string, mode = false, onChange })
         inputMode="numeric"
         autoComplete="off"
         spellCheck="false"
+        // The two columns that mark a group out are not written in. Both
+        // halves are needed: readOnly turns away what is typed, and -1
+        // takes the cell out of the tab order behind it.
+        readOnly={Boolean(mode)}
+        tabIndex={mode ? -1 : undefined}
         // Positions start again at 1 on every row, so the row is named here
         // too: "position 1" alone would point at one cell per row rather than
         // at one cell.
@@ -37,7 +47,7 @@ export default function Cell({ cell, row, col, string, mode = false, onChange })
         // What was typed, as typed: a cell settles what it will take when the
         // model writes it, so there is nothing to check here.
         onChange={(event) => onChange(event.target.value)}
-        onFocus={(event) => event.target.select()}
+        onFocus={(event) => !mode && event.target.select()}
       />
     </span>
   )

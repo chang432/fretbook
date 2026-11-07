@@ -14,8 +14,11 @@
 :root {
   /* The bar down the edge of a group. */
   --group-bar-w: 2px;
-  /* How far the half-arrows reach in off it, and how deep they are. */
-  --group-arrow: 7px;
+  /* How far the half-arrows reach in off the bar, and how deep they are —
+     the two are equal, so the slope is 45°. The reach is what is actually
+     being said here: the point lands halfway across the cell the arrow is
+     drawn on, which is the width of the cell less the bar it starts from. */
+  --group-arrow: calc(var(--cell-w) / 2 - var(--group-bar-w));
 }
 
 /* This cell's share of the bar, the full height of its own row, standing
@@ -68,6 +71,16 @@
   width: 0;
   height: 0;
   pointer-events: none;
+}
+
+/* A column given over to saying where a group begins or ends is not a
+   position to write in: its cells take no pointer and no caret, and the
+   input itself is kept out of the tab order — see Cell. */
+.cell-slot--group-start .cell,
+.cell-slot--group-end .cell {
+  pointer-events: none;
+  user-select: none;
+  caret-color: transparent;
 }
 
 /* Opening: off the left bar, pointing right. */
