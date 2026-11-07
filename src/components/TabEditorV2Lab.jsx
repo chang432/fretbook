@@ -3,31 +3,34 @@ import TabEditorV2 from './TabEditorV2.jsx'
 import { STANDARD_TUNING, Row, writeCell } from '../utils/tabV2.js'
 
 /**
- * How long each mock row is, in positions. Nothing divides a row, so a length
- * is just a length — there is no bar count to multiply up.
+ * The mock sheet as raw data: one object per row, in the order they stand on
+ * the page. A row says how long it is — nothing divides a row, so a length
+ * is just a length, with no bar count to multiply up — and what is written
+ * in it, as [position, string, fret] triples. Positions are counted from the
+ * start of their own row and string 0 is the top line, both the way the
+ * editor addresses them.
  */
-const MOCK_LENGTHS = [16, 8]
-
-/**
- * Mock notes, per row, as [position, string, fret]; string 0 is the top line.
- * Positions are counted from the start of their own row, the way the editor
- * addresses them.
- */
-const MOCK_NOTES = [
-  [
-    [0, 5, '0'],
-    [2, 5, '3'],
-    [4, 5, '5'],
-    [6, 4, '2'],
-    [8, 3, '0'],
-    [10, 2, '12'],
-  ],
-  [
-    [0, 2, '7'],
-    [1, 2, '7'],
-    [2, 1, '8'],
-    [4, 0, '5'],
-  ],
+const MOCK_SHEET = [
+  {
+    length: 16,
+    notes: [
+      [0, 5, '0'],
+      [2, 5, '3'],
+      [4, 5, '5'],
+      [6, 4, '2'],
+      [8, 3, '0'],
+      [10, 2, '12'],
+    ],
+  },
+  {
+    length: 8,
+    notes: [
+      [0, 2, '7'],
+      [1, 2, '7'],
+      [2, 1, '8'],
+      [4, 0, '5'],
+    ],
+  },
 ]
 
 /**
@@ -36,8 +39,8 @@ const MOCK_NOTES = [
  * someone would have typed, and `writeCell` is what typing them does.
  */
 function mockRows() {
-  let sheet = MOCK_LENGTHS.map((length) => new Row(length))
-  MOCK_NOTES.forEach((notes, row) => {
+  let sheet = MOCK_SHEET.map(({ length }) => new Row(length))
+  MOCK_SHEET.forEach(({ notes }, row) => {
     notes.forEach(([col, string, value]) => {
       sheet = writeCell(sheet, row, col, string, value)
     })
