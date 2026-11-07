@@ -121,10 +121,20 @@
    with the paper's own colour so the string does not run through the count
    — the same way a written fret punches a hole in the string it sits on.
 
+   It is lifted out of its cell and hung on the line between that cell and
+   the one under it, so the count sits in the gap between the top two
+   strings rather than on top of the first of them. `top: 100%` is the foot
+   of its own position and the head of the next; half its own height back up
+   from there is the middle of the two string lines either side.
+
    Three classes deep so it beats `.string-row--segmented .cell`, which
    would otherwise go on drawing that string straight through the box. */
 .cell-slot--group-repeat .cell.cell--repeat {
+  position: absolute;
   z-index: 3;
+  top: 100%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   /* In from its position either side, so two of these never touch. */
   width: calc(var(--cell-w) - 4px);
   height: calc(var(--row-h) - 6px);
@@ -133,4 +143,18 @@
   background-color: var(--paper);
   background-image: none;
   font-size: 13px;
+}
+
+/* The string the count has stepped off. Its cell drew that segment itself
+   until now; with the cell lifted away the slot draws it instead, so the
+   top string runs through the column unbroken and the box hangs below it
+   rather than out of a hole in it. */
+.string-row:first-child .cell-slot--group-repeat::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(var(--string), var(--string));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% var(--string-w);
 }
