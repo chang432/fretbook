@@ -1,0 +1,112 @@
+/* The strings and the cells written on them: both ways of drawing a string,
+   and every state a position can be in — empty, written, hovered, selected,
+   and the two ends of a tie being aimed. */
+
+.string-row {
+  position: relative;
+  display: flex;
+  height: var(--row-h);
+}
+
+/* The string itself: one crisp line running the width of the staff. */
+.string-row::before {
+  content: '';
+  position: absolute;
+  inset: calc(50% - calc(var(--string-w) / 2)) 0 auto 0;
+  height: var(--string-w);
+  background: var(--string);
+}
+
+/* The other way of drawing a string: not one line across the row, but a
+   segment per cell, each position painting its own. A segment is the full
+   width of its cell, so a run of them reads as the same unbroken line — but
+   the line now belongs to the cells rather than to the row, which is what
+   lets a single position be left out of it without breaking the rest. That
+   is what `.cell--unstrung` below is for.
+
+   A row drawn this way has no line of its own: `content: none` means the
+   pseudo-element above is never generated, rather than generated and then
+   hidden. */
+.string-row--segmented::before {
+  content: none;
+}
+
+.string-row--segmented .cell {
+  background-image: linear-gradient(var(--string), var(--string));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% var(--string-w);
+}
+
+/* A written fret punches the same paper-coloured hole in its own segment that
+   it punches in a row-spanning line. Both layers have to be named here: the
+   shorthand `background` on .cell--filled would otherwise drop the string
+   under it. The chip is listed first, so it paints over the segment. */
+.string-row--segmented .cell--filled {
+  background-image:
+    radial-gradient(closest-side, var(--page) 74%, transparent 100%),
+    linear-gradient(var(--string), var(--string));
+  background-size: auto, 100% var(--string-w);
+}
+
+/* A position the string does not run through at all. Last of the three, since
+   it ties with .cell--filled on specificity and has to win: an unstrung cell
+   has no line to punch a hole in. */
+.string-row--segmented .cell--unstrung {
+  background-image: none;
+}
+
+.cell {
+  position: relative;
+  z-index: 2;
+  width: var(--cell-w);
+  height: var(--row-h);
+  /* Every gesture here is a tap, so skip the double-tap-zoom delay on touch. */
+  touch-action: manipulation;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 600 17px/1 ui-monospace, Menlo, monospace;
+  text-align: center;
+  caret-color: var(--accent);
+}
+
+/* A written fret punches a hole in the string, the way a number replaces the
+   dashes in written tab. Page-coloured, since there is no panel behind it. */
+.cell--filled {
+  background: radial-gradient(closest-side, var(--page) 74%, transparent 100%);
+}
+
+.cell:hover {
+  background: radial-gradient(closest-side, rgb(168 73 47 / 10%) 74%, transparent 100%);
+}
+
+.cell:focus {
+  background: radial-gradient(closest-side, var(--page) 78%, transparent 100%);
+  outline: none;
+}
+
+.cell::selection {
+  background: rgb(168 73 47 / 20%);
+}
+
+/* While a tie is armed: the note it runs from stays marked, and every position
+   it could reach is highlighted, with the one being aimed at picked out. */
+.cell--tie-source {
+  background: radial-gradient(closest-side, var(--page) 78%, transparent 100%);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  border-radius: 8px;
+}
+
+.cell--tie-target {
+  background: radial-gradient(closest-side, rgb(168 73 47 / 16%) 78%, transparent 100%);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.cell--tie-cursor,
+.cell--tie-target:hover {
+  background: radial-gradient(closest-side, rgb(168 73 47 / 32%) 78%, transparent 100%);
+}

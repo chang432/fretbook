@@ -23,7 +23,11 @@
  *   memo          the sheet's written note
  *   arrangement   the running order of groups
  *   groups        the bars and brackets rows are written inside
- *   staff         one row: its chrome, its controls, its strings and cells
+ *   staff         the frame one row is drawn in
+ *   …-row-head    its name line
+ *   …-controls    its buttons and position strips
+ *   …-strings     its strings and the cells written on them
+ *   …-annotations the arcs and symbols drawn over them
  *   output        the exported image and text
  *   live          the strip the song plays past
  */
@@ -38,5 +42,9 @@
 @import './styles/arrangement.css';
 @import './styles/groups.css';
 @import './styles/staff.css';
+@import './styles/staff-row-head.css';
+@import './styles/staff-controls.css';
+@import './styles/staff-strings.css';
+@import './styles/staff-annotations.css';
 @import './styles/output.css';
 @import './styles/live.css';

@@ -1,0 +1,92 @@
+/* What is drawn over the strings rather than on them: the SVG layer itself,
+   the arcs and symbols in it, and the little bar of buttons that puts them
+   there. */
+
+/* Arcs and symbols draw over the whole staff, including the chip behind
+   a number — otherwise that chip washes out a symbol sitting above the digit.
+   They never swallow a pointer: the cells underneath stay hittable mid-drag. */
+.staff-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.tie {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.tie--preview {
+  stroke-dasharray: 4 4;
+  opacity: 0.75;
+}
+
+.mark {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Symbol buttons floating over the note being edited. Fixed, so the sheet's
+   scroll container cannot clip them. */
+.mark-bar {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--bar);
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 2px 8px rgb(22 32 43 / 14%);
+}
+
+.mark-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  border-radius: 6px;
+  line-height: 0;
+}
+
+.mark-button svg {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mark-button.is-active {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.mark-button.is-active svg {
+  stroke: var(--paper);
+}
+
+/* The tie button starts a different kind of edit from the symbol beside it,
+   so it is fenced off with a hairline. */
+.mark-button--tie {
+  position: relative;
+  margin-right: 4px;
+}
+
+.mark-button--tie::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: -4px;
+  bottom: 4px;
+  width: 1px;
+  background: var(--bar);
+}
