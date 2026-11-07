@@ -1,0 +1,261 @@
+/* Groups: the bar over a group and the bracket down its rows. */
+/* A group is drawn where its rows are: one bar across the full width of the
+   sheet, and the rows it holds indented under it behind a spine of the same
+   colour, so the two read as one bracket around the group. There is no strip
+   of groups above the staves — the bar is the only place a group is drawn.
+
+   `--group` is set on the section by the editor, one of the four tones below
+   per group, and everything in here takes its colour from that. */
+.group {
+  display: flex;
+  flex-direction: column;
+  /* Two bars never meet edge to edge, so one group always reads as ending
+     before the next begins. */
+  margin-top: 12px;
+}
+
+/* The sheet opens flush with whatever stands first — a bar there would
+   otherwise float away from the rule above it — and a row standing on its own
+   after a group is pushed clear of that group's rows. */
+.editor > :first-child {
+  margin-top: 0;
+}
+
+.editor > .group + .staff {
+  margin-top: 12px;
+}
+
+/* The bar itself: short, but solid and the width of the page, so it reads as
+   a band across the sheet rather than as a chip sitting on top of one. It is
+   the ground the drop target is laid over, so it is positioned. */
+.group-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 6px 0 4px;
+  border-radius: 4px 4px 0 0;
+  background: var(--group);
+  color: var(--paper);
+}
+
+/* Folds the group away and brings it back. Points along the bar when the
+   rows are put away and down into them when they are open — the one place
+   the state is drawn, as the note at the top of the sheet does it. */
+.group-caret {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: inherit;
+}
+
+.group-caret-mark {
+  display: block;
+  font: 400 13px/1 ui-monospace, Menlo, monospace;
+  transition: transform 0.12s ease-out;
+}
+
+.group-caret-mark.is-open {
+  transform: rotate(90deg);
+}
+
+/* Takes the group off the sheet. Last on the bar, pushed to the far end by
+   eating its free space, and quiet until it is pointed at: deleting a group
+   is rarer than naming one, and it should not read as the bar's first offer.
+   It warms rather than reddens on hover — the rows are not going anywhere. */
+.group-delete {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: rgb(251 248 241 / 65%);
+  font: 400 15px/1 ui-monospace, Menlo, monospace;
+}
+
+.group-caret:hover:not(:disabled),
+.group-delete:hover:not(:disabled) {
+  border-color: rgb(251 248 241 / 55%);
+  background: rgb(251 248 241 / 16%);
+  color: var(--paper);
+}
+
+.group-delete:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* While edit mode holds a row, the whole bar is one thing to press: where
+   that row is sent. Laid over the bar rather than replacing it, so the group
+   being aimed at still reads as itself underneath. */
+.group-drop {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 10px;
+  border: 1px dashed rgb(251 248 241 / 60%);
+  border-radius: inherit;
+  background: rgb(22 32 43 / 12%);
+}
+
+.group-drop:hover,
+.group-drop:focus-visible {
+  border-style: solid;
+  border-color: var(--paper);
+  background: rgb(22 32 43 / 24%);
+  outline: none;
+}
+
+/* What the press would do, said on the bar itself rather than left to a
+   tooltip: this is the only way a row joins a group. */
+.group-drop-hint {
+  color: var(--paper);
+  font: 600 10px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.group-drop:hover .group-drop-hint,
+.group-drop:focus-visible .group-drop-hint {
+  opacity: 1;
+}
+
+/* The name, and the way in to changing it. Carries no outline of its own
+   until it is pointed at: the bar is already a box. */
+.group-bar-name {
+  flex: none;
+  padding: 2px 5px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: inherit;
+  font: 600 12px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.group-bar-name:hover:not(:disabled) {
+  border-color: rgb(251 248 241 / 55%);
+  background: rgb(251 248 241 / 12%);
+}
+
+/* The name takes no press while the order is being edited, and lets the
+   press through rather than swallowing it — as a row's name does. */
+.group-bar-name:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+/* How many rows are under the bar. Quieter than the name: the rows are right
+   there to be read, so this only counts them. */
+.group-bar-rows {
+  color: rgb(251 248 241 / 70%);
+  font: 500 11px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.04em;
+}
+
+/* Typing the name, in the bar's own place so nothing jumps as it is written.
+   Paper-coloured against the bar, the way a box always is. */
+.group-bar-input {
+  width: 160px;
+  padding: 2px 5px;
+  border: 1px solid rgb(251 248 241 / 70%);
+  border-radius: 5px;
+  background: rgb(251 248 241 / 16%);
+  color: var(--paper);
+  font: 600 12px ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+}
+
+.group-bar-input::placeholder {
+  color: rgb(251 248 241 / 65%);
+  font-style: italic;
+}
+
+.group-bar-input:focus-visible {
+  outline: 2px solid var(--paper);
+  outline-offset: -3px;
+}
+
+/* The rows the group holds: indented past the spine running down their left
+   side, which is the same width and colour as the bar and starts flush under
+   it. The tint is faint enough to leave the staves alone and only says how
+   far the group reaches. */
+.group-body {
+  padding-left: var(--group-indent);
+  border-left: var(--spine-w) solid var(--group);
+  border-radius: 0 0 0 4px;
+  background: color-mix(in srgb, var(--group) 4%, transparent);
+}
+
+/* The bar above is the rule dividing a group from what came before it, so the
+   first row under it draws none of its own. */
+.group-body > .staff:first-child {
+  border-top: 0;
+}
+
+/* A group whose rows are all folded away is a bar and nothing else, so it
+   carries its own foot rather than ending on a cut edge. A group holding no
+   rows yet still has a body — the press that gives it its first one. */
+.group--folded .group-bar {
+  border-radius: 4px;
+}
+
+/* Somewhere to write, drawn rather than written: another group past the last
+   of them, and another row at the foot of a group's own rows. Both dashed,
+   both at the full width of what they stand under. */
+.group-add,
+.row-add {
+  height: 28px;
+  padding: 0 10px;
+  border-style: dashed;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  font: 600 11px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.group-add {
+  margin-top: 12px;
+}
+
+/* Inside the group's body, where a button is not a block of its own. The room
+   below it is the group's foot, and matches the indent it stands in. */
+.row-add {
+  display: block;
+  width: calc(100% - var(--group-indent));
+  margin: 10px 0;
+}
+
+.group-add:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The group's own colour, since this press adds to that group rather than to
+   the sheet at large. */
+.row-add:hover:not(:disabled) {
+  border-color: var(--group);
+  color: var(--group);
+}

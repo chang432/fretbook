@@ -1,0 +1,132 @@
+/* Toolbar: the controls across the top of the editor. */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 24px 0 12px;
+}
+
+.toolbar-group {
+  display: flex;
+  gap: 8px;
+}
+
+/* Pushed to the far side by eating the toolbar's free space. It holds the two
+   controls that are not one more thing to do to the sheet — Undo, which takes
+   the last of those back, and the one link that leaves the editor — which is
+   why it wants the distance. The auto margin survives a wrap, so on a narrow
+   window the group takes its own line and stays right. */
+.toolbar-group--end {
+  margin-left: auto;
+}
+
+/* `.button-link` shares this so the toolbar's one navigation control can be a
+   real <a href> — middle-clickable, copyable — while reading as a button and
+   sitting level with the ones beside it. */
+button,
+.button-link {
+  padding: 7px 12px;
+  border: 1px solid var(--bar);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* An anchor is inline and underlined by default; a button is neither. */
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+button:hover:not(:disabled),
+.button-link:hover {
+  border-color: var(--muted);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button.danger,
+button.is-on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+/* A drawn symbol standing in for a word. One box and one weight for all of
+   them, so a button holding a symbol sits level with one holding words. */
+.icon {
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The shapes that read better solid than outlined at this size: the speaker's
+   cone, the play triangle, the rewind arrows. */
+.icon .solid {
+  fill: currentColor;
+}
+
+/* Square, so a row of them is a row of equal buttons whatever they hold. */
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+}
+
+/* The edit switch, pinned to the bottom-left corner of the window. Fixed
+   rather than absolute for the reason it was moved out of the toolbar at all:
+   an absolutely placed button scrolls away with the page, and the mode is
+   most often wanted partway down a long sheet. Larger than a toolbar button,
+   and carrying a word as well as the pencil, because it is the one control
+   that changes what every other press means. */
+.edit-fab {
+  position: fixed;
+  left: 20px;
+  bottom: 20px;
+  /* Over the sheet and its popovers, under the full-screen player. */
+  z-index: 30;
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  padding: 15px 24px;
+  border-radius: 999px;
+  box-shadow: 0 6px 20px rgb(22 32 43 / 24%);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+/* Drawn to match the bigger button it sits in, rather than the 16px box the
+   toolbar's symbols share. */
+.edit-fab .icon {
+  width: 22px;
+  height: 22px;
+  stroke-width: 1.8;
+}
+
+button.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: underline;
+}
+
+.status {
+  min-height: 20px;
+  color: var(--accent);
+  font-size: 13px;
+}

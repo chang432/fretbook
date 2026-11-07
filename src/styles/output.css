@@ -1,0 +1,14 @@
+/* Output: the exported image and text. */
+.output {
+  margin-top: 20px;
+}
+
+.output-pre {
+  margin: 10px 0 0;
+  padding: 16px;
+  border: 1px solid var(--bar);
+  border-radius: 10px;
+  background: var(--paper);
+  font: 13px/1.45 ui-monospace, Menlo, monospace;
+  overflow-x: auto;
+}

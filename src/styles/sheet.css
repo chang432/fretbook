@@ -1,0 +1,14 @@
+/* Sheet: the staves' own container, under the toolbar. */
+/* No panel: the staves sit straight on the page, the way ruled lines sit on a
+   sheet of paper. Which is why the chip punched behind a written fret below
+   takes the page colour, not a panel colour. */
+.sheet {
+  margin-top: 16px;
+}
+
+/* Rows sit flush against each other: each one's rule doubles as the previous
+   one's, so the whole sheet reads as a stack of sections. */
+.editor {
+  display: flex;
+  flex-direction: column;
+}

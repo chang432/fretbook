@@ -1,0 +1,54 @@
+/* Base: the reset, the page itself, and the frame the sheet sits in —
+   everything that is not one part of the sheet in particular. */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 16px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+.app {
+  /* Wide enough for a long staff; rows narrower than this sit flush left, and
+     rows wider than it scroll within themselves. */
+  max-width: 1300px;
+  margin: 0 auto;
+  /* The foot is deep enough for the pinned edit switch to stand over nothing
+     — see .edit-fab. */
+  padding: 32px 10px 110px;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+h1 {
+  margin: 0;
+  font: 600 26px/1.2 Georgia, 'Times New Roman', serif;
+  letter-spacing: 0.01em;
+}
+
+.title-input {
+  width: 220px;
+  padding: 8px 10px;
+  border: 1px solid var(--bar);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 600 16px Georgia, 'Times New Roman', serif;
+}
+
+.title-input:focus-visible,
+.cell:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
