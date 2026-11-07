@@ -45,11 +45,11 @@ export class Row {
    * This row with one of its columns drawn another way, or `this` when it is
    * drawn that way already. A position off either end is no change at all.
    */
-  withMode(col, cssMode) {
+  withMode(col, cssMode, repeat = null) {
     if (col < 0 || col >= this.columns.length) return this
 
     const column = this.columns[col]
-    const marked = column.withMode(cssMode)
+    const marked = column.withMode(cssMode, repeat)
     if (marked === column) return this
 
     return new Row(

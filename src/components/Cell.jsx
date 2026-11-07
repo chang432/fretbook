@@ -14,9 +14,13 @@
  * is a replaced element and draws no ::before or ::after of its own.
  *
  * A cell in such a column is not a position to write in — the column is
- * given over to saying where the group begins or ends — so it takes no
- * typing and no focus. It is still drawn as a cell, and still reads out as
- * one, because it still stands in the run.
+ * given over to the group — so it takes no typing and no focus. It is
+ * still drawn as a cell, and still reads out as one, because it still
+ * stands in the run.
+ *
+ * `repeat` is the count a repeat column carries. It rides on the slot as
+ * an attribute rather than being written into the cell, because the cell
+ * holds no note and the count is not one: the stylesheet prints it.
  *
  * `row` and `col` are counted from 0, the way the sheet counts them, and are
  * spoken as 1 and up, the way a person does.
@@ -26,9 +30,12 @@
  * see `.string-row--segmented` in styles/staff-strings.css. Adding
  * `cell--unstrung` to the class list below is what skips one.
  */
-export default function Cell({ cell, row, col, string, mode = false, onChange }) {
+export default function Cell({ cell, row, col, string, mode = false, repeat = null, onChange }) {
   return (
-    <span className={`cell-slot${mode ? ` cell-slot--${mode}` : ''}`}>
+    <span
+      className={`cell-slot${mode ? ` cell-slot--${mode}` : ''}`}
+      data-repeat={repeat ?? undefined}
+    >
       <input
         className={`cell${cell.isEmpty ? '' : ' cell--filled'}`}
         value={cell.value}

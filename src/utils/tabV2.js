@@ -10,10 +10,12 @@
  *   Cell    →  string, value
  *
  * A group is marked inside the staff rather than around it: the position it
- * starts at and the position it ends at are columns of the row like any
- * other, given over to saying so. `cssMode` is how a column says which it
- * is, and a column that says it is still a column — it holds its six cells
- * and takes up its place in the run.
+ * starts at, the position it ends at, and the one past that saying how many
+ * times it is played are columns of the row like any other, given over to
+ * saying so. `cssMode` is how a column says which it is, `repeat` is the
+ * count the last of the three carries, and a column that says any of this
+ * is still a column — it holds its six cells and takes up its place in the
+ * run. None of the three is a position to write in.
  *
  * Each knows only what is under it: a cell knows its string, a column knows
  * where it stands in its row, and only the sheet — this file — knows which
@@ -28,7 +30,7 @@
  * whole of the other. Nothing V2 touches imports from there.
  */
 export { Cell, STRING_COUNT, MAX_FRET } from './cell.js'
-export { Column, GROUP_START, GROUP_END } from './column.js'
+export { Column, GROUP_START, GROUP_END, GROUP_REPEAT } from './column.js'
 export { Row } from './row.js'
 
 /** Top-to-bottom string labels in standard tuning. */
@@ -63,11 +65,11 @@ export function writeCell(sheet, row, col, string, value) {
  * does, and hands back the same sheet when the column is already drawn that
  * way or there is no such column to mark.
  */
-export function markColumn(sheet, row, col, cssMode) {
+export function markColumn(sheet, row, col, cssMode, repeat = null) {
   const standing = sheet[row]
   if (!standing) return sheet
 
-  const marked = standing.withMode(col, cssMode)
+  const marked = standing.withMode(col, cssMode, repeat)
   if (marked === standing) return sheet
 
   return sheet.map((each, r) => (r === row ? marked : each))

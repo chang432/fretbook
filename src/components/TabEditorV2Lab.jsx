@@ -2,6 +2,7 @@ import { useState } from 'react'
 import TabEditorV2 from './TabEditorV2.jsx'
 import {
   GROUP_END,
+  GROUP_REPEAT,
   GROUP_START,
   Row,
   STANDARD_TUNING,
@@ -20,10 +21,12 @@ import {
  * editor addresses them, and a group's notes are counted the same way rather
  * than from the group's own start.
  *
- * A group names the positions it opens and closes at. Those two are columns
- * of the row like any other — they take up their place in the run — given
- * over to saying where the group begins and ends, so a group's own notes
- * stand between them rather than on them.
+ * A group names the positions it opens and closes at, and how many times it
+ * is played. Those two positions are columns of the row like any other —
+ * they take up their place in the run — given over to saying where the
+ * group begins and ends, so a group's own notes stand between them rather
+ * than on them. The count takes a third column, the one just past the end,
+ * and nothing is written there either.
  */
 const MOCK_SHEET = [
   {
@@ -38,6 +41,7 @@ const MOCK_SHEET = [
       {
         start: 6,
         end: 11,
+        repeat: 3,
         notes: [
           [7, 4, '2'],
           [9, 3, '0'],
@@ -72,9 +76,13 @@ function mockRows() {
     }
 
     notes.forEach(write)
-    groups.forEach(({ start, end, notes: held }) => {
+    groups.forEach(({ start, end, repeat, notes: held }) => {
       sheet = markColumn(sheet, row, start, GROUP_START)
       sheet = markColumn(sheet, row, end, GROUP_END)
+      // The count stands in the column past the closing one. A group that
+      // ends on a row's last position has nowhere to put it, and the mark
+      // comes to nothing rather than running off the end.
+      sheet = markColumn(sheet, row, end + 1, GROUP_REPEAT, repeat)
       held.forEach(write)
     })
   })

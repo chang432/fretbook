@@ -52,6 +52,7 @@ export default function TabEditorV2({ rows, tuning, onCellChange }) {
                         col={column.rowPosition}
                         string={tuning[stringIndex]}
                         mode={column.cssMode}
+                        repeat={column.repeat}
                         onChange={(value) =>
                           onCellChange(staff, column.rowPosition, stringIndex, value)
                         }
