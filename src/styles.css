@@ -6,6 +6,9 @@
 :root {
   --cell-w: 36px;
   --row-h: 34px;
+  /* How thick a string is drawn, whether as one line across a row or as a
+     segment per cell. */
+  --string-w: 2px;
 
   /* The column of string letters down the left of a row. Everything written
      on the sheet starts after it — the bars, and the group strip above them —
@@ -1075,8 +1078,7 @@ button.link {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   align-items: start;
-  padding-top: 32px;
-  border-top: 1px solid var(--bar);
+  /* border-top: 1px solid var(--bar); */
 }
 
 /* What the row is called, above it at its left edge: the number it answers
@@ -1459,9 +1461,48 @@ button.link {
 .string-row::before {
   content: '';
   position: absolute;
-  inset: calc(50% - 1px) 0 auto;
-  height: 2px;
+  inset: calc(50% - calc(var(--string-w) / 2)) 0 auto 0;
+  height: var(--string-w);
   background: var(--string);
+}
+
+/* The other way of drawing a string: not one line across the row, but a
+   segment per cell, each position painting its own. A segment is the full
+   width of its cell, so a run of them reads as the same unbroken line — but
+   the line now belongs to the cells rather than to the row, which is what
+   lets a single position be left out of it without breaking the rest. That
+   is what `.cell--unstrung` below is for.
+
+   A row drawn this way has no line of its own: `content: none` means the
+   pseudo-element above is never generated, rather than generated and then
+   hidden. */
+.string-row--segmented::before {
+  content: none;
+}
+
+.string-row--segmented .cell {
+  background-image: linear-gradient(var(--string), var(--string));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% var(--string-w);
+}
+
+/* A written fret punches the same paper-coloured hole in its own segment that
+   it punches in a row-spanning line. Both layers have to be named here: the
+   shorthand `background` on .cell--filled would otherwise drop the string
+   under it. The chip is listed first, so it paints over the segment. */
+.string-row--segmented .cell--filled {
+  background-image:
+    radial-gradient(closest-side, var(--page) 74%, transparent 100%),
+    linear-gradient(var(--string), var(--string));
+  background-size: auto, 100% var(--string-w);
+}
+
+/* A position the string does not run through at all. Last of the three, since
+   it ties with .cell--filled on specificity and has to win: an unstrung cell
+   has no line to punch a hole in. */
+.string-row--segmented .cell--unstrung {
+  background-image: none;
 }
 
 /* Arcs and symbols draw over the whole staff, including the chip behind

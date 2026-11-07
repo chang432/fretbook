@@ -40,7 +40,11 @@ export default function TabEditorV2({ rows, tuning, onCellChange }) {
             <div className="staff-run">
               <div className="staff-body">
                 {tuning.map((_, stringIndex) => (
-                  <div className="string-row" key={stringIndex}>
+                  // The string is drawn a cell at a time rather than as one
+                  // line across the row, so that a position can be left out
+                  // of it — see `.string-row--segmented` in styles.css. Add
+                  // `cell--unstrung` to a cell and the line skips it.
+                  <div className="string-row string-row--segmented" key={stringIndex}>
                     {columns.map((column, col) => {
                       const value = column[stringIndex]
 
