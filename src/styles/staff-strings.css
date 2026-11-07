@@ -31,6 +31,16 @@
   content: none;
 }
 
+/* The box one cell stands in. An input draws no ::before or ::after of its
+   own, so anything drawn around a cell — the bracket a group's edge column
+   carries, in staff-groups.css — hangs off this instead. It takes its size
+   from the input inside it and never shrinks. */
+.cell-slot {
+  position: relative;
+  display: flex;
+  flex: none;
+}
+
 .string-row--segmented .cell {
   background-image: linear-gradient(var(--string), var(--string));
   background-repeat: no-repeat;
