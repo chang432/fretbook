@@ -26,7 +26,9 @@ import Cell from './Cell.jsx'
  */
 export default function TabEditorV2({ rows, tuning, onCellChange }) {
   return (
-    <div className="editor">
+    // `editor--v2` is what the second editor's own styles hang off, so they
+    // reach nothing the app itself draws — see styles/v2.css.
+    <div className="editor editor--v2">
       {rows.map((row, staff) => (
         <div className="staff" key={staff} role="group" aria-label={`Row ${staff + 1}`}>
           <div className="staff-labels">

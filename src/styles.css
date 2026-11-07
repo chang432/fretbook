@@ -31,6 +31,7 @@
  *   …-annotations the arcs and symbols drawn over them
  *   output        the exported image and text
  *   live          the strip the song plays past
+ *   v2            the second editor's own look, over the parts it shares
  */
 @import './styles/tokens.css';
 @import './styles/base.css';
@@ -50,3 +51,4 @@
 @import './styles/staff-annotations.css';
 @import './styles/output.css';
 @import './styles/live.css';
+@import './styles/v2.css';

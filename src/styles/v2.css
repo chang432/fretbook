@@ -1,0 +1,20 @@
+/* The second editor's own look, over the staff parts it still shares with
+   the first.
+
+   Scoped to the one root V2 draws inside, so nothing here reaches the
+   editor the app itself renders — the two will go on diverging until V2
+   replaces it, and this is where that divergence lives.
+
+   Everything the staff is drawn *with* is the one ink: the strings, and the
+   letters down the side of them. Only what is drawn *under* it keeps its
+   own colour — the paper, and the chip punched out of a string behind a
+   written fret.
+
+   It is done by redefining the tokens rather than by restating the rules,
+   so anything drawn in either of them follows without having to be named
+   here, and a rule that moves between stylesheets cannot leave its colour
+   behind. */
+.editor--v2 {
+  --string: var(--ink);
+  --muted: var(--ink);
+}
