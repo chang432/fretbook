@@ -40,13 +40,16 @@
    a quarter turn anticlockwise, which the two together are the way to ask
    for that and keep it the same in every browser. */
 .editor--v2 .staff-group-name {
+  margin: calc(var(--staff-air) + var(--row-h)/2 - 1px) 0 var(--staff-air);
+  /* margin: 80px 0; */
   display: flex;
   align-items: center;
   justify-content: center;
   /* Held whether or not there is a name, so every staff starts level. */
   width: var(--rowname-w);
-  height: calc(var(--row-h) * 5);
-  margin-top: calc(var(--staff-air) + var(--row-h) / 2);
+  /* height: auto; */
+  height: calc(var(--row-h) * 5 + 2px);
+  /* margin-top: calc(var(--staff-air)); */
   overflow: hidden;
   writing-mode: vertical-rl;
   transform: rotate(180deg);
@@ -54,4 +57,5 @@
   font: 600 13px/1 Georgia, 'Times New Roman', serif;
   letter-spacing: 0.04em;
   white-space: nowrap;
+  border: var(--string-w) solid var(--ink);
 }
