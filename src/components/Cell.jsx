@@ -33,6 +33,12 @@ import { normalizeRepeat } from '../utils/tabV2.js'
  * `inGroup` is true while the group this cell stands in is the one open,
  * which is how a group's cells stand back from the name laid over them.
  *
+ * A column standing in for a whole group played here is not a position at
+ * all: no string runs through it, nothing can be written in it, and the
+ * cell halfway down it carries the group's name in a ring. `name` is that
+ * name, and `onSelect` is how a writable cell says it is the one being
+ * worked on, so the menu over it knows where it stands.
+ *
  * `row` and `col` are counted from 0, the way the sheet counts them, and are
  * spoken as 1 and up, the way a person does.
  *
@@ -48,10 +54,12 @@ export default function Cell({
   string,
   mode = false,
   repeat = null,
+  name = null,
   inGroup = false,
   onChange,
   onPress,
   onRepeat,
+  onSelect,
 }) {
   // Set while the count is being typed in, which is the only time this
   // cell shows the bare number. It is about the press rather than about
@@ -74,13 +82,21 @@ export default function Cell({
   const says = repeat !== null && cell.string === 0
   const count = !says ? null : counting ? String(repeat) : `x${repeat}`
 
+  // A whole group played here, and the one cell of that column that says
+  // which group it is: halfway down, where the ring is drawn.
+  const stands = mode === 'group-ref'
+  const named = stands && cell.string === 2 ? name : null
+
   // Pressed rather than written in; and written in, but not with a note.
   const presses = mode === 'group-start' || mode === 'group-end'
   const takesTyping = !mode || says
 
   const classes = ['cell']
   if (says) classes.push('cell--repeat')
+  else if (named) classes.push('cell--group-name')
   else if (!cell.isEmpty) classes.push('cell--filled')
+  // No string runs through a column that stands for a group.
+  if (stands) classes.push('cell--unstrung')
 
   const slot = ['cell-slot']
   if (mode) slot.push(`cell-slot--${mode}`)
@@ -91,7 +107,7 @@ export default function Cell({
       <input
         ref={box}
         className={classes.join(' ')}
-        value={count ?? cell.value}
+        value={count ?? named ?? cell.value}
         inputMode="numeric"
         autoComplete="off"
         spellCheck="false"
@@ -105,7 +121,9 @@ export default function Cell({
         aria-label={
           says
             ? `Times the group before here is played, currently ${repeat}`
-            : `Row ${row + 1}, string ${string}, position ${col + 1}`
+            : stands
+              ? `Group ${name} is played here`
+              : `Row ${row + 1}, string ${string}, position ${col + 1}`
         }
         onMouseDown={presses ? onPress : undefined}
         // A count is settled here, since it is this cell's own; a note is
@@ -120,7 +138,11 @@ export default function Cell({
           // The count is taken by the effect above instead, once the `x`
           // is off it; everything else can be taken here and now.
           if (says) setCounting(true)
-          else event.target.select()
+          else {
+            event.target.select()
+            // Only a position worth writing in is worth a menu over it.
+            onSelect?.(event.target)
+          }
         }}
         onBlur={() => says && setCounting(false)}
       />

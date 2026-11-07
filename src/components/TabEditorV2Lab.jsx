@@ -7,6 +7,7 @@ import {
   Row,
   STANDARD_TUNING,
   markColumn,
+  placeGroup,
   writeCell,
 } from '../utils/tabV2.js'
 
@@ -131,6 +132,14 @@ export default function TabEditorV2Lab() {
   const handleNameChange = (row, col, name) =>
     setRows((prev) => markColumn(prev, row, col, GROUP_START, { name }))
 
+  /**
+   * Play a group at a position. The column becomes that group and the row
+   * grows by one, for the count that stands beside it — so this is the one
+   * edit here that changes how long a row is.
+   */
+  const handlePlaceGroup = (row, col, name) =>
+    setRows((prev) => placeGroup(prev, row, col, name))
+
   return (
     <div className="app">
       <header
@@ -157,6 +166,7 @@ export default function TabEditorV2Lab() {
           onCellChange={handleCellChange}
           onRepeatChange={handleRepeatChange}
           onNameChange={handleNameChange}
+          onPlaceGroup={handlePlaceGroup}
         />
       </main>
     </div>

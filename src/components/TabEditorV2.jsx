@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import Cell from './Cell.jsx'
+import CellMenu from './CellMenu.jsx'
 import GroupCover from './GroupCover.jsx'
+import { sheetGroups } from '../utils/tabV2.js'
 
 /**
  * The second editor, stripped to the bone: one staff per row, a cell per
@@ -31,10 +33,27 @@ import GroupCover from './GroupCover.jsx'
  * rows differ in length without anything having to be worked out from the
  * rows above. Driven by TabEditorV2Lab at /v2; nothing in App reaches it.
  */
-export default function TabEditorV2({ rows, tuning, onCellChange, onRepeatChange, onNameChange }) {
+export default function TabEditorV2({
+  rows,
+  tuning,
+  onCellChange,
+  onRepeatChange,
+  onNameChange,
+  onPlaceGroup,
+}) {
   // The group standing open, as the row it is in and the position it opens
   // at. Null when none is.
   const [open, setOpen] = useState(null)
+
+  // The position being written in, and the cell drawing it — what the menu
+  // over it hangs off, and where a group chosen from that menu goes down.
+  // Null when nothing is selected.
+  const [selected, setSelected] = useState(null)
+
+  // Every group written on the sheet, which is what there is to choose
+  // from. Read once per draw rather than per cell: the list is the same
+  // wherever it is opened.
+  const groups = sheetGroups(rows)
 
   const isOpen = (staff, group) => open?.row === staff && open?.start === group.start
 
@@ -136,7 +155,11 @@ export default function TabEditorV2({ rows, tuning, onCellChange, onRepeatChange
                             mode={column.cssMode}
                             repeat={column.repeat}
                             inGroup={Boolean(group) && isOpen(staff, group)}
+                            name={column.name}
                             onChange={(value) => onCellChange(staff, at, stringIndex, value)}
+                            onSelect={(element) =>
+                              setSelected({ row: staff, col: at, element })
+                            }
                             onPress={group ? press(staff, group) : undefined}
                             onRepeat={(count) => onRepeatChange(staff, at, count)}
                           />
@@ -161,6 +184,22 @@ export default function TabEditorV2({ rows, tuning, onCellChange, onRepeatChange
           </div>
         )
       })}
+
+      {/* The buttons over the position being written in. They hang off the
+          cell itself rather than standing in the staff, so a row scrolling
+          inside itself cannot clip them. */}
+      {selected && (
+        <CellMenu
+          anchor={selected.element}
+          groups={groups}
+          onPlace={(name) => {
+            onPlaceGroup(selected.row, selected.col, name)
+            // What was selected is not there any more: the column it stood
+            // in is the group now, and everything past it has moved along.
+            setSelected(null)
+          }}
+        />
+      )}
     </div>
   )
 }

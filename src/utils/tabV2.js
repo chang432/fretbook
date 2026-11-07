@@ -35,6 +35,7 @@ export {
   DEFAULT_GROUP_NAME,
   GROUP_START,
   GROUP_END,
+  GROUP_REF,
   GROUP_REPEAT,
   normalizeGroupName,
   normalizeRepeat,
@@ -81,4 +82,33 @@ export function markColumn(sheet, row, col, cssMode, marks = {}) {
   if (marked === standing) return sheet
 
   return sheet.map((each, r) => (r === row ? marked : each))
+}
+
+/**
+ * Every group written anywhere on the sheet, each saying which row it is
+ * in — what there is to choose from when one is to be played somewhere
+ * else. A column standing in for a group is not itself one: only the
+ * places a group is actually written count.
+ */
+export const sheetGroups = (sheet) =>
+  sheet.flatMap((row, at) => row.groups.map((group) => ({ ...group, row: at })))
+
+/**
+ * Put a group down at a position: that column becomes the whole group,
+ * said in one place, with a column for its count beside it. The row grows
+ * by one, since the count needs somewhere to stand that was not there
+ * before.
+ *
+ * Whatever was written in the column is gone. It is not a loss to work
+ * around: a column saying a group is played here is not a position, so
+ * there is nothing in it for a note to be written on.
+ */
+export function placeGroup(sheet, row, col, name) {
+  const standing = sheet[row]
+  if (!standing) return sheet
+
+  const placed = standing.withGroupAt(col, name)
+  if (placed === standing) return sheet
+
+  return sheet.map((each, r) => (r === row ? placed : each))
 }

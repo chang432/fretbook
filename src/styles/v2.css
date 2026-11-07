@@ -59,3 +59,82 @@
   white-space: nowrap;
   border: var(--string-w) solid var(--ink);
 }
+
+/* The buttons over the position being written in, and the groups they
+   open. Both hang off what opened them, positioned from its own rect, so
+   a row scrolling inside itself cannot clip them. */
+.cell-menu {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--bar);
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 2px 8px rgb(22 32 43 / 14%);
+}
+
+.cell-menu-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.cell-menu-button:hover,
+.cell-menu-button.is-open {
+  color: var(--accent);
+  background: rgb(168 73 47 / 12%);
+}
+
+/* The sheet's groups, to choose which is played here. */
+.group-list {
+  display: flex;
+  flex-direction: column;
+  min-width: 170px;
+  padding: 4px;
+}
+
+.group-list-item {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.group-list-item:hover {
+  background: rgb(168 73 47 / 10%);
+}
+
+.group-list-name {
+  min-width: 18px;
+  color: var(--ink);
+  font: 600 15px/1 Georgia, 'Times New Roman', serif;
+}
+
+.group-list-where {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.group-list-empty {
+  max-width: 190px;
+  margin: 0;
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}

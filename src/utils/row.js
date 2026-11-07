@@ -1,4 +1,11 @@
-import { Column, DEFAULT_GROUP_NAME, GROUP_END, GROUP_REPEAT, GROUP_START } from './column.js'
+import {
+  Column,
+  DEFAULT_GROUP_NAME,
+  GROUP_END,
+  GROUP_REF,
+  GROUP_REPEAT,
+  GROUP_START,
+} from './column.js'
 
 /**
  * One row of the sheet: its own run of positions, however many that is.
@@ -99,6 +106,29 @@ export class Row {
     return new Row(
       this.length,
       this.columns.map((each, c) => (c === col ? marked : each)),
+      this.name,
+    )
+  }
+
+  /**
+   * This row with a group put down at `col`: the whole of that group in one
+   * column, and how many times it is played in a new column beside it.
+   *
+   * Whatever stood at `col` is gone — a column saying a group is played
+   * here is not a position, so there is nowhere in it for a note to be —
+   * and the row is one position longer than it was, every column past the
+   * two being pushed along to make room for the count.
+   */
+  withGroupAt(col, name) {
+    if (col < 0 || col >= this.columns.length) return this
+
+    const placed = new Column(col, null, GROUP_REF, { name })
+    const counted = new Column(col + 1, null, GROUP_REPEAT, { repeat: 1 })
+    const after = this.columns.slice(col + 1).map((column, i) => column.at(col + 2 + i))
+
+    return new Row(
+      this.length + 1,
+      [...this.columns.slice(0, col), placed, counted, ...after],
       this.name,
     )
   }

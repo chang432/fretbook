@@ -17,6 +17,14 @@ export const GROUP_END = 'group-end'
  */
 export const GROUP_REPEAT = 'group-repeat'
 
+/**
+ * A whole group standing in one column: not where a group is written, but
+ * where one already written somewhere else is played. It takes a column of
+ * its own, carries that group's name, and holds no notes — what it stands
+ * for is written where the group itself is.
+ */
+export const GROUP_REF = 'group-ref'
+
 /** What a group is called before anyone says otherwise. */
 export const DEFAULT_GROUP_NAME = 'A'
 
@@ -98,6 +106,13 @@ export class Column {
   /** True when this column belongs to a group rather than standing on its own. */
   get isGroupMark() {
     return this.cssMode !== false
+  }
+
+  /** This column standing somewhere else in the row, carrying all it says. */
+  at(rowPosition) {
+    return rowPosition === this.rowPosition
+      ? this
+      : new Column(rowPosition, this.cells, this.cssMode, this.marks)
   }
 
   /**

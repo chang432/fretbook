@@ -14,6 +14,10 @@
 :root {
   /* The bar down the edge of a group. */
   --group-bar-w: 3px;
+  /* The same, for the two that face each other across a column standing in
+     for a whole group: a third of the cell, so the pair never meets. */
+  --group-arrow-pair: calc(var(--cell-w) / 4);
+
   /* How far the half-arrows reach in off the bar, and how deep they are —
      the two are equal, so the slope is 45°. The reach is what is actually
      being said here: the point lands halfway across the cell the arrow is
@@ -238,4 +242,96 @@
   background-repeat: no-repeat;
   background-position: center;
   background-size: 100% var(--string-w);
+}
+
+/* A whole group played in one column ------------------------------------
+ *
+ * Not where a group is written, but where one written elsewhere is played.
+ * It is the opening and the closing of a group said at once, so the column
+ * has a bar down each side with a half-arrow at each end pointing in — the
+ * same four the two ends carry between them, here on one column.
+ *
+ * Both bars come off one box, as its own left and right borders, since a
+ * cell has only the two pseudo-elements and the arrows need the other. */
+.cell-slot--group-ref::before {
+  content: '';
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  border-left: var(--group-bar-w) solid var(--ink);
+  border-right: var(--group-bar-w) solid var(--ink);
+  pointer-events: none;
+}
+
+/* Stopping at the outer strings, the way the two ends do. */
+.string-row--top .cell-slot--group-ref::before {
+  top: 50%;
+}
+
+.string-row--bottom .cell-slot--group-ref::before {
+  bottom: 50%;
+}
+
+/* Both half-arrows of one end, drawn as two corners of a single box: each
+   is a gradient cut on the diagonal, which is how one element can carry
+   two triangles when it has no pseudo-element left to spare.
+
+   They are shorter than the ones a group's two ends carry. Those reach to
+   the middle of their cell, which is the whole of the distance available;
+   two of them facing each other across one column would meet there and
+   read as a single point rather than as two arrows. These stop well short
+   of each other, so the pair still reads as a pair. */
+.string-row--top .cell-slot--group-ref::after,
+.string-row--bottom .cell-slot--group-ref::after {
+  content: '';
+  position: absolute;
+  z-index: 4;
+  left: var(--group-bar-w);
+  right: var(--group-bar-w);
+  height: var(--group-arrow-pair);
+  background-repeat: no-repeat;
+  background-size: var(--group-arrow-pair) 100%;
+  background-position: left center, right center;
+  pointer-events: none;
+}
+
+/* Opening downwards from the top of the bars. */
+.string-row--top .cell-slot--group-ref::after {
+  top: 50%;
+  background-image:
+    linear-gradient(to bottom right, var(--ink) 0 50%, transparent 50%),
+    linear-gradient(to bottom left, var(--ink) 0 50%, transparent 50%);
+}
+
+/* And closing upwards from the foot of them. */
+.string-row--bottom .cell-slot--group-ref::after {
+  bottom: 50%;
+  background-image:
+    linear-gradient(to top right, var(--ink) 0 50%, transparent 50%),
+    linear-gradient(to top left, var(--ink) 0 50%, transparent 50%);
+}
+
+/* Which group it is, on the cell halfway down the column so that the ring
+   sits on the middle of the staff. Round, where the count's box is square:
+   one says what is played here, the other how often. */
+.cell-slot--group-ref .cell.cell--group-name {
+  position: absolute;
+  z-index: 4;
+  top: 100%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(var(--row-h) - 6px);
+  height: calc(var(--row-h) - 6px);
+  border: var(--group-bar-w) solid var(--ink);
+  border-radius: 50%;
+  background-color: var(--paper);
+  background-image: none;
+  font: 600 15px/1 Georgia, 'Times New Roman', serif;
+}
+
+/* Nothing in the column is written in, and nothing in it takes a press. */
+.cell-slot--group-ref .cell {
+  pointer-events: none;
+  user-select: none;
+  caret-color: transparent;
 }
