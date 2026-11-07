@@ -1,4 +1,5 @@
 import Cell from './Cell.jsx'
+import { GROUP_START } from '../utils/tabV2.js'
 
 /**
  * The second editor, stripped to the bone: one staff per row, a cell per
@@ -57,6 +58,22 @@ export default function TabEditorV2({ rows, tuning, onCellChange }) {
                       />
                     ))}
                   </div>
+                ))}
+
+                {/* The two columns this row gives over to opening and
+                    closing a group. The bar has to cross all six strings
+                    and a column has no element spanning them, so it is
+                    drawn over the staff against the column it belongs to —
+                    see .group-edge in styles/staff-groups.css. */}
+                {row.groupEdges.map((column) => (
+                  <span
+                    key={column.rowPosition}
+                    className={`group-edge group-edge--${
+                      column.cssMode === GROUP_START ? 'start' : 'end'
+                    }`}
+                    style={{ '--at': column.rowPosition }}
+                    aria-hidden="true"
+                  />
                 ))}
               </div>
             </div>

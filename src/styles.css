@@ -27,6 +27,7 @@
  *   …-row-head    its name line
  *   …-controls    its buttons and position strips
  *   …-strings     its strings and the cells written on them
+ *   …-groups      the columns that open and close a group inside it
  *   …-annotations the arcs and symbols drawn over them
  *   output        the exported image and text
  *   live          the strip the song plays past
@@ -45,6 +46,7 @@
 @import './styles/staff-row-head.css';
 @import './styles/staff-controls.css';
 @import './styles/staff-strings.css';
+@import './styles/staff-groups.css';
 @import './styles/staff-annotations.css';
 @import './styles/output.css';
 @import './styles/live.css';

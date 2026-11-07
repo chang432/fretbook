@@ -1,14 +1,29 @@
 import { useState } from 'react'
 import TabEditorV2 from './TabEditorV2.jsx'
-import { STANDARD_TUNING, Row, writeCell } from '../utils/tabV2.js'
+import {
+  GROUP_END,
+  GROUP_START,
+  Row,
+  STANDARD_TUNING,
+  markColumn,
+  writeCell,
+} from '../utils/tabV2.js'
 
 /**
  * The mock sheet as raw data: one object per row, in the order they stand on
  * the page. A row says how long it is — nothing divides a row, so a length
- * is just a length, with no bar count to multiply up — and what is written
- * in it, as [position, string, fret] triples. Positions are counted from the
+ * is just a length, with no bar count to multiply up — what is written in it
+ * loose, and what is written inside a group.
+ *
+ * Notes are [position, string, fret] triples. Positions are counted from the
  * start of their own row and string 0 is the top line, both the way the
- * editor addresses them.
+ * editor addresses them, and a group's notes are counted the same way rather
+ * than from the group's own start.
+ *
+ * A group names the positions it opens and closes at. Those two are columns
+ * of the row like any other — they take up their place in the run — given
+ * over to saying where the group begins and ends, so a group's own notes
+ * stand between them rather than on them.
  */
 const MOCK_SHEET = [
   {
@@ -17,9 +32,18 @@ const MOCK_SHEET = [
       [0, 5, '0'],
       [2, 5, '3'],
       [4, 5, '5'],
-      [6, 4, '2'],
-      [8, 3, '0'],
-      [10, 2, '12'],
+      [14, 2, '12'],
+    ],
+    groups: [
+      {
+        start: 6,
+        end: 11,
+        notes: [
+          [7, 4, '2'],
+          [9, 3, '0'],
+          [10, 2, '7'],
+        ],
+      },
     ],
   },
   {
@@ -30,6 +54,7 @@ const MOCK_SHEET = [
       [2, 1, '8'],
       [4, 0, '5'],
     ],
+    groups: [],
   },
 ]
 
@@ -40,11 +65,20 @@ const MOCK_SHEET = [
  */
 function mockRows() {
   let sheet = MOCK_SHEET.map(({ length }) => new Row(length))
-  MOCK_SHEET.forEach(({ notes }, row) => {
-    notes.forEach(([col, string, value]) => {
+
+  MOCK_SHEET.forEach(({ notes, groups }, row) => {
+    const write = ([col, string, value]) => {
       sheet = writeCell(sheet, row, col, string, value)
+    }
+
+    notes.forEach(write)
+    groups.forEach(({ start, end, notes: held }) => {
+      sheet = markColumn(sheet, row, start, GROUP_START)
+      sheet = markColumn(sheet, row, end, GROUP_END)
+      held.forEach(write)
     })
   })
+
   return sheet
 }
 

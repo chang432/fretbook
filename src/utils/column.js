@@ -1,6 +1,16 @@
 import { STRING_COUNT, emptyCell } from './cell.js'
 
 /**
+ * What a column can be drawn as, past a plain position.
+ *
+ * A group is marked inside the staff rather than around it: its first and
+ * last positions are columns of the row like any other, given over to
+ * saying where the group begins and ends. These are what `cssMode` holds.
+ */
+export const GROUP_START = 'group-start'
+export const GROUP_END = 'group-end'
+
+/**
  * One position of one row: the six strings sounding at once.
  *
  * A column knows where it stands in its row and what is written across it.
@@ -14,19 +24,16 @@ import { STRING_COUNT, emptyCell } from './cell.js'
  */
 export class Column {
   /**
-   * @param {number} rowPosition where this stands in its row, counted from 0
-   * @param {Cell[]} [cells]     the six strings; empty ones when not given
+   * @param {number}  rowPosition where this stands in its row, counted from 0
+   * @param {Cell[]}  [cells]     the six strings; empty ones when not given
+   * @param {string|false} [cssMode] GROUP_START, GROUP_END, or false for a
+   *   plain position — how the column is drawn, and nothing more. A column
+   *   marking a group edge is still a column: it holds its six cells and
+   *   takes up its position like any other.
    */
-  constructor(rowPosition, cells = null) {
+  constructor(rowPosition, cells = null, cssMode = false) {
     this.rowPosition = rowPosition
-
-    /**
-     * Nothing reads this yet. It is here to be the switch for a column drawn
-     * differently from its neighbours — the one the string does not run
-     * through — once there is something to decide that.
-     */
-    this.cssMode = false
-
+    this.cssMode = cssMode
     this.cells = cells ?? Array.from({ length: STRING_COUNT }, (_, string) => emptyCell(string))
   }
 
@@ -38,6 +45,16 @@ export class Column {
   /** True when nothing is written across this position at all. */
   get isEmpty() {
     return this.cells.every((cell) => cell.isEmpty)
+  }
+
+  /** True when this column is one end of a group rather than a plain position. */
+  get isGroupEdge() {
+    return this.cssMode === GROUP_START || this.cssMode === GROUP_END
+  }
+
+  /** This column drawn another way, or `this` when it is drawn that way already. */
+  withMode(cssMode) {
+    return cssMode === this.cssMode ? this : new Column(this.rowPosition, this.cells, cssMode)
   }
 
   /**
@@ -52,11 +69,10 @@ export class Column {
     const written = cell.with(value)
     if (written === cell) return this
 
-    const next = new Column(
+    return new Column(
       this.rowPosition,
       this.cells.map((each, s) => (s === string ? written : each)),
+      this.cssMode,
     )
-    next.cssMode = this.cssMode
-    return next
   }
 }

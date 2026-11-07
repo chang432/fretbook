@@ -1,0 +1,92 @@
+/* Groups, marked inside the staff: the two columns a group gives over to
+   saying where it begins and ends. */
+
+:root {
+  /* The bar down the edge of a group. */
+  --group-bar-w: 2px;
+  /* How far the half-arrows reach in off it, and how deep they are. */
+  --group-arrow: 7px;
+}
+
+/* One edge of a group: a bar standing against the side of its column that
+   faces away from the group, with a half-arrow at the top and another at the
+   bottom pointing in over the notes the group holds.
+
+   It is drawn over the staff rather than by the column's own cells, because
+   what it has to cross is all six strings and a column has no single element
+   spanning them — the cells of one position live in six different string
+   rows. `--at` is the column's position, and the staff's fixed pitch is what
+   turns that back into a place on the page. */
+.group-edge {
+  position: absolute;
+  z-index: 4;
+  /* Stops at the outer strings, the way everything ruled on a staff does. */
+  top: calc(var(--row-h) / 2);
+  bottom: calc(var(--row-h) / 2);
+  width: var(--group-bar-w);
+  background: var(--ink);
+  /* Decoration over the tab, never something to press. */
+  pointer-events: none;
+}
+
+/* The group opens here, so the bar stands at the left of its column and the
+   arrows point right, into the group. */
+.group-edge--start {
+  left: calc(var(--cell-w) * var(--at));
+}
+
+/* And closes here, so the bar stands at the right of its column — a whole
+   column further along, less its own width — and the arrows point back left. */
+.group-edge--end {
+  left: calc(var(--cell-w) * (var(--at) + 1) - var(--group-bar-w));
+}
+
+/* The two half-arrows. Each is one border of a box with no size: a solid
+   edge running in off the bar, and a transparent one beside it cutting the
+   slope back. Half of an arrowhead, which is what the bar wants — the bar
+   itself is the other half. */
+.group-edge::before,
+.group-edge::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.group-edge::before {
+  top: 0;
+}
+
+.group-edge::after {
+  bottom: 0;
+}
+
+/* Opening: flat along the top and bottom, sloping back to the bar. */
+.group-edge--start::before,
+.group-edge--start::after {
+  left: 100%;
+  border-right: var(--group-arrow) solid transparent;
+}
+
+.group-edge--start::before {
+  border-top: var(--group-arrow) solid var(--ink);
+}
+
+.group-edge--start::after {
+  border-bottom: var(--group-arrow) solid var(--ink);
+}
+
+/* Closing: the same two, mirrored. */
+.group-edge--end::before,
+.group-edge--end::after {
+  right: 100%;
+  border-left: var(--group-arrow) solid transparent;
+}
+
+.group-edge--end::before {
+  border-top: var(--group-arrow) solid var(--ink);
+}
+
+.group-edge--end::after {
+  border-bottom: var(--group-arrow) solid var(--ink);
+}

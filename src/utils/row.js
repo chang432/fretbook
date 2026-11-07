@@ -33,6 +33,32 @@ export class Row {
   }
 
   /**
+   * The columns given over to saying where a group begins and ends, in the
+   * order they stand. A group is marked inside the staff, so these are the
+   * row's own columns rather than anything laid over it.
+   */
+  get groupEdges() {
+    return this.columns.filter((column) => column.isGroupEdge)
+  }
+
+  /**
+   * This row with one of its columns drawn another way, or `this` when it is
+   * drawn that way already. A position off either end is no change at all.
+   */
+  withMode(col, cssMode) {
+    if (col < 0 || col >= this.columns.length) return this
+
+    const column = this.columns[col]
+    const marked = column.withMode(cssMode)
+    if (marked === column) return this
+
+    return new Row(
+      this.length,
+      this.columns.map((each, c) => (c === col ? marked : each)),
+    )
+  }
+
+  /**
    * This row with something else written in one of its cells, or `this` when
    * that comes to nothing new. A position off either end of the row is no
    * write at all.
