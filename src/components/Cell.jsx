@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { normalizeRepeat } from '../utils/tabV2.js'
 
 /**
@@ -57,6 +57,16 @@ export default function Cell({
   // cell shows the bare number. It is about the press rather than about
   // the sheet, so it is held here and nowhere else.
   const [counting, setCounting] = useState(false)
+  const box = useRef(null)
+
+  // Take the count the moment it is pressed, so the first thing typed
+  // replaces it rather than being added to it. It cannot be done in the
+  // press itself: the `x` comes off in the same breath, and the value
+  // changing underneath would drop the selection again. This runs once the
+  // bare number is on the page.
+  useEffect(() => {
+    if (counting) box.current?.select()
+  }, [counting])
 
   // The top cell of a repeat column is the one that says the count. The
   // model's cell knows which string it is on, so there is nothing for the
@@ -79,6 +89,7 @@ export default function Cell({
   return (
     <span className={slot.join(' ')}>
       <input
+        ref={box}
         className={classes.join(' ')}
         value={count ?? cell.value}
         inputMode="numeric"
@@ -106,8 +117,10 @@ export default function Cell({
         }
         onFocus={(event) => {
           if (!takesTyping) return
+          // The count is taken by the effect above instead, once the `x`
+          // is off it; everything else can be taken here and now.
           if (says) setCounting(true)
-          event.target.select()
+          else event.target.select()
         }}
         onBlur={() => says && setCounting(false)}
       />
