@@ -1,16 +1,21 @@
 /**
- * One cell: what is written at one position on one string.
+ * One cell: what is written on one string at one position.
  *
- * A cell is a value, not a place. It does not know which row or string it
- * belongs to — utils/tabV2.js holds the sheet and knows where each one
- * stands — and it never changes: `with` hands back a new cell, or the very
- * same one when the value it is given comes to nothing new. Instances are
- * frozen, so a sheet can share one empty cell between a hundred positions
+ * A cell knows which string it sits on and what is written there, and
+ * nothing else — not which position it stands at, and not which row that
+ * position is in. Its column knows the first and its row the second.
+ *
+ * A cell never changes: `with` hands back a new one, or the very same one
+ * when what it is given comes to nothing new. Instances are frozen, so the
+ * empty cells below can be shared between every blank position on a sheet
  * without any of them being able to surprise the others.
  *
  * What a cell will accept is settled here, on the way in, so a cell that
  * exists is a cell that can be played. There is nowhere else to validate it.
  */
+
+/** Strings on the instrument, and so cells in a column. */
+export const STRING_COUNT = 6
 
 /** Highest fret a cell will take. */
 export const MAX_FRET = 24
@@ -38,10 +43,15 @@ function normalize(raw) {
 }
 
 export class Cell {
-  constructor(value = '') {
+  /**
+   * @param {number} string which string this sits on, 0 at the top
+   * @param {string} value  what is written there, settled on the way in
+   */
+  constructor(string, value = '') {
+    this.string = string
     this.value = normalize(value)
     // A cell is its value; nothing may edit one in place, which is what lets
-    // `with` return `this` and lets the empty cell below be shared.
+    // `with` return `this` and lets the empty cells below be shared.
     Object.freeze(this)
   }
 
@@ -67,7 +77,7 @@ export class Cell {
    */
   with(value) {
     const next = normalize(value)
-    return next === this.value ? this : new Cell(next)
+    return next === this.value ? this : new Cell(this.string, next)
   }
 
   /** The written form, which is what the ASCII and JSON exports will want. */
@@ -76,5 +86,10 @@ export class Cell {
   }
 }
 
-/** The empty cell. Shared rather than made again: it is frozen and has no place. */
-export const EMPTY = new Cell()
+/** One shared empty cell per string: they are frozen and tell nothing apart. */
+const EMPTY = Object.freeze(
+  Array.from({ length: STRING_COUNT }, (_, string) => new Cell(string)),
+)
+
+/** The empty cell for a string. */
+export const emptyCell = (string) => EMPTY[string]

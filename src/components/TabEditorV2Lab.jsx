@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import TabEditorV2 from './TabEditorV2.jsx'
-import { STANDARD_TUNING, createRow, writeCell } from '../utils/tabV2.js'
+import { STANDARD_TUNING, Row, writeCell } from '../utils/tabV2.js'
 
 /**
  * How long each mock row is, in positions. Nothing divides a row, so a length
@@ -36,7 +36,7 @@ const MOCK_NOTES = [
  * someone would have typed, and `writeCell` is what typing them does.
  */
 function mockRows() {
-  let sheet = MOCK_LENGTHS.map(createRow)
+  let sheet = MOCK_LENGTHS.map((length) => new Row(length))
   MOCK_NOTES.forEach((notes, row) => {
     notes.forEach(([col, string, value]) => {
       sheet = writeCell(sheet, row, col, string, value)
