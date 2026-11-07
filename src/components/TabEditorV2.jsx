@@ -1,9 +1,10 @@
-import { normalizeCell } from '../utils/tab.js'
+import Cell from './Cell.jsx'
 
 /**
  * The second editor, stripped to the bone: one staff per row, a cell per
  * position, and nothing else. Type a fret into a cell and it is written and
- * shown — that is the whole of what this does.
+ * shown — that is the whole of what this does. What a cell itself is, is
+ * Cell's business; this lays them out and says where each one stands.
  *
  * Everything else TabEditor carries is deliberately absent: no groups,
  * arrangement or memo, no edit mode, no ties or symbols, no shifting, no
@@ -40,35 +41,19 @@ export default function TabEditorV2({ rows, tuning, onCellChange }) {
             <div className="staff-run">
               <div className="staff-body">
                 {tuning.map((_, stringIndex) => (
-                  // The string is drawn a cell at a time rather than as one
-                  // line across the row, so that a position can be left out
-                  // of it — see `.string-row--segmented` in styles.css. Add
-                  // `cell--unstrung` to a cell and the line skips it.
+                  // Each cell draws its own piece of the string, so that a
+                  // position can be left out of the line — see Cell.
                   <div className="string-row string-row--segmented" key={stringIndex}>
-                    {columns.map((column, col) => {
-                      const value = column[stringIndex]
-
-                      return (
-                        <input
-                          key={col}
-                          className={`cell${value ? ' cell--filled' : ''}`}
-                          value={value}
-                          inputMode="numeric"
-                          autoComplete="off"
-                          spellCheck="false"
-                          // Positions start again at 1 on every row, so the
-                          // row is named here too: "position 1" alone would
-                          // point at one cell per row rather than at one cell.
-                          aria-label={`Row ${staff + 1}, string ${tuning[stringIndex]}, position ${col + 1}`}
-                          // Frets are checked on the way in, so a cell can
-                          // only ever hold something playable.
-                          onChange={(event) =>
-                            onCellChange(staff, col, stringIndex, normalizeCell(event.target.value))
-                          }
-                          onFocus={(event) => event.target.select()}
-                        />
-                      )
-                    })}
+                    {columns.map((column, col) => (
+                      <Cell
+                        key={col}
+                        value={column[stringIndex]}
+                        row={staff}
+                        col={col}
+                        string={tuning[stringIndex]}
+                        onChange={(value) => onCellChange(staff, col, stringIndex, value)}
+                      />
+                    ))}
                   </div>
                 ))}
               </div>
