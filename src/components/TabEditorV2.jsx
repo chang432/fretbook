@@ -64,6 +64,12 @@ export default function TabEditorV2({ rows, tuning, onCellChange, onRepeatChange
               ))}
             </div>
 
+            {/* What the row is called, written down its side between the
+                string letters and the staff — see styles/v2.css. The box
+                keeps its width whether or not there is a name in it, so
+                every staff on the sheet starts at the same place. */}
+            <div className="staff-group-name">{row.name}</div>
+
             <div className="staff-scroll">
               <div className="staff-run">
                 <div className="staff-body">

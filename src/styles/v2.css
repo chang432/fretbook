@@ -17,4 +17,41 @@
 .editor--v2 {
   --string: var(--ink);
   --muted: var(--ink);
+
+  /* The gutter the row's name is written in, down the side of the staff. */
+  --rowname-w: 20px;
+}
+
+/* A third column in the staff's grid, between the string letters and the
+   staff itself, for the name written down the row's side. The first editor
+   draws no such thing, which is why the grid is restated here rather than
+   changed where it is set. */
+.editor--v2 .staff {
+  grid-template-columns: max-content var(--rowname-w) minmax(0, 1fr);
+}
+
+/* The name itself, standing against the strings: as tall as the staff is
+   ruled, from the top line to the bottom one, and no taller. The top line
+   is half a row below the staff's own top, and the scroller's air above
+   that, which is what the margin makes up.
+
+   `vertical-rl` turns the text on its side and `rotate(180deg)` turns it
+   the rest of the way, so it runs up the box and is read from the bottom —
+   a quarter turn anticlockwise, which the two together are the way to ask
+   for that and keep it the same in every browser. */
+.editor--v2 .staff-group-name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Held whether or not there is a name, so every staff starts level. */
+  width: var(--rowname-w);
+  height: calc(var(--row-h) * 5);
+  margin-top: calc(var(--staff-air) + var(--row-h) / 2);
+  overflow: hidden;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  color: var(--ink);
+  font: 600 13px/1 Georgia, 'Times New Roman', serif;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }

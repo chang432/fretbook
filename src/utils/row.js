@@ -16,9 +16,13 @@ export class Row {
   /**
    * @param {number}   length    how many positions this row holds
    * @param {Column[]} [columns] the positions themselves; empty when not given
+   * @param {string}   [name]    what the row is called, written down its
+   *   side. A row with nothing to say is called nothing, which is not the
+   *   same as being unnamed: there is simply no name to write.
    */
-  constructor(length, columns = null) {
+  constructor(length, columns = null, name = '') {
     this.length = length
+    this.name = name
     this.columns = columns ?? Array.from({ length }, (_, at) => new Column(at))
   }
 
@@ -95,6 +99,7 @@ export class Row {
     return new Row(
       this.length,
       this.columns.map((each, c) => (c === col ? marked : each)),
+      this.name,
     )
   }
 
@@ -113,6 +118,7 @@ export class Row {
     return new Row(
       this.length,
       this.columns.map((each, c) => (c === col ? written : each)),
+      this.name,
     )
   }
 }

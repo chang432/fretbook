@@ -12,7 +12,8 @@ import {
 
 /**
  * The mock sheet as raw data: one object per row, in the order they stand on
- * the page. A row says how long it is — nothing divides a row, so a length
+ * the page. A row says what it is called — written down its side, and left
+ * out when there is nothing to call it — how long it is — nothing divides a row, so a length
  * is just a length, with no bar count to multiply up — what is written in it
  * loose, and what is written inside a group.
  *
@@ -30,6 +31,7 @@ import {
  */
 const MOCK_SHEET = [
   {
+    rowName: 'Intro riff',
     length: 16,
     notes: [
       [0, 5, '0'],
@@ -52,6 +54,7 @@ const MOCK_SHEET = [
     ],
   },
   {
+    rowName: 'Chorus',
     length: 8,
     notes: [
       [0, 2, '7'],
@@ -69,7 +72,7 @@ const MOCK_SHEET = [
  * someone would have typed, and `writeCell` is what typing them does.
  */
 function mockRows() {
-  let sheet = MOCK_SHEET.map(({ length }) => new Row(length))
+  let sheet = MOCK_SHEET.map(({ length, rowName = '' }) => new Row(length, null, rowName))
 
   MOCK_SHEET.forEach(({ notes, groups }, row) => {
     const write = ([col, string, value]) => {
