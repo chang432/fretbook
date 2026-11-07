@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import TabEditorV2 from './TabEditorV2.jsx'
-import { STANDARD_TUNING, createGrid } from '../utils/tab.js'
+import { STANDARD_TUNING, createRow, writeCell } from '../utils/tabV2.js'
 
 /**
  * How long each mock row is, in positions. Nothing divides a row, so a length
@@ -33,7 +33,7 @@ const MOCK_NOTES = [
 /** The mock sheet, built fresh each time so Reset really does start over. */
 function mockRows() {
   return MOCK_LENGTHS.map((length, row) => {
-    const columns = createGrid(length)
+    const columns = createRow(length)
     MOCK_NOTES[row].forEach(([col, string, value]) => {
       columns[col][string] = value
     })
@@ -59,24 +59,12 @@ export default function TabEditorV2Lab() {
   const [rows, setRows] = useState(mockRows)
 
   /**
-   * Write one cell, leaving the rest of the sheet as it stands. The row is
-   * named as well as the position, since a row holds its own notes and a
-   * position means nothing without the row it stands in.
+   * Write one cell. What that means to the sheet is the model's business —
+   * the bench only holds what the model hands back. An unchanged sheet comes
+   * back as the same array, so React re-renders nothing.
    */
-  const writeCell = (row, col, stringIndex, value) =>
-    setRows((prev) => {
-      const columns = prev[row]
-      if (!columns || col < 0 || col >= columns.length) return prev
-      if (columns[col][stringIndex] === value) return prev
-
-      return prev.map((current, r) =>
-        r === row
-          ? current.map((column, c) =>
-              c === col ? column.map((cell, s) => (s === stringIndex ? value : cell)) : column,
-            )
-          : current,
-      )
-    })
+  const handleCellChange = (row, col, string, value) =>
+    setRows((prev) => writeCell(prev, row, col, string, value))
 
   return (
     <div className="app">
@@ -98,7 +86,7 @@ export default function TabEditorV2Lab() {
       </header>
 
       <main className="sheet">
-        <TabEditorV2 rows={rows} tuning={STANDARD_TUNING} onCellChange={writeCell} />
+        <TabEditorV2 rows={rows} tuning={STANDARD_TUNING} onCellChange={handleCellChange} />
       </main>
     </div>
   )

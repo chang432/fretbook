@@ -1,4 +1,4 @@
-import { normalizeCell } from '../utils/tab.js'
+import { normalizeCell } from '../utils/tabV2.js'
 
 /**
  * One position on one string: the box a fret is written in, and the piece of
