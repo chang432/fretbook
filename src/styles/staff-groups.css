@@ -28,7 +28,9 @@
 .cell-slot--group-end::before {
   content: '';
   position: absolute;
-  z-index: 3;
+  /* Over the cover, not under it: the bracket is what says where the group
+     is, and a group being open is no reason to lose sight of that. */
+  z-index: 4;
   top: 0;
   bottom: 0;
   width: var(--group-bar-w);
@@ -67,7 +69,8 @@
 .string-row:last-child .cell-slot--group-end::after {
   content: '';
   position: absolute;
-  z-index: 3;
+  /* With the bar they finish: over the cover, not under it. */
+  z-index: 4;
   width: 0;
   height: 0;
   pointer-events: none;
@@ -82,6 +85,18 @@
   cursor: pointer;
   user-select: none;
   caret-color: transparent;
+}
+
+/* Nothing happens under the pointer on them, though. A cell lights up
+   because it is about to be written in, and these are not: the bracket is
+   the thing being pressed, and it does not move. */
+.cell-slot--group-start .cell:hover,
+.cell-slot--group-end .cell:hover,
+.cell-slot--group-start .cell:focus,
+.cell-slot--group-end .cell:focus {
+  background: none;
+  box-shadow: none;
+  outline: none;
 }
 
 /* The rest of a repeat column is neither pressed nor written in — only its
@@ -99,32 +114,40 @@
   cursor: text;
 }
 
-/* While a group is open its cells stand back, so that what is written in
-   them does not read over the name laid across the middle of it. The count
-   keeps its weight: it is the group's own, not something it holds. */
-.cell-slot--in-group .cell:not(.cell--repeat) {
-  opacity: 0.3;
+/* While it is being typed in it goes white, and shows the bare number —
+   the `x` is how a count is read, not part of what is being changed, so
+   Cell takes it away for as long as the press is in the box. */
+/* Four classes deep, to beat the box's own paper fill below — which ties
+   with it otherwise, and wins only by standing later in the file. */
+.cell-slot--group-repeat .cell.cell--repeat:focus {
+  background-color: #fff;
 }
 
-/* The name itself, in the middle of the group and across the whole of it,
-   so it is centred on the group rather than on any one position. The box
-   around it is drawn like the repeat count's, the two being the only
-   things a group says in words. */
-.group-label {
+/* `cell-slot--in-group` marks a cell as the open group's. Nothing is drawn
+   from it — the cover over the group does that — but a press on one is a
+   press on the group, which is how the editor tells the press that closes
+   a group from the press that lands somewhere else entirely. */
+
+/* The cover: as wide as the group and as tall as the staff is ruled, from
+   the top string line to the bottom one. Nearly solid paper, so what is
+   written underneath is still there but stands well back from the name. */
+.group-cover {
   position: absolute;
-  z-index: 5;
-  top: 50%;
+  z-index: 3;
+  top: calc(var(--row-h) / 2);
+  bottom: calc(var(--row-h) / 2);
   left: calc(var(--cell-w) * var(--from));
   width: calc(var(--cell-w) * var(--span));
   display: flex;
   align-items: center;
   justify-content: center;
-  transform: translateY(-50%);
-  /* The span is only there to centre the name; the name itself is pressed. */
+  background: color-mix(in srgb, var(--paper) 78%, transparent);
+  /* Presses go through to the cells under it; only the name takes one. */
   pointer-events: none;
 }
 
 .group-name {
+  z-index: 5;
   width: calc(var(--row-h) - 2px);
   height: calc(var(--row-h) - 2px);
   padding: 0;

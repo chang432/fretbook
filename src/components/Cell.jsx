@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { normalizeRepeat } from '../utils/tabV2.js'
 
 /**
@@ -24,7 +25,10 @@ import { normalizeRepeat } from '../utils/tabV2.js'
  *
  * `repeat` is that count, and the cell on the top string of its column is
  * the one that says it. The cell writes it out itself — it is the cell's
- * own content, and the stylesheet only says how it looks.
+ * own content, and the stylesheet only says how it looks. It says it two
+ * ways: `x3` at rest, which is how a count is read, and `3` while it is
+ * being typed in, which is what is actually being changed. The `x` comes
+ * back as soon as the press that is editing it goes elsewhere.
  *
  * `inGroup` is true while the group this cell stands in is the one open,
  * which is how a group's cells stand back from the name laid over them.
@@ -49,17 +53,23 @@ export default function Cell({
   onPress,
   onRepeat,
 }) {
+  // Set while the count is being typed in, which is the only time this
+  // cell shows the bare number. It is about the press rather than about
+  // the sheet, so it is held here and nowhere else.
+  const [counting, setCounting] = useState(false)
+
   // The top cell of a repeat column is the one that says the count. The
   // model's cell knows which string it is on, so there is nothing for the
   // editor to tell it.
-  const count = repeat === null || cell.string !== 0 ? null : `x${repeat}`
+  const says = repeat !== null && cell.string === 0
+  const count = !says ? null : counting ? String(repeat) : `x${repeat}`
 
   // Pressed rather than written in; and written in, but not with a note.
   const presses = mode === 'group-start' || mode === 'group-end'
-  const takesTyping = !mode || count !== null
+  const takesTyping = !mode || says
 
   const classes = ['cell']
-  if (count) classes.push('cell--repeat')
+  if (says) classes.push('cell--repeat')
   else if (!cell.isEmpty) classes.push('cell--filled')
 
   const slot = ['cell-slot']
@@ -82,7 +92,7 @@ export default function Cell({
         // too: "position 1" alone would point at one cell per row rather than
         // at one cell.
         aria-label={
-          count
+          says
             ? `Times the group before here is played, currently ${repeat}`
             : `Row ${row + 1}, string ${string}, position ${col + 1}`
         }
@@ -90,11 +100,16 @@ export default function Cell({
         // A count is settled here, since it is this cell's own; a note is
         // passed on as typed, since the model is what settles those.
         onChange={(event) =>
-          count === null
-            ? onChange(event.target.value)
-            : onRepeat(normalizeRepeat(event.target.value, repeat))
+          says
+            ? onRepeat(normalizeRepeat(event.target.value, repeat))
+            : onChange(event.target.value)
         }
-        onFocus={(event) => takesTyping && event.target.select()}
+        onFocus={(event) => {
+          if (!takesTyping) return
+          if (says) setCounting(true)
+          event.target.select()
+        }}
+        onBlur={() => says && setCounting(false)}
       />
     </span>
   )

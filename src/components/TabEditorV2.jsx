@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Cell from './Cell.jsx'
-import GroupLabel from './GroupLabel.jsx'
+import GroupCover from './GroupCover.jsx'
 
 /**
  * The second editor, stripped to the bone: one staff per row, a cell per
@@ -39,12 +39,38 @@ export default function TabEditorV2({ rows, tuning, onCellChange, onRepeatChange
   const isOpen = (staff, group) => open?.row === staff && open?.start === group.start
 
   /** Open the group, or put it away when it is the one already open. */
-  const press = (staff, group) => () =>
+  const press = (staff, group) => (event) => {
+    // The press opens the group rather than landing in the cell, so the
+    // cell must not take the focus — or the caret — that a press on an
+    // input would otherwise give it.
+    event.preventDefault()
     setOpen((standing) =>
       standing?.row === staff && standing?.start === group.start
         ? null
         : { row: staff, start: group.start },
     )
+  }
+
+  /**
+   * A press anywhere but on the open group puts it away. Taken on the way
+   * down rather than on the way up, so that it has already happened by the
+   * time a press on some other group's end opens that one instead.
+   *
+   * What counts as "on the group" is the cover, the name in it, and the
+   * group's own cells underneath — the cover lets presses through, so a
+   * press meant for either end arrives at the cell rather than here.
+   */
+  useEffect(() => {
+    if (!open) return undefined
+
+    const away = (event) => {
+      if (event.target.closest?.('.group-cover, .cell-slot--in-group')) return
+      setOpen(null)
+    }
+
+    document.addEventListener('pointerdown', away, true)
+    return () => document.removeEventListener('pointerdown', away, true)
+  }, [open])
 
   return (
     // `editor--v2` is what the second editor's own styles hang off, so they
@@ -102,10 +128,10 @@ export default function TabEditorV2({ rows, tuning, onCellChange, onRepeatChange
                     </div>
                   ))}
 
-                  {/* The open group's name, in the middle of it. Only one
-                      stands at a time, and only while its group is open. */}
+                  {/* The sheet over the open group, with its name in the
+                      middle. Only one stands at a time. */}
                   {opened && (
-                    <GroupLabel
+                    <GroupCover
                       name={opened.name}
                       from={opened.start}
                       span={opened.end - opened.start + 1}
