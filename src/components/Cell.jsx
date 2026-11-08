@@ -76,6 +76,9 @@ export default function Cell({
   onPress,
   onRepeat,
   onSelect,
+  tieTarget = false,
+  onTieTarget,
+  onTieHover,
 }) {
   // Set while the count is being typed in, which is the only time this
   // cell shows the bare number. It is about the press rather than about
@@ -119,6 +122,7 @@ export default function Cell({
   // What the cell is showing — the count, a group's name, or a fret — which
   // is one thing or none.
   const classes = ['cell']
+  if (tieTarget) classes.push('cell--tie-target')
   if (says) classes.push('cell--repeat')
   else if (named) classes.push('cell--group-name')
   else if (!cell.isEmpty) classes.push('cell--filled')
@@ -162,7 +166,8 @@ export default function Cell({
               ? `Group ${name} is played here`
               : `Row ${row + 1}, string ${string}, position ${col + 1}`
         }
-        onMouseDown={presses ? onPress : undefined}
+        onMouseDown={tieTarget ? (event) => { event.preventDefault(); onTieTarget() } : presses ? onPress : undefined}
+        onMouseEnter={tieTarget ? onTieHover : undefined}
         // A count is settled here, since it is this cell's own; a note is
         // passed on as typed, since the model is what settles those.
         onChange={(event) =>

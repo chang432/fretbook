@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import Cell from './Cell.jsx'
 import CellMenu from './CellMenu.jsx'
 import DeleteBar from './DeleteBar.jsx'
+import ActionBar from './ActionBar.jsx'
+import StaffOverlay from './StaffOverlay.jsx'
 import GroupCover from './GroupCover.jsx'
 import { GROUP_REF, previousWrittenPosition, sheetGroups } from '../utils/tabV2.js'
 
@@ -63,6 +65,8 @@ export default function TabEditorV2({
   onNameChange,
   onRowNameChange,
   onCopyPrevious,
+  ties,
+  onTie,
   onPlaceGroup,
   onDeleteGroup,
   onDeleteRef,
@@ -72,6 +76,21 @@ export default function TabEditorV2({
   // for a group — and `element` what the buttons over it hang off. Null
   // when nothing is.
   const [working, setWorking] = useState(null)
+  const [armed, setArmed] = useState(false)
+  const [cursor, setCursor] = useState(null)
+
+  const selected = working?.kind === 'cell' ? working : null
+  const targets = []
+  if (selected && rows[selected.row]?.column(selected.col)?.cell(selected.string)?.value) {
+    const columns = rows[selected.row].columns
+    for (const step of [-1, 1]) {
+      for (let at = selected.col + step; at >= 0 && at < columns.length; at += step) {
+        if (columns[at].isGroupMark) break
+        targets.push(at)
+        if (!columns[at].cell(selected.string).isEmpty) break
+      }
+    }
+  }
 
   // The cover over the open group, once it is on the page: the buttons for
   // that group stand over the cover rather than over any one of its cells,
@@ -150,6 +169,7 @@ export default function TabEditorV2({
 
     const away = (event) => {
       if (event.target.closest?.('.action-bar, .popover')) return
+      if (armed && event.target.closest?.('.cell--tie-target')) return
       if (own && event.target.closest?.(own)) return
       if (working.kind === 'cell' && working.element?.contains(event.target)) return
       setWorking(null)
@@ -157,7 +177,13 @@ export default function TabEditorV2({
 
     document.addEventListener('pointerdown', away, true)
     return () => document.removeEventListener('pointerdown', away, true)
-  }, [working])
+  }, [working, armed])
+
+  const holdButton = selected && targets.length > 0 && (
+    <button type="button" className={`action-bar-button${armed ? ' is-open' : ''}`} aria-label="Hold this note through to another position" aria-pressed={armed} onMouseDown={(event) => event.preventDefault()} onClick={() => { setArmed(!armed); setCursor(targets.find((at) => at > selected.col) ?? targets[0]) }}>
+      <svg width="20" height="14" aria-hidden="true"><path d="M 2 11 Q 10 1 18 11" fill="none" stroke="currentColor" strokeWidth="2" /></svg>
+    </button>
+  )
 
   return (
     // `editor--v2` is what the second editor's own styles hang off, so they
@@ -186,6 +212,7 @@ export default function TabEditorV2({
             <div className="staff-scroll">
               <div className="staff-run">
                 <div className="staff-body">
+                  <StaffOverlay ties={ties.filter((tie) => tie.row === staff)} marks={[]} staffStart={0} cols={row.length} preview={armed && selected?.row === staff && cursor !== null ? { string: selected.string, from: Math.min(selected.col, cursor), to: Math.max(selected.col, cursor) } : null} />
                   {tuning.map((_, stringIndex) => (
                     // Each cell draws its own piece of the string, so that a
                     // position can be left out of the line — see Cell.
@@ -226,8 +253,11 @@ export default function TabEditorV2({
                             name={column.name}
                             onChange={(value) => onCellChange(staff, at, stringIndex, value)}
                             onSelect={(element) =>
-                              setWorking({ kind: 'cell', row: staff, col: at, element })
+                              { setArmed(false); setWorking({ kind: 'cell', row: staff, col: at, string: stringIndex, element }) }
                             }
+                            tieTarget={armed && selected?.row === staff && selected.string === stringIndex && targets.includes(at)}
+                            onTieHover={() => setCursor(at)}
+                            onTieTarget={() => { onTie(staff, stringIndex, selected.col, at); setArmed(false); setCursor(null) }}
                             // A group played here is pressed as itself,
                             // even where it stands inside some other
                             // group's span.
@@ -276,6 +306,9 @@ export default function TabEditorV2({
           anchor={columnTop(working.element, working.col)}
           groups={groups}
           canCopy={Boolean(previousWrittenPosition(rows, working.row, working.col))}
+          // Not into the middle of a group: that position is the group's
+          // own music, and the model refuses it — so it is not offered.
+          canPlace={!rows[working.row]?.groupAt(working.col)}
           onCopy={() => onCopyPrevious(working.row, working.col)}
           onPlace={(name) => {
             onPlaceGroup(working.row, working.col, name)
@@ -283,7 +316,15 @@ export default function TabEditorV2({
             // in is the group now, and everything past it has moved along.
             setWorking(null)
           }}
-        />
+        >
+          {selected?.string === 0 ? holdButton : null}
+        </CellMenu>
+      )}
+
+      {selected && selected.string !== 0 && holdButton && (
+        <ActionBar anchor={selected.element} label="This note">
+          {holdButton}
+        </ActionBar>
       )}
 
       {/* Taking the open group off the sheet, which takes every place it is

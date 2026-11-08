@@ -132,9 +132,18 @@ export class Row {
    * the row is the length it was. A group played here takes the place of a
    * position rather than being squeezed in beside it, so nothing else
    * moves.
+   *
+   * Not inside another group, though. A position between a group's two
+   * ends is that group's own music, and giving it over to playing some
+   * other group would take a note out of the middle of what is being
+   * repeated — and leave a group that holds a group, which is not
+   * something this model has any way to say. The ends themselves are not
+   * positions at all. So a place inside a group is no place to put one,
+   * and the row comes back unchanged.
    */
   withGroupAt(col, name) {
     if (col < 0 || col >= this.columns.length) return this
+    if (this.groupAt(col)) return this
 
     const placed = new Column(col, null, GROUP_REF, { name, repeat: 1 })
 

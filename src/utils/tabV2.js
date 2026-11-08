@@ -196,6 +196,9 @@ export function deleteRef(sheet, row, col) {
  * Whatever was written in the column is gone. It is not a loss to work
  * around: a column saying a group is played here is not a position, so
  * there is nothing in it for a note to be written on.
+ *
+ * A position inside a group is refused — see `Row.withGroupAt` — and the
+ * sheet comes back the one that was handed in.
  */
 export function placeGroup(sheet, row, col, name) {
   const standing = sheet[row]

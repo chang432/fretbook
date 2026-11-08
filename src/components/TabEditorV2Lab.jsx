@@ -122,14 +122,27 @@ function mockRows() {
  */
 export default function TabEditorV2Lab() {
   const [rows, setRows] = useState(mockRows)
+  const [ties, setTies] = useState([])
 
   /**
    * Write one cell. What that means to the sheet is the model's business —
    * the bench only holds what the model hands back. An unchanged sheet comes
    * back as the same array, so React re-renders nothing.
    */
-  const handleCellChange = (row, col, string, value) =>
+  const handleCellChange = (row, col, string, value) => {
     setRows((prev) => writeCell(prev, row, col, string, value))
+    setTies((prev) => prev.filter((tie) => tie.row !== row || tie.string !== string || (tie.from !== col && tie.to !== col)))
+  }
+
+  const handleTie = (row, string, source, target) => {
+    const from = Math.min(source, target)
+    const to = Math.max(source, target)
+    const existing = ties.some((tie) => tie.row === row && tie.string === string && tie.from === from && tie.to === to)
+    if (!existing && rows[row].column(target).cell(string).isEmpty) {
+      setRows((prev) => writeCell(prev, row, target, string, rows[row].column(source).cell(string).value))
+    }
+    setTies((prev) => [...prev.filter((tie) => tie.row !== row || tie.string !== string || (existing ? tie.from !== from || tie.to !== to : tie.from !== from && tie.to !== to)), ...(!existing ? [{ row, string, from, to }] : [])])
+  }
 
   /**
    * How many times a group is played, and what it is called. Both are
@@ -155,17 +168,19 @@ export default function TabEditorV2Lab() {
    * grows by one, for the count that stands beside it — so this is the one
    * edit here that changes how long a row is.
    */
-  const handlePlaceGroup = (row, col, name) =>
+  const handlePlaceGroup = (row, col, name) => {
     setRows((prev) => placeGroup(prev, row, col, name))
+    setTies((prev) => prev.filter((tie) => tie.row !== row))
+  }
 
   /**
    * Off the sheet. A group goes with every place it is played, since those
    * are only pointers back to it; one of those places goes on its own and
    * leaves the group where it is.
    */
-  const handleDeleteGroup = (row, col) => setRows((prev) => deleteGroup(prev, row, col))
+  const handleDeleteGroup = (row, col) => { setRows((prev) => deleteGroup(prev, row, col)); setTies([]) }
 
-  const handleDeleteRef = (row, col) => setRows((prev) => deleteRef(prev, row, col))
+  const handleDeleteRef = (row, col) => { setRows((prev) => deleteRef(prev, row, col)); setTies((prev) => prev.filter((tie) => tie.row !== row)) }
 
   return (
     <div className="app">
@@ -181,7 +196,7 @@ export default function TabEditorV2Lab() {
         <h1 style={{ margin: 0, font: '600 20px Georgia, "Times New Roman", serif' }}>
           TabEditorV2 — bench
         </h1>
-        <button type="button" onClick={() => setRows(mockRows())}>
+        <button type="button" onClick={() => { setRows(mockRows()); setTies([]) }}>
           Reset mock notes
         </button>
       </header>
@@ -194,7 +209,9 @@ export default function TabEditorV2Lab() {
           onRepeatChange={handleRepeatChange}
           onNameChange={handleNameChange}
           onRowNameChange={handleRowNameChange}
-          onCopyPrevious={(row, col) => setRows((prev) => copyPreviousPosition(prev, row, col))}
+          onCopyPrevious={(row, col) => { setRows((prev) => copyPreviousPosition(prev, row, col)); setTies((prev) => prev.filter((tie) => tie.row !== row || (tie.from !== col && tie.to !== col))) }}
+          ties={ties}
+          onTie={handleTie}
           onPlaceGroup={handlePlaceGroup}
           onDeleteGroup={handleDeleteGroup}
           onDeleteRef={handleDeleteRef}

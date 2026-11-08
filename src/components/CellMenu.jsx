@@ -5,8 +5,13 @@ import Popover from './Popover.jsx'
 import { ImportIcon, RewindIcon } from './icons.jsx'
 
 /**
- * The buttons that come up over the position being written in. One so far:
- * it opens the sheet's groups, and choosing one puts that group down here.
+ * The buttons that come up over the position being written in: copying what
+ * was written at the position before, and playing a group written elsewhere
+ * here.
+ *
+ * Each is offered only where it means something — there is a position
+ * before this one to copy, and this one is somewhere a group can be put —
+ * and where neither is, there is no bar at all rather than an empty one.
  *
  * The bar itself is ActionBar, which every one of these shares — where it
  * stands and how it follows its cell is that component's business.
@@ -17,24 +22,29 @@ import { ImportIcon, RewindIcon } from './icons.jsx'
  * measured from — the list would be placed from the corner of the bar
  * instead of the corner of the window, and land nowhere near its button.
  */
-export default function CellMenu({ anchor, groups, onPlace, canCopy, onCopy }) {
+export default function CellMenu({ anchor, groups, onPlace, canCopy, canPlace, onCopy, children }) {
   // The button the group list hangs off, which is also what says it is open.
   const [listing, setListing] = useState(null)
 
+  if (!canCopy && !canPlace && !children) return null
+
   return (
     <ActionBar anchor={anchor} label="This position">
+      {children}
       {canCopy && <button type="button" className="action-bar-button" title="Copy previous position" aria-label="Copy previous position" onMouseDown={(event) => event.preventDefault()} onClick={onCopy}><RewindIcon width={20} height="14" /></button>}
-      <button
-        type="button"
-        className={`action-bar-button${listing ? ' is-open' : ''}`}
-        title="Play a group here"
-        aria-label="Play a group here"
-        aria-expanded={Boolean(listing)}
-        onMouseDown={(event) => event.preventDefault()}
-        onClick={(event) => setListing(listing ? null : event.currentTarget)}
-      >
-        <ImportIcon />
-      </button>
+      {canPlace && (
+        <button
+          type="button"
+          className={`action-bar-button${listing ? ' is-open' : ''}`}
+          title="Play a group here"
+          aria-label="Play a group here"
+          aria-expanded={Boolean(listing)}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={(event) => setListing(listing ? null : event.currentTarget)}
+        >
+          <ImportIcon />
+        </button>
+      )}
 
       {listing &&
         createPortal(
