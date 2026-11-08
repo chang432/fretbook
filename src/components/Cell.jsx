@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { normalizeRepeat } from '../utils/tabV2.js'
+import { STRING_COUNT, normalizeRepeat } from '../utils/tabV2.js'
 
 /**
  * One position on one string: the box a fret is written in, and the piece of
@@ -34,10 +34,12 @@ import { normalizeRepeat } from '../utils/tabV2.js'
  * which is how a group's cells stand back from the name laid over them.
  *
  * A column standing in for a whole group played here is not a position at
- * all: no string runs through it, nothing can be written in it, and the
- * cell halfway down it carries the group's name in a ring. `name` is that
- * name, and `onSelect` is how a writable cell says it is the one being
- * worked on, so the menu over it knows where it stands.
+ * all: nothing can be written in it, the cell halfway down it carries the
+ * group's name in a ring, and the strings do not run through it — bar the
+ * outer two, which are the lines the staff is ruled to and carry straight
+ * on through. `name` is that name, and `onSelect` is how a writable cell
+ * says it is the one being worked on, so the menu over it knows where it
+ * stands.
  *
  * `row` and `col` are counted from 0, the way the sheet counts them, and are
  * spoken as 1 and up, the way a person does.
@@ -87,6 +89,12 @@ export default function Cell({
   const stands = mode === 'group-ref'
   const named = stands && cell.string === 2 ? name : null
 
+  // The top and bottom strings, which are the two lines the staff is ruled
+  // to. The bars of a group's column and the arrows off them both stop
+  // there, so those two lines keep running through the column while the
+  // four between them stop either side of it.
+  const ruled = cell.string === 0 || cell.string === STRING_COUNT - 1
+
   // Pressed rather than written in; and written in, but not with a note.
   const presses = mode === 'group-start' || mode === 'group-end'
   const takesTyping = !mode || says
@@ -95,8 +103,9 @@ export default function Cell({
   if (says) classes.push('cell--repeat')
   else if (named) classes.push('cell--group-name')
   else if (!cell.isEmpty) classes.push('cell--filled')
-  // No string runs through a column that stands for a group.
-  if (stands) classes.push('cell--unstrung')
+  // No string runs through a column that stands for a group, except the
+  // two the staff is ruled to.
+  if (stands && !ruled) classes.push('cell--unstrung')
 
   const slot = ['cell-slot']
   if (mode) slot.push(`cell-slot--${mode}`)
