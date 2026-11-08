@@ -58,6 +58,14 @@
   letter-spacing: 0.04em;
   white-space: nowrap;
   border: var(--string-w) solid var(--ink);
+  background: transparent;
+  text-align: center;
+}
+
+.editor--v2 .staff-group-name:focus {
+  background: #fff;
+  border-color: var(--ink);
+  outline: none;
 }
 
 /* The buttons over whatever is being worked on — a position being written

@@ -6,24 +6,25 @@ import { STRING_COUNT, emptyCell } from './cell.js'
  * A group is marked inside the staff rather than around it: its first and
  * last positions are columns of the row like any other, given over to
  * saying where the group begins and ends. These are what `cssMode` holds.
+ *
+ * How many times the group is played is written on the column that closes
+ * it, as that column's `repeat` — the closing bar and the count are the one
+ * statement, so they are drawn in the one place.
  */
 export const GROUP_START = 'group-start'
 export const GROUP_END = 'group-end'
 
 /**
- * The column just past the closing one, which says how many times the group
- * is played. It belongs to the group and is not a position to write in; its
- * count is the column's `repeat`.
- */
-export const GROUP_REPEAT = 'group-repeat'
-
-/**
- * A whole group standing in one column: not where a group is written, but
- * where one already written somewhere else is played. It takes a column of
- * its own, carries that group's name, and holds no notes — what it stands
- * for is written where the group itself is.
+ * A group played somewhere else: not where a group is written, but where
+ * one already written is played again. It is a group in miniature, and it
+ * is marked like one — two columns, an opening and a closing, with nothing
+ * between them because what is played is written elsewhere.
+ *
+ * The opening column carries the group's name, the closing one carries the
+ * count, and neither holds a note.
  */
 export const GROUP_REF = 'group-ref'
+export const GROUP_REF_END = 'group-ref-end'
 
 /** What a group is called before anyone says otherwise. */
 export const DEFAULT_GROUP_NAME = 'A'
@@ -66,14 +67,14 @@ export class Column {
   /**
    * @param {number}  rowPosition where this stands in its row, counted from 0
    * @param {Cell[]}  [cells]     the six strings; empty ones when not given
-   * @param {string|false} [cssMode] GROUP_START, GROUP_END, GROUP_REPEAT, or
-   *   false for a plain position — how the column is drawn, and nothing
-   *   more. A column marking a group is still a column: it holds its six
-   *   cells and takes up its position like any other.
+   * @param {string|false} [cssMode] one of the four above, or false for a
+   *   plain position — how the column is drawn, and nothing more. A column
+   *   marking a group is still a column: it holds its six cells and takes
+   *   up its position like any other.
    * @param {object} [marks] what a group column says beyond being one:
-   *   `repeat`, how many times the group is played, on a GROUP_REPEAT
-   *   column; and `name`, what the group is called, on its GROUP_START
-   *   column. Both are null on every other column.
+   *   `repeat`, how many times the group is played, on the column that
+   *   closes it; and `name`, what the group is called, on the column that
+   *   opens it. Both are null on every other column.
    */
   constructor(rowPosition, cells = null, cssMode = false, { repeat = null, name = null } = {}) {
     this.rowPosition = rowPosition
@@ -103,9 +104,14 @@ export class Column {
     return this.cssMode === GROUP_START || this.cssMode === GROUP_END
   }
 
-  /** True when this column stands in for a whole group played here. */
+  /** True when this column opens a group played here from elsewhere. */
   get isGroupRef() {
     return this.cssMode === GROUP_REF
+  }
+
+  /** True when this column closes one, and so carries its count. */
+  get isGroupRefEnd() {
+    return this.cssMode === GROUP_REF_END
   }
 
   /** True when this column belongs to a group rather than standing on its own. */

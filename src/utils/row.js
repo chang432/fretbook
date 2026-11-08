@@ -3,7 +3,7 @@ import {
   DEFAULT_GROUP_NAME,
   GROUP_END,
   GROUP_REF,
-  GROUP_REPEAT,
+  GROUP_REF_END,
   GROUP_START,
 } from './column.js'
 
@@ -74,9 +74,9 @@ export class Row {
    * them say. A group that was opened and never closed is not one yet, so
    * it is left out rather than guessed at.
    *
-   * The count is read from the column past the closing one, where it is
-   * written, and the name off the opening one — so a group that has never
-   * been named still has one to show.
+   * The count is read off the closing column, where it is written, and the
+   * name off the opening one — so a group that has never been named still
+   * has one to show.
    */
   get groups() {
     const found = []
@@ -89,13 +89,11 @@ export class Row {
       }
       if (column.cssMode !== GROUP_END || !open) return
 
-      const past = this.columns[column.rowPosition + 1]
       found.push({
         start: open.rowPosition,
         end: column.rowPosition,
         name: open.name ?? DEFAULT_GROUP_NAME,
-        repeat: past?.cssMode === GROUP_REPEAT ? past.repeat : null,
-        repeatAt: past?.cssMode === GROUP_REPEAT ? past.rowPosition : null,
+        repeat: column.repeat,
       })
       open = null
     })
@@ -127,19 +125,20 @@ export class Row {
   }
 
   /**
-   * This row with a group put down at `col`: the whole of that group in one
-   * column, and how many times it is played in a new column beside it.
+   * This row with a group put down at `col`: a group in miniature, opening
+   * at that column with the group's name and closing at the next with the
+   * count.
    *
    * Whatever stood at `col` is gone — a column saying a group is played
    * here is not a position, so there is nowhere in it for a note to be —
    * and the row is one position longer than it was, every column past the
-   * two being pushed along to make room for the count.
+   * two being pushed along to make room for the closing one.
    */
   withGroupAt(col, name) {
     if (col < 0 || col >= this.columns.length) return this
 
     const placed = new Column(col, null, GROUP_REF, { name })
-    const counted = new Column(col + 1, null, GROUP_REPEAT, { repeat: 1 })
+    const counted = new Column(col + 1, null, GROUP_REF_END, { repeat: 1 })
     const after = this.columns.slice(col + 1).map((column, i) => column.at(col + 2 + i))
 
     return new Row(
@@ -150,10 +149,10 @@ export class Row {
   }
 
   /**
-   * This row without the group that opens at `col`: its two ends and the
-   * count past them are gone, and the row is three positions shorter.
+   * This row without the group that opens at `col`: both of its ends are
+   * gone, and the row is two positions shorter.
    *
-   * What was written *inside* the group stays. The three columns are the
+   * What was written *inside* the group stays. The two columns are the
    * group — they are what say a run of positions is played again — and the
    * notes between them are the music, which is nobody's to throw away here.
    */
@@ -161,23 +160,20 @@ export class Row {
     const group = this.groups.find((each) => each.start === col)
     if (!group) return this
 
-    const gone = new Set([group.start, group.end])
-    if (group.repeatAt !== null) gone.add(group.repeatAt)
-
-    return without(this, gone)
+    return without(this, new Set([group.start, group.end]))
   }
 
   /**
-   * This row without the group that was played at `col`: that column goes
-   * back to being a plain position, empty, and the count beside it is gone
-   * — exactly undoing `withGroupAt`, down to the length.
+   * This row without the group that was played at `col`: the opening column
+   * goes back to being a plain position, empty, and the closing one beside
+   * it is gone — exactly undoing `withGroupAt`, down to the length.
    */
   withoutRefAt(col) {
     const standing = this.columns[col]
     if (!standing?.isGroupRef) return this
 
     const past = this.columns[col + 1]
-    const gone = new Set(past?.cssMode === GROUP_REPEAT ? [past.rowPosition] : [])
+    const gone = new Set(past?.isGroupRefEnd ? [past.rowPosition] : [])
     const freed = this.columns.map((column) =>
       column.rowPosition === col ? new Column(col) : column,
     )

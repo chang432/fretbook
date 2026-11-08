@@ -95,12 +95,26 @@
   background: radial-gradient(closest-side, var(--page) 74%, transparent 100%);
 }
 
-.cell:hover {
+/* A cell lights up because it is about to be written in. The ones that are
+   pressed instead — a group's two ends, and the two a group played here
+   stands in — say so with `cell--quiet`, and are passed over.
+
+   They are passed over rather than overridden afterwards because both the
+   highlight and the string a cell draws are background *images*: cancelling
+   the highlight on a quiet cell would take the string with it and leave a
+   hole in the staff. Not matching in the first place leaves the string
+   where it was. */
+.cell:not(.cell--quiet):hover {
   background: radial-gradient(closest-side, rgb(168 73 47 / 10%) 74%, transparent 100%);
 }
 
-.cell:focus {
+.cell:not(.cell--quiet):focus {
   background: radial-gradient(closest-side, var(--page) 78%, transparent 100%);
+  outline: none;
+}
+
+/* Nothing of the browser's own either, since nothing here is being typed. */
+.cell--quiet:focus {
   outline: none;
 }
 

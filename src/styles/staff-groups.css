@@ -26,7 +26,9 @@
    against the side of the cell that faces away from the group. Above the
    input, so a fret written in a marked column cannot wash it out. */
 .cell-slot--group-start::before,
-.cell-slot--group-end::before {
+.cell-slot--group-ref::before,
+.cell-slot--group-end::before,
+.cell-slot--group-ref-end::before {
   content: '';
   position: absolute;
   /* Over the cover, not under it: the bracket is what says where the group
@@ -39,11 +41,13 @@
   pointer-events: none;
 }
 
-.cell-slot--group-start::before {
+.cell-slot--group-start::before,
+.cell-slot--group-ref::before {
   left: 0;
 }
 
-.cell-slot--group-end::before {
+.cell-slot--group-end::before,
+.cell-slot--group-ref-end::before {
   right: 0;
 }
 
@@ -51,12 +55,16 @@
    ruled on a staff does, rather than running on into the air above and
    below them. */
 .string-row--top .cell-slot--group-start::before,
-.string-row--top .cell-slot--group-end::before {
+.string-row--top .cell-slot--group-ref::before,
+.string-row--top .cell-slot--group-end::before,
+.string-row--top .cell-slot--group-ref-end::before {
   top: 50%;
 }
 
 .string-row--bottom .cell-slot--group-start::before,
-.string-row--bottom .cell-slot--group-end::before {
+.string-row--bottom .cell-slot--group-ref::before,
+.string-row--bottom .cell-slot--group-end::before,
+.string-row--bottom .cell-slot--group-ref-end::before {
   bottom: 50%;
 }
 
@@ -66,8 +74,12 @@
    back. Half an arrowhead — the bar is the other half. */
 .string-row--top .cell-slot--group-start::after,
 .string-row--bottom .cell-slot--group-start::after,
+.string-row--top .cell-slot--group-ref::after,
+.string-row--bottom .cell-slot--group-ref::after,
 .string-row--top .cell-slot--group-end::after,
-.string-row--bottom .cell-slot--group-end::after {
+.string-row--bottom .cell-slot--group-end::after,
+.string-row--top .cell-slot--group-ref-end::after,
+.string-row--bottom .cell-slot--group-ref-end::after {
   content: '';
   position: absolute;
   /* With the bar they finish: over the cover, not under it. */
@@ -92,39 +104,32 @@
 
 /* Nothing happens under the pointer on them, though. A cell lights up
    because it is about to be written in, and these are not: the bracket is
-   the thing being pressed, and it does not move. */
-.cell-slot--group-start .cell:hover,
-.cell-slot--group-end .cell:hover,
-.cell-slot--group-ref .cell:hover,
-.cell-slot--group-start .cell:focus,
-.cell-slot--group-end .cell:focus,
-.cell-slot--group-ref .cell:focus {
-  background: none;
-  box-shadow: none;
-  outline: none;
-}
+   the thing being pressed, and it does not move. That is said by marking
+   the cell `cell--quiet` rather than by undoing the highlight here — the
+   highlight is a background *image*, and so is the string the cell draws,
+   so anything that cancels the one takes the other with it and leaves a
+   hole in the staff. See `.cell--quiet` in staff-strings.css.
 
-/* The rest of a repeat column is neither pressed nor written in — only its
-   top cell, which carries the count, is anything at all. */
-.cell-slot--group-repeat .cell {
-  pointer-events: none;
-  user-select: none;
-  caret-color: transparent;
-}
+   What is left to say is only that no caret belongs in them. */
 
-.cell-slot--group-repeat .cell--repeat {
-  pointer-events: auto;
+/* The count is the one cell of a closing column that is written in rather
+   than pressed: it is typed over, and it keeps its caret. Four classes
+   deep so it beats the press above, which names three. */
+.cell-slot--group-end .cell.cell--repeat,
+.cell-slot--group-ref-end .cell.cell--repeat {
+  cursor: text;
   user-select: auto;
   caret-color: var(--accent);
-  cursor: text;
 }
 
 /* While it is being typed in it goes white, and shows the bare number —
    the `x` is how a count is read, not part of what is being changed, so
-   Cell takes it away for as long as the press is in the box. */
-/* Four classes deep, to beat the box's own paper fill below — which ties
-   with it otherwise, and wins only by standing later in the file. */
-.cell-slot--group-repeat .cell.cell--repeat:focus {
+   Cell takes it away for as long as the press is in the box.
+
+   Deeper again, to beat both the bracket's own `background: none` on focus
+   and the box's paper fill below. */
+.cell-slot--group-end .cell.cell--repeat:focus,
+.cell-slot--group-ref-end .cell.cell--repeat:focus {
   background-color: #fff;
 }
 
@@ -168,149 +173,93 @@
 
 /* Opening: off the left bar, pointing right. */
 .string-row--top .cell-slot--group-start::after,
-.string-row--bottom .cell-slot--group-start::after {
+.string-row--bottom .cell-slot--group-start::after,
+.string-row--top .cell-slot--group-ref::after,
+.string-row--bottom .cell-slot--group-ref::after {
   left: var(--group-bar-w);
   border-right: var(--group-arrow) solid transparent;
 }
 
 /* Closing: off the right bar, pointing left. */
 .string-row--top .cell-slot--group-end::after,
-.string-row--bottom .cell-slot--group-end::after {
+.string-row--bottom .cell-slot--group-end::after,
+.string-row--top .cell-slot--group-ref-end::after,
+.string-row--bottom .cell-slot--group-ref-end::after {
   right: var(--group-bar-w);
   border-left: var(--group-arrow) solid transparent;
 }
 
 /* Top of the bracket: flat along the top, sloping back down to the bar. */
 .string-row--top .cell-slot--group-start::after,
-.string-row--top .cell-slot--group-end::after {
+.string-row--top .cell-slot--group-ref::after,
+.string-row--top .cell-slot--group-end::after,
+.string-row--top .cell-slot--group-ref-end::after {
   top: 50%;
   border-top: var(--group-arrow) solid var(--ink);
 }
 
 /* And the foot of it, mirrored. */
 .string-row--bottom .cell-slot--group-start::after,
-.string-row--bottom .cell-slot--group-end::after {
+.string-row--bottom .cell-slot--group-ref::after,
+.string-row--bottom .cell-slot--group-end::after,
+.string-row--bottom .cell-slot--group-ref-end::after {
   bottom: 50%;
   border-bottom: var(--group-arrow) solid var(--ink);
 }
 
-/* How many times the group is played, on the top cell of the column just
-   past the bar that closes it and nowhere else — the other five cells of
-   that column are blank staff.
+/* How many times the group is played, on the top cell of the column that
+   closes it — the bar that shuts the bracket and the count of times to
+   come back to it being the one statement, said in the one place.
 
-   The cell writes the count itself; this is only how it is drawn. Boxed to
-   the same thickness as the bracket, both being the one token, and filled
-   with the paper's own colour so the string does not run through the count
-   — the same way a written fret punches a hole in the string it sits on.
+   The cell writes the count itself; this is only how it is drawn: the cell
+   made a box of itself, boxed to the same thickness as the bracket, both
+   being the one token. It fills its position exactly, so its right border
+   falls along the bar rather than beside it, and the paper it is filled
+   with is what keeps the string from running through the count.
 
-   It is lifted out of its cell and hung on the line between that cell and
-   the one under it, so the count sits in the gap between the top two
-   strings rather than on top of the first of them. `top: 100%` is the foot
-   of its own position and the head of the next; half its own height back up
-   from there is the middle of the two string lines either side.
+   The count sits in the bottom-left corner of that box. The half-arrow
+   that closes the bracket comes off the bar into the bottom-right of the
+   same cell, so that corner is the one corner of the box the arrow leaves
+   clear — and the padding is how the text is put there, an input having no
+   other way of standing anywhere but the middle of itself.
 
    Three classes deep so it beats `.string-row--segmented .cell`, which
-   would otherwise go on drawing that string straight through the box. */
-.cell-slot--group-repeat .cell.cell--repeat {
-  position: absolute;
-  /* Over the string rows either side of it. The box straddles the line
-     between two of them, and a slot is positioned, so at a lower layer the
-     row underneath would paint over its lower half — and take the press
-     meant for it along with the paint. */
-  z-index: 3;
-  top: 100%;
-  left: 15px; /* (cell_width / 2) - vertical_bar_thickness -> (36/2) - 3 -> 15px */
-  transform: translate(-50%, -50%);
-  /* In from its position either side, so two of these never touch. */
-  /* width: calc(var(--cell-w) - 4px); */
-  /* height: calc(var(--row-h) - 6px); */
+   would otherwise go on drawing the string straight through the box. */
+.cell-slot--group-end .cell.cell--repeat,
+.cell-slot--group-ref-end .cell.cell--repeat {
+  /* With the bracket, over the cover an open group lays across the staff:
+     the count is part of what the bracket says, and a group being open is
+     no reason to lose sight of it. Level with the bar it stands against,
+     and so painted over it — which costs nothing, the box's own right
+     border falling exactly where the bar is, in the same ink. */
+  z-index: 4;
   border: var(--group-bar-w) solid var(--ink);
-  /* border-radius: 2px; */
   background-color: var(--paper);
   background-image: none;
-  font-size: 13px;
+  padding: 15px 0 0 4px;
+  text-align: left;
+  font: 600 11px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: -0.5px;
 }
 
-/* The string the count has stepped off. Its cell drew that segment itself
-   until now; with the cell lifted away the slot draws it instead, so the
-   top string runs through the column unbroken and the box hangs below it
-   rather than out of a hole in it. */
-.string-row--top .cell-slot--group-repeat::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: linear-gradient(var(--string), var(--string));
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 100% var(--string-w);
+/* A group played ten times or more. The corner is the corner either way,
+   and the arrow is where it is, so the count gives way instead. */
+.cell-slot--group-end .cell.cell--repeat--long,
+.cell-slot--group-ref-end .cell.cell--repeat--long {
+  padding-top: 17px;
+  font-size: 9px;
 }
 
-/* A whole group played in one column ------------------------------------
+/* A group played here from elsewhere ------------------------------------
  *
  * Not where a group is written, but where one written elsewhere is played.
- * It is the opening and the closing of a group said at once, so the column
- * has a bar down each side with a half-arrow at each end pointing in — the
- * same four the two ends carry between them, here on one column.
+ * It is a group in miniature: two columns, an opening and a closing, with
+ * nothing between them, because what is played is written somewhere else.
  *
- * Both bars come off one box, as its own left and right borders, since a
- * cell has only the two pseudo-elements and the arrows need the other. */
-.cell-slot--group-ref::before {
-  content: '';
-  position: absolute;
-  z-index: 4;
-  inset: 0;
-  border-left: var(--group-bar-w) solid var(--ink);
-  border-right: var(--group-bar-w) solid var(--ink);
-  pointer-events: none;
-}
-
-/* Stopping at the outer strings, the way the two ends do. */
-.string-row--top .cell-slot--group-ref::before {
-  top: 50%;
-}
-
-.string-row--bottom .cell-slot--group-ref::before {
-  bottom: 50%;
-}
-
-/* Both half-arrows of one end, drawn as two corners of a single box: each
-   is a gradient cut on the diagonal, which is how one element can carry
-   two triangles when it has no pseudo-element left to spare.
-
-   They are shorter than the ones a group's two ends carry. Those reach to
-   the middle of their cell, which is the whole of the distance available;
-   two of them facing each other across one column would meet there and
-   read as a single point rather than as two arrows. These stop well short
-   of each other, so the pair still reads as a pair. */
-.string-row--top .cell-slot--group-ref::after,
-.string-row--bottom .cell-slot--group-ref::after {
-  content: '';
-  position: absolute;
-  z-index: 4;
-  left: var(--group-bar-w);
-  right: var(--group-bar-w);
-  height: var(--group-arrow);
-  background-repeat: no-repeat;
-  background-size: var(--group-arrow) 100%;
-  background-position: left center, right center;
-  pointer-events: none;
-}
-
-/* Opening downwards from the top of the bars. */
-.string-row--top .cell-slot--group-ref::after {
-  top: 50%;
-  background-image:
-    linear-gradient(to bottom right, var(--ink) 0 50%, transparent 50%),
-    linear-gradient(to bottom left, var(--ink) 0 50%, transparent 50%);
-}
-
-/* And closing upwards from the foot of them. */
-.string-row--bottom .cell-slot--group-ref::after {
-  bottom: 50%;
-  background-image:
-    linear-gradient(to top right, var(--ink) 0 50%, transparent 50%),
-    linear-gradient(to top left, var(--ink) 0 50%, transparent 50%);
-}
+ * The bracket itself is the bracket above — those rules name this pair
+ * alongside a written group's own two ends, since they are the same two
+ * things being drawn. All that is left to say here is what the pair
+ * carries between them. */
 
 /* Which group it is, on the cell halfway down the column so that the ring
    sits on the middle of the staff. Round, where the count's box is square:

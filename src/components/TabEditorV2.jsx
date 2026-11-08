@@ -3,7 +3,7 @@ import Cell from './Cell.jsx'
 import CellMenu from './CellMenu.jsx'
 import DeleteBar from './DeleteBar.jsx'
 import GroupCover from './GroupCover.jsx'
-import { GROUP_REF, sheetGroups } from '../utils/tabV2.js'
+import { GROUP_REF, GROUP_REF_END, sheetGroups } from '../utils/tabV2.js'
 
 /**
  * The second editor, stripped to the bone: one staff per row, a cell per
@@ -61,6 +61,7 @@ export default function TabEditorV2({
   onCellChange,
   onRepeatChange,
   onNameChange,
+  onRowNameChange,
   onPlaceGroup,
   onDeleteGroup,
   onDeleteRef,
@@ -143,7 +144,7 @@ export default function TabEditorV2({
     const own = {
       cell: null,
       group: '.group-cover, .cell-slot--in-group',
-      ref: '.cell-slot--group-ref',
+      ref: '.cell-slot--group-ref, .cell-slot--group-ref-end',
     }[working.kind]
 
     const away = (event) => {
@@ -179,7 +180,7 @@ export default function TabEditorV2({
                 string letters and the staff — see styles/v2.css. The box
                 keeps its width whether or not there is a name in it, so
                 every staff on the sheet starts at the same place. */}
-            <div className="staff-group-name">{row.name}</div>
+            <input className="staff-group-name" aria-label={`Staff ${staff + 1} label`} value={row.name} onFocus={(event) => event.target.select()} onChange={(event) => onRowNameChange(staff, event.target.value)} />
 
             <div className="staff-scroll">
               <div className="staff-run">
@@ -226,15 +227,19 @@ export default function TabEditorV2({
                             onSelect={(element) =>
                               setWorking({ kind: 'cell', row: staff, col: at, element })
                             }
-                            // A column standing in for a whole group is
-                            // pressed as itself, even when it stands inside
-                            // some other group's span.
+                            // A group played here is pressed as itself,
+                            // even where it stands inside some other
+                            // group's span. Either of its two columns is
+                            // the same press: both name the opening one,
+                            // which is where it is known by.
                             onPress={
                               column.cssMode === GROUP_REF
                                 ? press('ref', staff, at)
-                                : group
-                                  ? press('group', staff, group.start)
-                                  : undefined
+                                : column.cssMode === GROUP_REF_END
+                                  ? press('ref', staff, at - 1)
+                                  : group
+                                    ? press('group', staff, group.start)
+                                    : undefined
                             }
                             onRepeat={(count) => onRepeatChange(staff, at, count)}
                           />
@@ -271,7 +276,7 @@ export default function TabEditorV2({
           scrolling inside itself cannot clip them. */}
       {working?.kind === 'cell' && (
         <CellMenu
-          anchor={working.element}
+          anchor={columnTop(working.element, working.col)}
           groups={groups}
           onPlace={(name) => {
             onPlaceGroup(working.row, working.col, name)

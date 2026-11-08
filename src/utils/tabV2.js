@@ -10,12 +10,11 @@
  *   Cell    →  string, value
  *
  * A group is marked inside the staff rather than around it: the position it
- * starts at, the position it ends at, and the one past that saying how many
- * times it is played are columns of the row like any other, given over to
- * saying so. `cssMode` is how a column says which it is, `repeat` is the
- * count the last of the three carries, and a column that says any of this
- * is still a column — it holds its six cells and takes up its place in the
- * run. None of the three is a position to write in.
+ * starts at and the position it ends at are columns of the row like any
+ * other, given over to saying so. `cssMode` is how a column says which it
+ * is, `repeat` is the count the closing one carries, and a column that says
+ * any of this is still a column — it holds its six cells and takes up its
+ * place in the run. Neither is a position to write in.
  *
  * Each knows only what is under it: a cell knows its string, a column knows
  * where it stands in its row, and only the sheet — this file — knows which
@@ -38,7 +37,7 @@ export {
   GROUP_START,
   GROUP_END,
   GROUP_REF,
-  GROUP_REPEAT,
+  GROUP_REF_END,
   normalizeGroupName,
   normalizeRepeat,
 } from './column.js'
@@ -94,6 +93,23 @@ export function markColumn(sheet, row, col, cssMode, marks = {}) {
  */
 export const sheetGroups = (sheet) =>
   sheet.flatMap((row, at) => row.groups.map((group) => ({ ...group, row: at })))
+
+/**
+ * Change how many times the group marked at `col` is played. The count is
+ * written on the column that closes a group, whether that is a group of
+ * this row's own or one played here from elsewhere, so this keeps the
+ * column as it is and changes only the count on it.
+ */
+export function setRepeat(sheet, row, col, repeat) {
+  const standing = sheet[row]
+  const column = standing?.column(col)
+  if (!column || column.repeat === null) return sheet
+
+  const marked = standing.withMode(col, column.cssMode, { ...column.marks, repeat })
+  if (marked === standing) return sheet
+
+  return sheet.map((each, r) => (r === row ? marked : each))
+}
 
 /**
  * Rename the group that opens at `col`, everywhere it is read.
