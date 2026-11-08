@@ -16,15 +16,14 @@ export const GROUP_END = 'group-end'
 
 /**
  * A group played somewhere else: not where a group is written, but where
- * one already written is played again. It is a group in miniature, and it
- * is marked like one — two columns, an opening and a closing, with nothing
- * between them because what is played is written elsewhere.
+ * one already written is played again. A whole group in one column, since
+ * what is played is written elsewhere and there is nothing to put between
+ * its two ends.
  *
- * The opening column carries the group's name, the closing one carries the
- * count, and neither holds a note.
+ * That one column carries both of the things a group's two ends carry
+ * between them — its name and its count — and holds no notes.
  */
 export const GROUP_REF = 'group-ref'
-export const GROUP_REF_END = 'group-ref-end'
 
 /** What a group is called before anyone says otherwise. */
 export const DEFAULT_GROUP_NAME = 'A'
@@ -104,14 +103,9 @@ export class Column {
     return this.cssMode === GROUP_START || this.cssMode === GROUP_END
   }
 
-  /** True when this column opens a group played here from elsewhere. */
+  /** True when this column stands in for a group played here from elsewhere. */
   get isGroupRef() {
     return this.cssMode === GROUP_REF
-  }
-
-  /** True when this column closes one, and so carries its count. */
-  get isGroupRefEnd() {
-    return this.cssMode === GROUP_REF_END
   }
 
   /** True when this column belongs to a group rather than standing on its own. */

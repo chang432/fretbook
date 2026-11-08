@@ -98,11 +98,11 @@ export default function Cell({
   const says = repeat !== null && cell.string === 0
   const count = !says ? null : counting ? String(repeat) : `x${repeat}`
 
-  // A group played here from elsewhere — both of its columns — and the one
-  // cell of its opening column that says which group it is: halfway down,
-  // where the ring is drawn.
-  const stands = mode === 'group-ref' || mode === 'group-ref-end'
-  const named = mode === 'group-ref' && cell.string === MIDDLE_STRING ? name : null
+  // A group played here from elsewhere, and the one cell of its column
+  // that says which group it is: halfway down, where the ring is drawn.
+  // The count is on the top cell of the same column — see `says` above.
+  const stands = mode === 'group-ref'
+  const named = stands && cell.string === MIDDLE_STRING ? name : null
 
   // The top and bottom strings, which are the two lines the staff is ruled
   // to. The bars of a group's column and the arrows off them both stop

@@ -3,7 +3,7 @@ import Cell from './Cell.jsx'
 import CellMenu from './CellMenu.jsx'
 import DeleteBar from './DeleteBar.jsx'
 import GroupCover from './GroupCover.jsx'
-import { GROUP_REF, GROUP_REF_END, sheetGroups } from '../utils/tabV2.js'
+import { GROUP_REF, previousWrittenPosition, sheetGroups } from '../utils/tabV2.js'
 
 /**
  * The second editor, stripped to the bone: one staff per row, a cell per
@@ -62,6 +62,7 @@ export default function TabEditorV2({
   onRepeatChange,
   onNameChange,
   onRowNameChange,
+  onCopyPrevious,
   onPlaceGroup,
   onDeleteGroup,
   onDeleteRef,
@@ -144,7 +145,7 @@ export default function TabEditorV2({
     const own = {
       cell: null,
       group: '.group-cover, .cell-slot--in-group',
-      ref: '.cell-slot--group-ref, .cell-slot--group-ref-end',
+      ref: '.cell-slot--group-ref',
     }[working.kind]
 
     const away = (event) => {
@@ -229,17 +230,13 @@ export default function TabEditorV2({
                             }
                             // A group played here is pressed as itself,
                             // even where it stands inside some other
-                            // group's span. Either of its two columns is
-                            // the same press: both name the opening one,
-                            // which is where it is known by.
+                            // group's span.
                             onPress={
                               column.cssMode === GROUP_REF
                                 ? press('ref', staff, at)
-                                : column.cssMode === GROUP_REF_END
-                                  ? press('ref', staff, at - 1)
-                                  : group
-                                    ? press('group', staff, group.start)
-                                    : undefined
+                                : group
+                                  ? press('group', staff, group.start)
+                                  : undefined
                             }
                             onRepeat={(count) => onRepeatChange(staff, at, count)}
                           />
@@ -278,6 +275,8 @@ export default function TabEditorV2({
         <CellMenu
           anchor={columnTop(working.element, working.col)}
           groups={groups}
+          canCopy={Boolean(previousWrittenPosition(rows, working.row, working.col))}
+          onCopy={() => onCopyPrevious(working.row, working.col)}
           onPlace={(name) => {
             onPlaceGroup(working.row, working.col, name)
             // What was selected is not there any more: the column it stood

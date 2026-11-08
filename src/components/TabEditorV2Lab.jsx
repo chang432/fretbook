@@ -4,6 +4,7 @@ import {
   GROUP_END,
   GROUP_START,
   Row,
+  copyPreviousPosition,
   STANDARD_TUNING,
   deleteGroup,
   deleteRef,
@@ -193,6 +194,7 @@ export default function TabEditorV2Lab() {
           onRepeatChange={handleRepeatChange}
           onNameChange={handleNameChange}
           onRowNameChange={handleRowNameChange}
+          onCopyPrevious={(row, col) => setRows((prev) => copyPreviousPosition(prev, row, col))}
           onPlaceGroup={handlePlaceGroup}
           onDeleteGroup={handleDeleteGroup}
           onDeleteRef={handleDeleteRef}

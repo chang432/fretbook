@@ -37,7 +37,6 @@ export {
   GROUP_START,
   GROUP_END,
   GROUP_REF,
-  GROUP_REF_END,
   normalizeGroupName,
   normalizeRepeat,
 } from './column.js'
@@ -67,6 +66,24 @@ export function writeCell(sheet, row, col, string, value) {
   if (written === standing) return sheet
 
   return sheet.map((each, r) => (r === row ? written : each))
+}
+
+/** Find the last written note column, including across staff boundaries. */
+export function previousWrittenPosition(sheet, row, col) {
+  for (let r = row; r >= 0; r -= 1) {
+    const columns = sheet[r]?.columns ?? []
+    for (let c = (r === row ? col : columns.length) - 1; c >= 0; c -= 1) {
+      if (!columns[c].isGroupMark && !columns[c].isEmpty) return columns[c]
+    }
+  }
+  return null
+}
+
+export function copyPreviousPosition(sheet, row, col) {
+  const target = sheet[row]?.column(col)
+  const source = previousWrittenPosition(sheet, row, col)
+  if (!target || target.isGroupMark || !source) return sheet
+  return source.cells.reduce((next, cell, string) => writeCell(next, row, col, string, cell.value), sheet)
 }
 
 /**
@@ -173,9 +190,8 @@ export function deleteRef(sheet, row, col) {
 
 /**
  * Put a group down at a position: that column becomes the whole group,
- * said in one place, with a column for its count beside it. The row grows
- * by one, since the count needs somewhere to stand that was not there
- * before.
+ * said in one place, carrying both the name and the count that a group's
+ * two ends carry between them. The row is the length it was.
  *
  * Whatever was written in the column is gone. It is not a loss to work
  * around: a column saying a group is played here is not a position, so

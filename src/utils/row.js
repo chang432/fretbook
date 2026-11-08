@@ -3,7 +3,6 @@ import {
   DEFAULT_GROUP_NAME,
   GROUP_END,
   GROUP_REF,
-  GROUP_REF_END,
   GROUP_START,
 } from './column.js'
 
@@ -125,25 +124,23 @@ export class Row {
   }
 
   /**
-   * This row with a group put down at `col`: a group in miniature, opening
-   * at that column with the group's name and closing at the next with the
-   * count.
+   * This row with a group put down at `col`: that one column becomes the
+   * whole group, carrying its name and a count of one to begin with.
    *
-   * Whatever stood at `col` is gone — a column saying a group is played
-   * here is not a position, so there is nowhere in it for a note to be —
-   * and the row is one position longer than it was, every column past the
-   * two being pushed along to make room for the closing one.
+   * Whatever stood there is gone — a column saying a group is played here
+   * is not a position, so there is nowhere in it for a note to be — but
+   * the row is the length it was. A group played here takes the place of a
+   * position rather than being squeezed in beside it, so nothing else
+   * moves.
    */
   withGroupAt(col, name) {
     if (col < 0 || col >= this.columns.length) return this
 
-    const placed = new Column(col, null, GROUP_REF, { name })
-    const counted = new Column(col + 1, null, GROUP_REF_END, { repeat: 1 })
-    const after = this.columns.slice(col + 1).map((column, i) => column.at(col + 2 + i))
+    const placed = new Column(col, null, GROUP_REF, { name, repeat: 1 })
 
     return new Row(
-      this.length + 1,
-      [...this.columns.slice(0, col), placed, counted, ...after],
+      this.length,
+      this.columns.map((column, c) => (c === col ? placed : column)),
       this.name,
     )
   }
@@ -164,21 +161,19 @@ export class Row {
   }
 
   /**
-   * This row without the group that was played at `col`: the opening column
-   * goes back to being a plain position, empty, and the closing one beside
-   * it is gone — exactly undoing `withGroupAt`, down to the length.
+   * This row without the group that was played at `col`: that column goes
+   * back to being a plain position, empty — exactly undoing `withGroupAt`,
+   * the row's length included, which never changed.
    */
   withoutRefAt(col) {
     const standing = this.columns[col]
     if (!standing?.isGroupRef) return this
 
-    const past = this.columns[col + 1]
-    const gone = new Set(past?.isGroupRefEnd ? [past.rowPosition] : [])
-    const freed = this.columns.map((column) =>
-      column.rowPosition === col ? new Column(col) : column,
+    return new Row(
+      this.length,
+      this.columns.map((column, c) => (c === col ? new Column(col) : column)),
+      this.name,
     )
-
-    return without(new Row(this.length, freed, this.name), gone)
   }
 
   /**
@@ -202,7 +197,9 @@ export class Row {
     const columns = this.columns.map((column) => {
       if (!column.isGroupRef || column.name !== from) return column
       found = true
-      return column.withMode(GROUP_REF, { name: to })
+      // Everything else the column says rides along: a group being renamed
+      // is no reason for it to stop being played as many times as it was.
+      return column.withMode(GROUP_REF, { ...column.marks, name: to })
     })
 
     return found ? new Row(this.length, columns, this.name) : this
