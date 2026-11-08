@@ -36,7 +36,8 @@ const MIDDLE_STRING = Math.floor(STRING_COUNT / 2) - 1
  * the model's cell underneath stays empty.
  *
  * `repeat` is that count, and the cell on the top string of its column is
- * the one that says it: the box is that cell, drawn as a box. The cell
+ * the one that says it: the box is that cell, lifted out of its place and
+ * hung on the line between the top two strings instead. The cell
  * writes the count out itself — it is the cell's own content, and the
  * stylesheet only says how it looks. It says it two ways: `x3` at rest,
  * which is how a count is read, and `3` while it is being typed in, which
@@ -122,9 +123,6 @@ export default function Cell({
   else if (named) classes.push('cell--group-name')
   else if (!cell.isEmpty) classes.push('cell--filled')
 
-  // Two digits have to go in the same corner one digit does, clear of the
-  // arrow beside it, so they are written smaller.
-  if (says && count.length > 2) classes.push('cell--repeat--long')
   // Pressed rather than written in, so it does not light up under the
   // pointer the way a position about to be written in does.
   if (presses) classes.push('cell--quiet')
@@ -134,6 +132,11 @@ export default function Cell({
 
   const slot = ['cell-slot']
   if (mode) slot.push(`cell-slot--${mode}`)
+  // The count is lifted out of this slot and hung on the line below it, so
+  // the slot is what the box is placed from — and the one thing the two
+  // kinds of closing column have in common, which is why the box is drawn
+  // off this rather than off either of their modes.
+  if (says) slot.push('cell-slot--counted')
   if (inGroup) slot.push('cell-slot--in-group')
 
   return (

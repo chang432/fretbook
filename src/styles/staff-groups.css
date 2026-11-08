@@ -96,7 +96,8 @@
    see Cell, which also keeps them out of the tab order behind it. */
 .cell-slot--group-start .cell,
 .cell-slot--group-end .cell,
-.cell-slot--group-ref .cell {
+.cell-slot--group-ref .cell,
+.cell-slot--group-ref-end .cell {
   cursor: pointer;
   user-select: none;
   caret-color: transparent;
@@ -113,10 +114,9 @@
    What is left to say is only that no caret belongs in them. */
 
 /* The count is the one cell of a closing column that is written in rather
-   than pressed: it is typed over, and it keeps its caret. Four classes
-   deep so it beats the press above, which names three. */
-.cell-slot--group-end .cell.cell--repeat,
-.cell-slot--group-ref-end .cell.cell--repeat {
+   than pressed: it is typed over, and it keeps its caret. Three classes
+   deep so it beats the press above, which names two. */
+.cell-slot--counted .cell.cell--repeat {
   cursor: text;
   user-select: auto;
   caret-color: var(--accent);
@@ -128,8 +128,7 @@
 
    Deeper again, to beat both the bracket's own `background: none` on focus
    and the box's paper fill below. */
-.cell-slot--group-end .cell.cell--repeat:focus,
-.cell-slot--group-ref-end .cell.cell--repeat:focus {
+.cell-slot--counted .cell.cell--repeat:focus {
   background-color: #fff;
 }
 
@@ -207,32 +206,46 @@
   border-bottom: var(--group-arrow) solid var(--ink);
 }
 
-/* How many times the group is played, on the top cell of the column that
-   closes it — the bar that shuts the bracket and the count of times to
-   come back to it being the one statement, said in the one place.
+/* How many times the group is played, on the column that closes it — the
+   bar that shuts the bracket and the count of times to come back to it
+   being the one statement, said in the one place.
 
-   The cell writes the count itself; this is only how it is drawn: the cell
-   made a box of itself, boxed to the same thickness as the bracket, both
-   being the one token. It fills its position exactly, so its right border
-   falls along the bar rather than beside it, and the paper it is filled
-   with is what keeps the string from running through the count.
+   The cell writes the count itself; this is only how it is drawn. It is
+   the top cell of that column, lifted out of its place and hung on the
+   line below it: `top: 100%` is the foot of its own position and the head
+   of the next, and half its own height back up from there leaves the box
+   standing in the gap between the top two staff lines, its own borders
+   lying along them.
 
-   The count sits in the bottom-left corner of that box. The half-arrow
-   that closes the bracket comes off the bar into the bottom-right of the
-   same cell, so that corner is the one corner of the box the arrow leaves
-   clear — and the padding is how the text is put there, an input having no
-   other way of standing anywhere but the middle of itself.
+   Boxed to the same thickness as the bracket, both being the one token,
+   and filled with the paper's own colour so the string does not run
+   through the count. It is as wide as its column and leans right, so its
+   right border falls along the bar rather than beside it.
 
-   Three classes deep so it beats `.string-row--segmented .cell`, which
-   would otherwise go on drawing the string straight through the box. */
-.cell-slot--group-end .cell.cell--repeat,
-.cell-slot--group-ref-end .cell.cell--repeat {
+   The count sits in the bottom-left corner. The half-arrow that closes the
+   bracket reaches down into the top of the box, so the lower half is the
+   part of it the arrow leaves clear — and the padding is how the text is
+   put there, an input having no other way of standing anywhere but the
+   middle of itself.
+
+   One selector for both kinds of closing column, a group's own and that of
+   a group played here from elsewhere: `cell-slot--counted` is on whichever
+   slot the count was lifted out of. Three classes deep so it beats
+   `.string-row--segmented .cell`, which would otherwise go on drawing the
+   string straight through the box. */
+.cell-slot--counted .cell.cell--repeat {
+  position: absolute;
   /* With the bracket, over the cover an open group lays across the staff:
      the count is part of what the bracket says, and a group being open is
      no reason to lose sight of it. Level with the bar it stands against,
      and so painted over it — which costs nothing, the box's own right
      border falling exactly where the bar is, in the same ink. */
   z-index: 4;
+  top: 100%;
+  right: 0;
+  transform: translateY(-50%);
+  width: var(--cell-w);
+  height: var(--row-h);
   border: var(--group-bar-w) solid var(--ink);
   background-color: var(--paper);
   background-image: none;
@@ -240,14 +253,6 @@
   text-align: left;
   font: 600 11px/1 ui-monospace, Menlo, monospace;
   letter-spacing: -0.5px;
-}
-
-/* A group played ten times or more. The corner is the corner either way,
-   and the arrow is where it is, so the count gives way instead. */
-.cell-slot--group-end .cell.cell--repeat--long,
-.cell-slot--group-ref-end .cell.cell--repeat--long {
-  padding-top: 17px;
-  font-size: 9px;
 }
 
 /* A group played here from elsewhere ------------------------------------
