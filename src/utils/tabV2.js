@@ -30,6 +30,8 @@
  * whole of the other. Nothing V2 touches imports from there.
  */
 export { Cell, STRING_COUNT, MAX_FRET } from './cell.js'
+import { DEFAULT_GROUP_NAME, GROUP_START } from './column.js'
+
 export {
   Column,
   DEFAULT_GROUP_NAME,
@@ -92,6 +94,66 @@ export function markColumn(sheet, row, col, cssMode, marks = {}) {
  */
 export const sheetGroups = (sheet) =>
   sheet.flatMap((row, at) => row.groups.map((group) => ({ ...group, row: at })))
+
+/**
+ * Rename the group that opens at `col`, everywhere it is read.
+ *
+ * A group is named on the column that opens it, and every column standing
+ * in for that group elsewhere carries the name too — that is all a place
+ * where a group is played knows about which group it is. So renaming one
+ * is a sheet-wide edit: the group itself, and each place it is played, or
+ * those places would go on calling it by a name nothing answers to.
+ *
+ * Which means two groups called the same letter are, to this, one group.
+ * The name is the whole of the link between them.
+ */
+export function nameGroup(sheet, row, col, name) {
+  const standing = sheet[row]
+  const opening = standing?.column(col)
+  if (!opening || opening.cssMode !== GROUP_START) return sheet
+
+  const before = opening.name ?? DEFAULT_GROUP_NAME
+  const named = standing.withMode(col, GROUP_START, { name })
+  if (named === standing) return sheet
+
+  return sheet.map((each, r) => (r === row ? named : each).withRefsRenamed(before, name))
+}
+
+/**
+ * Take the group that opens at `col` off the sheet: its two ends and its
+ * count, and with them every place it was played, since a group played
+ * somewhere is only ever a pointer back to the one written here.
+ *
+ * The notes inside it stay. The columns are the group; what is written
+ * between them is the music, and it is still the music once it is played
+ * the once.
+ */
+export function deleteGroup(sheet, row, col) {
+  const standing = sheet[row]
+  const opening = standing?.column(col)
+  if (!opening || opening.cssMode !== GROUP_START) return sheet
+
+  const name = opening.name ?? DEFAULT_GROUP_NAME
+
+  return sheet.map((each, r) =>
+    (r === row ? each.withoutGroupAt(col) : each).withoutRefsNamed(name),
+  )
+}
+
+/**
+ * Take one place a group was played off the sheet. The group itself is
+ * untouched — this is the pointer going, not the thing pointed at — and
+ * the row goes back to the length it was before the group was put down.
+ */
+export function deleteRef(sheet, row, col) {
+  const standing = sheet[row]
+  if (!standing) return sheet
+
+  const cut = standing.withoutRefAt(col)
+  if (cut === standing) return sheet
+
+  return sheet.map((each, r) => (r === row ? cut : each))
+}
 
 /**
  * Put a group down at a position: that column becomes the whole group,

@@ -6,7 +6,10 @@ import {
   GROUP_START,
   Row,
   STANDARD_TUNING,
+  deleteGroup,
+  deleteRef,
   markColumn,
+  nameGroup,
   placeGroup,
   writeCell,
 } from '../utils/tabV2.js'
@@ -56,14 +59,25 @@ const MOCK_SHEET = [
   },
   {
     rowName: 'Chorus',
-    length: 8,
+    length: 12,
     notes: [
       [0, 2, '7'],
       [1, 2, '7'],
       [2, 1, '8'],
       [4, 0, '5'],
     ],
-    groups: [],
+    groups: [
+      {
+        start: 6,
+        end: 9,
+        repeat: 2,
+        name: 'C',
+        notes: [
+          [7, 1, '5'],
+          [8, 0, '3'],
+        ],
+      },
+    ],
   },
 ]
 
@@ -129,8 +143,10 @@ export default function TabEditorV2Lab() {
   const handleRepeatChange = (row, col, repeat) =>
     setRows((prev) => markColumn(prev, row, col, GROUP_REPEAT, { repeat }))
 
+  // Renaming reaches past the group itself: every column saying that group
+  // is played here carries the name, and goes on carrying it.
   const handleNameChange = (row, col, name) =>
-    setRows((prev) => markColumn(prev, row, col, GROUP_START, { name }))
+    setRows((prev) => nameGroup(prev, row, col, name))
 
   /**
    * Play a group at a position. The column becomes that group and the row
@@ -139,6 +155,15 @@ export default function TabEditorV2Lab() {
    */
   const handlePlaceGroup = (row, col, name) =>
     setRows((prev) => placeGroup(prev, row, col, name))
+
+  /**
+   * Off the sheet. A group goes with every place it is played, since those
+   * are only pointers back to it; one of those places goes on its own and
+   * leaves the group where it is.
+   */
+  const handleDeleteGroup = (row, col) => setRows((prev) => deleteGroup(prev, row, col))
+
+  const handleDeleteRef = (row, col) => setRows((prev) => deleteRef(prev, row, col))
 
   return (
     <div className="app">
@@ -167,6 +192,8 @@ export default function TabEditorV2Lab() {
           onRepeatChange={handleRepeatChange}
           onNameChange={handleNameChange}
           onPlaceGroup={handlePlaceGroup}
+          onDeleteGroup={handleDeleteGroup}
+          onDeleteRef={handleDeleteRef}
         />
       </main>
     </div>

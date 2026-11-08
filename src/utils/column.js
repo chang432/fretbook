@@ -103,6 +103,11 @@ export class Column {
     return this.cssMode === GROUP_START || this.cssMode === GROUP_END
   }
 
+  /** True when this column stands in for a whole group played here. */
+  get isGroupRef() {
+    return this.cssMode === GROUP_REF
+  }
+
   /** True when this column belongs to a group rather than standing on its own. */
   get isGroupMark() {
     return this.cssMode !== false

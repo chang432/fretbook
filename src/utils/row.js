@@ -8,6 +8,22 @@ import {
 } from './column.js'
 
 /**
+ * The row that is left when some of its columns are taken out of it: the
+ * ones that stay, renumbered so the run has no gap in it, and a length to
+ * match. Everything that shortens a row goes through here, which is what
+ * keeps `length` and the positions themselves honest.
+ */
+function without(row, gone) {
+  if (gone.size === 0) return row
+
+  const kept = row.columns
+    .filter((column) => !gone.has(column.rowPosition))
+    .map((column, at) => column.at(at))
+
+  return new Row(kept.length, kept, row.name)
+}
+
+/**
  * One row of the sheet: its own run of positions, however many that is.
  *
  * A row's length is its own. Nothing divides it — there are no bars — and
@@ -131,6 +147,69 @@ export class Row {
       [...this.columns.slice(0, col), placed, counted, ...after],
       this.name,
     )
+  }
+
+  /**
+   * This row without the group that opens at `col`: its two ends and the
+   * count past them are gone, and the row is three positions shorter.
+   *
+   * What was written *inside* the group stays. The three columns are the
+   * group — they are what say a run of positions is played again — and the
+   * notes between them are the music, which is nobody's to throw away here.
+   */
+  withoutGroupAt(col) {
+    const group = this.groups.find((each) => each.start === col)
+    if (!group) return this
+
+    const gone = new Set([group.start, group.end])
+    if (group.repeatAt !== null) gone.add(group.repeatAt)
+
+    return without(this, gone)
+  }
+
+  /**
+   * This row without the group that was played at `col`: that column goes
+   * back to being a plain position, empty, and the count beside it is gone
+   * — exactly undoing `withGroupAt`, down to the length.
+   */
+  withoutRefAt(col) {
+    const standing = this.columns[col]
+    if (!standing?.isGroupRef) return this
+
+    const past = this.columns[col + 1]
+    const gone = new Set(past?.cssMode === GROUP_REPEAT ? [past.rowPosition] : [])
+    const freed = this.columns.map((column) =>
+      column.rowPosition === col ? new Column(col) : column,
+    )
+
+    return without(new Row(this.length, freed, this.name), gone)
+  }
+
+  /**
+   * This row without any of the places a named group was played. Taken from
+   * the right, so that each position still to be removed is where it was
+   * when they were all counted.
+   */
+  withoutRefsNamed(name) {
+    const refs = this.columns.filter((column) => column.isGroupRef && column.name === name)
+    return refs.reduceRight((row, ref) => row.withoutRefAt(ref.rowPosition), this)
+  }
+
+  /**
+   * This row with every place a group was played under one name now saying
+   * another — what a group being renamed means everywhere it is played.
+   */
+  withRefsRenamed(from, to) {
+    if (from === to) return this
+
+    let found = false
+    const columns = this.columns.map((column) => {
+      if (!column.isGroupRef || column.name !== from) return column
+      found = true
+      return column.withMode(GROUP_REF, { name: to })
+    })
+
+    return found ? new Row(this.length, columns, this.name) : this
   }
 
   /**

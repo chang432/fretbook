@@ -21,10 +21,19 @@ import { normalizeGroupName } from '../utils/tabV2.js'
  * middle falls wherever it falls — between two positions as often as on
  * one. `from` and `span` are the group's own columns, and the staff's fixed
  * pitch is what turns them back into a place on the page.
+ *
+ * `onAnchor` is handed the cover itself as it mounts, which is what the bar
+ * standing over an open group hangs off: the cover is the group, as far as
+ * the page is concerned, so the buttons for it belong above that and not
+ * above any one of its cells.
  */
-export default function GroupCover({ name, from, span, onChange }) {
+export default function GroupCover({ name, from, span, onChange, onAnchor }) {
   return (
-    <span className="group-cover" style={{ '--from': from, '--span': span }}>
+    <span
+      ref={onAnchor}
+      className="group-cover"
+      style={{ '--from': from, '--span': span }}
+    >
       <input
         className="group-name"
         value={name}

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import Cell from './Cell.jsx'
 import CellMenu from './CellMenu.jsx'
+import DeleteBar from './DeleteBar.jsx'
 import GroupCover from './GroupCover.jsx'
-import { sheetGroups } from '../utils/tabV2.js'
+import { GROUP_REF, sheetGroups } from '../utils/tabV2.js'
 
 /**
  * The second editor, stripped to the bone: one staff per row, a cell per
@@ -22,9 +23,15 @@ import { sheetGroups } from '../utils/tabV2.js'
  *
  * Groups are marked inside a row rather than around a run of them: pressing
  * either end of one opens it, which stands its cells back and brings up the
- * name in the middle of it. Which group is open is the only thing this
- * holds on to — it is about the page rather than about the song, so it is
- * not something the sheet should be told.
+ * name in the middle of it, with the button for taking it off the sheet
+ * above.
+ *
+ * One thing is being worked on at a time — a position, a group held open, or
+ * a column where a group is played — which is the only thing this holds on
+ * to. It is about the page rather than about the song, so it is not
+ * something the sheet should be told. Holding the three as one is also what
+ * keeps their buttons from standing over each other: starting on any of
+ * them is leaving the last.
  *
  * `rows` is the whole sheet: a Row per staff, each holding its own run of
  * Columns, each of those holding one Cell per string — see utils/tabV2.js.
@@ -33,6 +40,21 @@ import { sheetGroups } from '../utils/tabV2.js'
  * rows differ in length without anything having to be worked out from the
  * rows above. Driven by TabEditorV2Lab at /v2; nothing in App reaches it.
  */
+/**
+ * The slot at the head of the column a press landed in, whichever of its
+ * six cells took the press: the buttons for a column stand over the whole
+ * of it, so they hang off the top of the staff rather than off the one cell
+ * that happened to be pressed.
+ *
+ * Every string row draws every column, in order, so the top row's child at
+ * `col` is the head of that column. Read off the page rather than held in a
+ * ref, since it is wanted only at the moment of the press.
+ */
+function columnTop(element, col) {
+  const body = element.closest('.staff-body')
+  return body?.querySelector('.string-row--top')?.children[col] ?? element
+}
+
 export default function TabEditorV2({
   rows,
   tuning,
@@ -40,56 +62,100 @@ export default function TabEditorV2({
   onRepeatChange,
   onNameChange,
   onPlaceGroup,
+  onDeleteGroup,
+  onDeleteRef,
 }) {
-  // The group standing open, as the row it is in and the position it opens
-  // at. Null when none is.
-  const [open, setOpen] = useState(null)
+  // What is being worked on, and nothing else is: `kind` says which of the
+  // three it is, `row` and `col` where it stands — the opening position,
+  // for a group — and `element` what the buttons over it hang off. Null
+  // when nothing is.
+  const [working, setWorking] = useState(null)
 
-  // The position being written in, and the cell drawing it — what the menu
-  // over it hangs off, and where a group chosen from that menu goes down.
-  // Null when nothing is selected.
-  const [selected, setSelected] = useState(null)
+  // The cover over the open group, once it is on the page: the buttons for
+  // that group stand over the cover rather than over any one of its cells,
+  // and a cover cannot be measured before it exists.
+  const [cover, setCover] = useState(null)
 
   // Every group written on the sheet, which is what there is to choose
   // from. Read once per draw rather than per cell: the list is the same
   // wherever it is opened.
   const groups = sheetGroups(rows)
 
-  const isOpen = (staff, group) => open?.row === staff && open?.start === group.start
+  // The group being worked on, if it is a group, and how many places on the
+  // sheet it is played. Deleting a group takes those with it, so the button
+  // that does it says so first — counted here, where the whole sheet is in
+  // hand, rather than inside the button.
+  const openGroup =
+    working?.kind === 'group'
+      ? (groups.find(({ row, start }) => row === working.row && start === working.col) ??
+        null)
+      : null
 
-  /** Open the group, or put it away when it is the one already open. */
-  const press = (staff, group) => (event) => {
-    // The press opens the group rather than landing in the cell, so the
-    // cell must not take the focus — or the caret — that a press on an
-    // input would otherwise give it.
+  const played = !openGroup
+    ? 0
+    : rows.reduce(
+        (count, row) =>
+          count +
+          row.columns.filter((column) => column.isGroupRef && column.name === openGroup.name)
+            .length,
+        0,
+      )
+
+  const isOpen = (staff, group) =>
+    working?.kind === 'group' && working.row === staff && working.col === group.start
+
+  /**
+   * Start on something, or stop when it is the thing already being worked
+   * on — so a second press on a group closes it again, and a second press
+   * on a column where one is played puts its button away.
+   */
+  const press = (kind, staff, col) => (event) => {
+    // The press is on the group rather than in the cell, so the cell must
+    // not take the focus — or the caret — that a press on an input would
+    // otherwise give it.
     event.preventDefault()
-    setOpen((standing) =>
-      standing?.row === staff && standing?.start === group.start
+    const element = kind === 'ref' ? columnTop(event.currentTarget, col) : null
+    setWorking((standing) =>
+      standing?.kind === kind && standing.row === staff && standing.col === col
         ? null
-        : { row: staff, start: group.start },
+        : { kind, row: staff, col, element },
     )
   }
 
   /**
-   * A press anywhere but on the open group puts it away. Taken on the way
-   * down rather than on the way up, so that it has already happened by the
-   * time a press on some other group's end opens that one instead.
+   * A press anywhere else stops work on whatever was being worked on. Taken
+   * on the way down rather than on the way up, so that it has already
+   * happened by the time a press on some other group's end opens that one
+   * instead.
    *
-   * What counts as "on the group" is the cover, the name in it, and the
-   * group's own cells underneath — the cover lets presses through, so a
-   * press meant for either end arrives at the cell rather than here.
+   * What counts as "anywhere else" depends on the three. The bars and the
+   * list hanging off one are never somewhere else: they are how the thing
+   * is worked on. Past that, a group is its cover, the name in it and its
+   * own cells underneath — the cover lets presses through, so a press meant
+   * for either end arrives at the cell; a played group is the column it
+   * stands in; and a position is the cell itself, which has to be left
+   * alone or pressing an already-selected cell would take its own buttons
+   * away.
    */
   useEffect(() => {
-    if (!open) return undefined
+    if (!working) return undefined
+
+    const own = {
+      cell: null,
+      group: '.group-cover, .cell-slot--in-group',
+      ref: '.cell-slot--group-ref',
+    }[working.kind]
 
     const away = (event) => {
-      if (event.target.closest?.('.group-cover, .cell-slot--in-group')) return
-      setOpen(null)
+      if (event.target.closest?.('.action-bar, .popover')) return
+      if (own && event.target.closest?.(own)) return
+      if (working.kind === 'cell' && working.element?.contains(event.target)) return
+      setWorking(null)
     }
 
     document.addEventListener('pointerdown', away, true)
     return () => document.removeEventListener('pointerdown', away, true)
-  }, [open])
+  }, [working])
 
   return (
     // `editor--v2` is what the second editor's own styles hang off, so they
@@ -158,9 +224,18 @@ export default function TabEditorV2({
                             name={column.name}
                             onChange={(value) => onCellChange(staff, at, stringIndex, value)}
                             onSelect={(element) =>
-                              setSelected({ row: staff, col: at, element })
+                              setWorking({ kind: 'cell', row: staff, col: at, element })
                             }
-                            onPress={group ? press(staff, group) : undefined}
+                            // A column standing in for a whole group is
+                            // pressed as itself, even when it stands inside
+                            // some other group's span.
+                            onPress={
+                              column.cssMode === GROUP_REF
+                                ? press('ref', staff, at)
+                                : group
+                                  ? press('group', staff, group.start)
+                                  : undefined
+                            }
                             onRepeat={(count) => onRepeatChange(staff, at, count)}
                           />
                         )
@@ -172,10 +247,16 @@ export default function TabEditorV2({
                       middle. Only one stands at a time. */}
                   {opened && (
                     <GroupCover
+                      // Keyed by the group, so that opening another on the
+                      // same row builds a new cover rather than moving this
+                      // one — which is what hands the buttons above it the
+                      // place they are to stand.
+                      key={opened.start}
                       name={opened.name}
                       from={opened.start}
                       span={opened.end - opened.start + 1}
                       onChange={(name) => onNameChange(staff, opened.start, name)}
+                      onAnchor={setCover}
                     />
                   )}
                 </div>
@@ -185,18 +266,52 @@ export default function TabEditorV2({
         )
       })}
 
-      {/* The buttons over the position being written in. They hang off the
-          cell itself rather than standing in the staff, so a row scrolling
-          inside itself cannot clip them. */}
-      {selected && (
+      {/* The buttons over whatever is being worked on. All three hang off
+          the thing itself rather than standing in the staff, so a row
+          scrolling inside itself cannot clip them. */}
+      {working?.kind === 'cell' && (
         <CellMenu
-          anchor={selected.element}
+          anchor={working.element}
           groups={groups}
           onPlace={(name) => {
-            onPlaceGroup(selected.row, selected.col, name)
+            onPlaceGroup(working.row, working.col, name)
             // What was selected is not there any more: the column it stood
             // in is the group now, and everything past it has moved along.
-            setSelected(null)
+            setWorking(null)
+          }}
+        />
+      )}
+
+      {/* Taking the open group off the sheet, which takes every place it is
+          played with it — so the button says as much before it is pressed. */}
+      {working?.kind === 'group' && openGroup && (
+        <DeleteBar
+          anchor={cover}
+          label={`Group ${openGroup.name}`}
+          title={
+            played === 0
+              ? `Delete group ${openGroup.name}`
+              : played === 1
+                ? `Delete group ${openGroup.name} and the one place it is played`
+                : `Delete group ${openGroup.name} and the ${played} places it is played`
+          }
+          onDelete={() => {
+            onDeleteGroup(working.row, working.col)
+            setWorking(null)
+          }}
+        />
+      )}
+
+      {/* And taking one place a group is played off the sheet, which leaves
+          the group itself alone. */}
+      {working?.kind === 'ref' && (
+        <DeleteBar
+          anchor={working.element}
+          label="A group played here"
+          title="Delete this group from here"
+          onDelete={() => {
+            onDeleteRef(working.row, working.col)
+            setWorking(null)
           }}
         />
       )}

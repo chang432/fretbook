@@ -17,11 +17,13 @@ import { STRING_COUNT, normalizeRepeat } from '../utils/tabV2.js'
  * is a replaced element and draws no ::before or ::after of its own.
  *
  * No cell of a group's column is a position to write a note in, but the
- * two kinds are not refused in the same way. The columns marking the ends
+ * kinds are not refused in the same way. The columns marking a group's ends
  * are pressed instead — that is what opens the group, through `onPress` —
- * and take no typing at all. The one carrying the count is typed in, but
- * what is typed there is the count: it goes to `onRepeat`, and the model's
- * cell underneath stays empty.
+ * and so is the column standing in for a whole group, which is how the
+ * button for taking that one off the sheet is asked for. Neither takes any
+ * typing. The column carrying the count is typed in, but what is typed
+ * there is the count: it goes to `onRepeat`, and the model's cell
+ * underneath stays empty.
  *
  * `repeat` is that count, and the cell on the top string of its column is
  * the one that says it. The cell writes it out itself — it is the cell's
@@ -96,7 +98,7 @@ export default function Cell({
   const ruled = cell.string === 0 || cell.string === STRING_COUNT - 1
 
   // Pressed rather than written in; and written in, but not with a note.
-  const presses = mode === 'group-start' || mode === 'group-end'
+  const presses = mode === 'group-start' || mode === 'group-end' || stands
   const takesTyping = !mode || says
 
   const classes = ['cell']

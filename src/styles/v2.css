@@ -60,10 +60,11 @@
   border: var(--string-w) solid var(--ink);
 }
 
-/* The buttons over the position being written in, and the groups they
-   open. Both hang off what opened them, positioned from its own rect, so
-   a row scrolling inside itself cannot clip them. */
-.cell-menu {
+/* The buttons over whatever is being worked on — a position being written
+   in, a group held open, a column where one is played — and the groups one
+   of them opens. All hang off what opened them, positioned from its own
+   rect, so a row scrolling inside itself cannot clip them. */
+.action-bar {
   position: fixed;
   z-index: 20;
   display: flex;
@@ -75,7 +76,7 @@
   box-shadow: 0 2px 8px rgb(22 32 43 / 14%);
 }
 
-.cell-menu-button {
+.action-bar-button {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -89,8 +90,8 @@
   cursor: pointer;
 }
 
-.cell-menu-button:hover,
-.cell-menu-button.is-open {
+.action-bar-button:hover,
+.action-bar-button.is-open {
   color: var(--accent);
   background: rgb(168 73 47 / 12%);
 }
