@@ -241,16 +241,15 @@
      and so painted over it — which costs nothing, the box's own right
      border falling exactly where the bar is, in the same ink. */
   z-index: 4;
-  top: 100%;
+  top: calc(var(--row-h)/2 - 1px);
   right: 0;
-  transform: translateY(-50%);
   width: var(--cell-w);
-  height: var(--row-h);
+  height: calc(var(--row-h) + var(--string-w));
   border: var(--group-bar-w) solid var(--ink);
   background-color: var(--paper);
   background-image: none;
-  padding: 15px 0 0 4px;
-  text-align: left;
+  padding: 2px 2px 0 0;
+  text-align: center;
   font: 600 11px/1 ui-monospace, Menlo, monospace;
   letter-spacing: -0.5px;
 }
