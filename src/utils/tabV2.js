@@ -129,6 +129,73 @@ export function setRepeat(sheet, row, col, repeat) {
 }
 
 /**
+ * What a new group should be called: the first letter of the alphabet no
+ * group on the sheet already answers to, so that two never share a name —
+ * which matters, because a name is the whole of what ties a group to the
+ * places it is played.
+ *
+ * Past Z there is nothing left to be first, and it starts over at A. Any
+ * sheet with twenty-six groups on it has outgrown one letter apiece.
+ */
+export function nextGroupName(sheet) {
+  const taken = new Set(sheetGroups(sheet).map((group) => group.name))
+  const free = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].find((letter) => !taken.has(letter))
+
+  return free ?? DEFAULT_GROUP_NAME
+}
+
+/**
+ * Open a new group just before `col`, naming it for the sheet. What was
+ * standing at `col` is the group's first position: the opening column goes
+ * in ahead of it, so the row is one position longer and nothing is written
+ * over.
+ *
+ * The group is not a group yet — it has no end — so nothing reads it as
+ * one until `endGroup` closes it. Until then it is an opening and no more,
+ * and `cancelGroup` takes it back.
+ */
+export function startGroup(sheet, row, col) {
+  const standing = sheet[row]
+  if (!standing) return sheet
+
+  const opened = standing.withStartAt(col, nextGroupName(sheet))
+  if (opened === standing) return sheet
+
+  return sheet.map((each, r) => (r === row ? opened : each))
+}
+
+/**
+ * Close the group opened at `start` after the position at `col`, which is
+ * the last one it holds. The closing column goes in just past that one and
+ * carries the count, so the row grows by one again.
+ */
+export function endGroup(sheet, row, start, col) {
+  const standing = sheet[row]
+  if (!standing) return sheet
+
+  const closed = standing.withEndAt(start, col)
+  if (closed === standing) return sheet
+
+  return sheet.map((each, r) => (r === row ? closed : each))
+}
+
+/**
+ * Take back a group that was opened and never closed, leaving the row as
+ * it was. An opening on its own is not a group and cannot be deleted as
+ * one, so this is the only way out of it — which is why nothing should be
+ * able to leave one standing.
+ */
+export function cancelGroup(sheet, row, col) {
+  const standing = sheet[row]
+  if (!standing) return sheet
+
+  const back = standing.withoutOpeningAt(col)
+  if (back === standing) return sheet
+
+  return sheet.map((each, r) => (r === row ? back : each))
+}
+
+/**
  * Rename the group that opens at `col`, everywhere it is read.
  *
  * A group is named on the column that opens it, and every column standing

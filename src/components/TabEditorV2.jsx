@@ -4,6 +4,7 @@ import CellMenu from './CellMenu.jsx'
 import DeleteBar from './DeleteBar.jsx'
 import ActionBar from './ActionBar.jsx'
 import StaffOverlay from './StaffOverlay.jsx'
+import { markPath } from '../utils/layout.js'
 import GroupCover from './GroupCover.jsx'
 import { GROUP_REF, previousWrittenPosition, sheetGroups } from '../utils/tabV2.js'
 
@@ -66,8 +67,13 @@ export default function TabEditorV2({
   onRowNameChange,
   onCopyPrevious,
   ties,
+  marks,
+  onToggleMark,
   onTie,
   onPlaceGroup,
+  onStartGroup,
+  onEndGroup,
+  onCancelGroup,
   onDeleteGroup,
   onDeleteRef,
 }) {
@@ -80,6 +86,14 @@ export default function TabEditorV2({
   const [cursor, setCursor] = useState(null)
 
   const selected = working?.kind === 'cell' ? working : null
+
+  // A group opened and not yet closed: its opening column stands on the
+  // sheet already, and every position that could close it is lit until one
+  // of them is pressed. Pressing anywhere else takes the opening back —
+  // see the effect below — because an opening with no end is not a group
+  // and there would be no way to be rid of it.
+  const opening = working?.kind === 'opening' ? working : null
+  const closers = opening ? (rows[opening.row]?.closersFor(opening.col) ?? []) : []
   const targets = []
   if (selected && rows[selected.row]?.column(selected.col)?.cell(selected.string)?.value) {
     const columns = rows[selected.row].columns
@@ -165,6 +179,7 @@ export default function TabEditorV2({
       cell: null,
       group: '.group-cover, .cell-slot--in-group',
       ref: '.cell-slot--group-ref',
+      opening: '.cell-slot--closing',
     }[working.kind]
 
     const away = (event) => {
@@ -172,18 +187,29 @@ export default function TabEditorV2({
       if (armed && event.target.closest?.('.cell--tie-target')) return
       if (own && event.target.closest?.(own)) return
       if (working.kind === 'cell' && working.element?.contains(event.target)) return
+      // An opening nobody closed comes back out, so that the sheet is
+      // never left holding half a group.
+      if (working.kind === 'opening') onCancelGroup(working.row, working.col)
       setWorking(null)
     }
 
     document.addEventListener('pointerdown', away, true)
     return () => document.removeEventListener('pointerdown', away, true)
-  }, [working, armed])
+  }, [working, armed, onCancelGroup])
 
   const holdButton = selected && targets.length > 0 && (
     <button type="button" className={`action-bar-button${armed ? ' is-open' : ''}`} aria-label="Hold this note through to another position" aria-pressed={armed} onMouseDown={(event) => event.preventDefault()} onClick={() => { setArmed(!armed); setCursor(targets.find((at) => at > selected.col) ?? targets[0]) }}>
       <svg width="20" height="14" aria-hidden="true"><path d="M 2 11 Q 10 1 18 11" fill="none" stroke="currentColor" strokeWidth="2" /></svg>
     </button>
   )
+  const hasNote = selected && !rows[selected.row].column(selected.col).cell(selected.string).isEmpty
+  const marked = hasNote && marks.some((mark) => mark.row === selected.row && mark.col === selected.col && mark.string === selected.string)
+  const cellButtons = hasNote && <>
+    {holdButton}
+    <button type="button" className={`action-bar-button${marked ? ' is-open' : ''}`} aria-label="Toggle zigzag" title="Toggle zigzag" aria-pressed={Boolean(marked)} onMouseDown={(event) => event.preventDefault()} onClick={() => onToggleMark(selected.row, selected.col, selected.string)}>
+      <svg width="26" height="14" aria-hidden="true"><path d={markPath(13, 7)} fill="none" stroke="currentColor" strokeWidth="2" /></svg>
+    </button>
+  </>
 
   return (
     // `editor--v2` is what the second editor's own styles hang off, so they
@@ -212,7 +238,7 @@ export default function TabEditorV2({
             <div className="staff-scroll">
               <div className="staff-run">
                 <div className="staff-body">
-                  <StaffOverlay ties={ties.filter((tie) => tie.row === staff)} marks={[]} staffStart={0} cols={row.length} preview={armed && selected?.row === staff && cursor !== null ? { string: selected.string, from: Math.min(selected.col, cursor), to: Math.max(selected.col, cursor) } : null} />
+                  <StaffOverlay ties={ties.filter((tie) => tie.row === staff)} marks={marks.filter((mark) => mark.row === staff)} staffStart={0} cols={row.length} preview={armed && selected?.row === staff && cursor !== null ? { string: selected.string, from: Math.min(selected.col, cursor), to: Math.max(selected.col, cursor) } : null} />
                   {tuning.map((_, stringIndex) => (
                     // Each cell draws its own piece of the string, so that a
                     // position can be left out of the line — see Cell.
@@ -255,6 +281,14 @@ export default function TabEditorV2({
                             onSelect={(element) =>
                               { setArmed(false); setWorking({ kind: 'cell', row: staff, col: at, string: stringIndex, element }) }
                             }
+                            closes={Boolean(opening) && opening.row === staff && closers.includes(at)}
+                            closesNow={Boolean(opening) && opening.row === staff && cursor === at}
+                            onCloseHover={() => setCursor(at)}
+                            onClose={() => {
+                              onEndGroup(staff, opening.col, at)
+                              setWorking(null)
+                              setCursor(null)
+                            }}
                             tieTarget={armed && selected?.row === staff && selected.string === stringIndex && targets.includes(at)}
                             onTieHover={() => setCursor(at)}
                             onTieTarget={() => { onTie(staff, stringIndex, selected.col, at); setArmed(false); setCursor(null) }}
@@ -309,6 +343,13 @@ export default function TabEditorV2({
           // Not into the middle of a group: that position is the group's
           // own music, and the model refuses it — so it is not offered.
           canPlace={!rows[working.row]?.groupAt(working.col)}
+          // Opening a group puts its first column down at once and leaves
+          // the rest of the row waiting to be told where it ends.
+          onOpenGroup={() => {
+            onStartGroup(working.row, working.col)
+            setWorking({ kind: 'opening', row: working.row, col: working.col })
+            setCursor(null)
+          }}
           onCopy={() => onCopyPrevious(working.row, working.col)}
           onPlace={(name) => {
             onPlaceGroup(working.row, working.col, name)
@@ -317,13 +358,13 @@ export default function TabEditorV2({
             setWorking(null)
           }}
         >
-          {selected?.string === 0 ? holdButton : null}
+          {selected?.string === 0 ? cellButtons : null}
         </CellMenu>
       )}
 
-      {selected && selected.string !== 0 && holdButton && (
+      {selected && selected.string !== 0 && cellButtons && (
         <ActionBar anchor={selected.element} label="This note">
-          {holdButton}
+          {cellButtons}
         </ActionBar>
       )}
 

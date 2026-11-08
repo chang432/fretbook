@@ -125,6 +125,22 @@
   background-color: #fff;
 }
 
+/* While a new group is being written, every position it could end after
+   is lit, and the whole of the column the pointer is over is lit brighter
+   — a group ends at a position, not at one string of one.
+
+   The light is on the slot rather than the cell so that it fills the
+   position: the cell is the box a fret is typed into, and the string runs
+   through the rest of it. */
+.cell-slot--closing {
+  background: rgb(168 73 47 / 9%);
+  cursor: pointer;
+}
+
+.cell-slot--closing-now {
+  background: rgb(168 73 47 / 22%);
+}
+
 /* `cell-slot--in-group` marks a cell as the open group's. Nothing is drawn
    from it — the cover over the group does that — but a press on one is a
    press on the group, which is how the editor tells the press that closes

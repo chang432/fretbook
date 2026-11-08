@@ -55,6 +55,12 @@ const MIDDLE_STRING = Math.floor(STRING_COUNT / 2) - 1
  * says it is the one being worked on, so the menu over it knows where it
  * stands.
  *
+ * `closes` is set on every position a group being opened could end at,
+ * while it is being opened. Such a cell is lit and pressed rather than
+ * written in, whatever it holds — the press says where the group ends and
+ * must not land in the cell — and `closesNow` is the one the pointer is
+ * over, which lights the whole of its column rather than the one cell.
+ *
  * `row` and `col` are counted from 0, the way the sheet counts them, and are
  * spoken as 1 and up, the way a person does.
  *
@@ -79,6 +85,10 @@ export default function Cell({
   tieTarget = false,
   onTieTarget,
   onTieHover,
+  closes = false,
+  closesNow = false,
+  onClose,
+  onCloseHover,
 }) {
   // Set while the count is being typed in, which is the only time this
   // cell shows the bare number. It is about the press rather than about
@@ -116,7 +126,8 @@ export default function Cell({
   // Pressed rather than written in; and written in, but not with a note.
   // The cell carrying the count is the exception on a closing column: it
   // takes the typing, so it must not take the press as well.
-  const presses = !says && (mode === 'group-start' || mode === 'group-end' || stands)
+  const presses =
+    !says && (mode === 'group-start' || mode === 'group-end' || stands)
   const takesTyping = !mode || says
 
   // What the cell is showing — the count, a group's name, or a fret — which
@@ -128,14 +139,17 @@ export default function Cell({
   else if (!cell.isEmpty) classes.push('cell--filled')
 
   // Pressed rather than written in, so it does not light up under the
-  // pointer the way a position about to be written in does.
-  if (presses) classes.push('cell--quiet')
+  // pointer the way a position about to be written in does. A position
+  // waiting to close a group is pressed too, and has a light of its own.
+  if (presses || closes) classes.push('cell--quiet')
   // No string runs through a column that stands for a group, except the
   // two the staff is ruled to.
   if (stands && !ruled) classes.push('cell--unstrung')
 
   const slot = ['cell-slot']
   if (mode) slot.push(`cell-slot--${mode}`)
+  if (closes) slot.push('cell-slot--closing')
+  if (closesNow) slot.push('cell-slot--closing-now')
   // The count is lifted out of this slot and hung on the line below it, so
   // the slot is what the box is placed from — and the one thing the two
   // kinds of closing column have in common, which is why the box is drawn
@@ -166,8 +180,24 @@ export default function Cell({
               ? `Group ${name} is played here`
               : `Row ${row + 1}, string ${string}, position ${col + 1}`
         }
-        onMouseDown={tieTarget ? (event) => { event.preventDefault(); onTieTarget() } : presses ? onPress : undefined}
-        onMouseEnter={tieTarget ? onTieHover : undefined}
+        // Closing a group outranks everything: while one is being
+        // opened, every lit position is a press and nothing else.
+        onMouseDown={
+          closes
+            ? (event) => {
+                event.preventDefault()
+                onClose()
+              }
+            : tieTarget
+              ? (event) => {
+                  event.preventDefault()
+                  onTieTarget()
+                }
+              : presses
+                ? onPress
+                : undefined
+        }
+        onMouseEnter={closes ? onCloseHover : tieTarget ? onTieHover : undefined}
         // A count is settled here, since it is this cell's own; a note is
         // passed on as typed, since the model is what settles those.
         onChange={(event) =>

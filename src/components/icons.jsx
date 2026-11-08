@@ -120,6 +120,21 @@ export function RewindIcon({ width = 16, height = 16 }) {
 }
 
 /**
+ * The mark that opens a group, drawn small: the bar, and the two
+ * half-arrows that come off it pointing in over what the group holds. The
+ * button wears the thing it makes, so what it does needs no explaining.
+ */
+export function GroupStartIcon({ width = 16, height = 16 }) {
+  return (
+    <svg className="icon" width={width} height={height} viewBox="0 0 16 16" aria-hidden="true">
+      <path className="solid" d="M 2.2 2 H 4.6 V 14 H 2.2 Z" />
+      <path className="solid" d="M 4.6 2 H 11 L 4.6 6.6 Z" />
+      <path className="solid" d="M 4.6 14 H 11 L 4.6 9.4 Z" />
+    </svg>
+  )
+}
+
+/**
  * A waste bin: the button in edit mode that takes a whole row off the sheet.
  * Drawn rather than written as a ×, which already closes the shift arrows one
  * column over, and a row going is not the same as a panel closing.

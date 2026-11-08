@@ -4,11 +4,15 @@ import {
   GROUP_END,
   GROUP_START,
   Row,
+  cancelGroup,
   deleteGroup,
   deleteRef,
+  endGroup,
   markColumn,
   nameGroup,
+  nextGroupName,
   placeGroup,
+  startGroup,
   writeCell,
 } from '../src/utils/tabV2.js'
 
@@ -95,4 +99,65 @@ test('deleting one place a group is played leaves the group alone', () => {
   assert.equal(gone[0].groups.length, 1)
   assert.equal(gone[0].length, 16, 'the row is the length it started at')
   assert.ok(gone[0].column(1).isEmpty)
+})
+
+test('a new group is opened before a position, pushing it inside', () => {
+  const rows = sheet()
+  // Position 12 holds a note and stands clear of the group already there.
+  const opened = startGroup(rows, 0, 12)
+
+  assert.equal(opened[0].length, 17, 'the opening is a column of its own')
+  assert.equal(opened[0].column(12).cssMode, GROUP_START)
+  assert.equal(opened[0].column(13).cell(2).value, '9', 'the position it opened before moved along')
+  assert.equal(opened[0].groups.length, 1, 'an opening with no end is not a group yet')
+})
+
+test('a new group is named for what the sheet has not used', () => {
+  const rows = sheet()
+  assert.equal(nextGroupName(rows), 'B', 'A is taken')
+  assert.equal(startGroup(rows, 0, 1)[0].column(1).name, 'B')
+
+  const two = startGroup(rows, 0, 1)
+  const closed = endGroup(two, 0, 1, 2)
+  assert.equal(nextGroupName(closed), 'C', 'and now B is too')
+})
+
+test('closing a group puts its end just past the position pressed', () => {
+  const opened = startGroup(sheet(), 0, 1)
+  const closed = endGroup(opened, 0, 1, 3)
+
+  assert.equal(closed[0].length, 18, 'both ends are columns of their own')
+  assert.deepEqual(
+    closed[0].groups.map(({ start, end, name, repeat }) => [start, end, name, repeat]),
+    [[1, 4, 'B', 1], [6, 10, 'A', 3]],
+    'the new group ends after the position pressed, and counts once',
+  )
+})
+
+test('a group cannot be closed across another group', () => {
+  const opened = startGroup(sheet(), 0, 1)
+
+  assert.deepEqual(opened[0].closersFor(1), [2, 3, 4], 'the run stops at the next group')
+  assert.equal(endGroup(opened, 0, 1, 8), opened, 'past that is refused')
+  assert.equal(endGroup(opened, 0, 1, 1), opened, 'and so is the opening itself')
+})
+
+test('an opening nobody closed comes back out', () => {
+  const rows = sheet()
+  const opened = startGroup(rows, 0, 12)
+  const back = cancelGroup(opened, 0, 12)
+
+  assert.equal(back[0].length, rows[0].length)
+  assert.deepEqual(
+    back[0].columns.map((column) => column.cssMode),
+    rows[0].columns.map((column) => column.cssMode),
+  )
+  assert.equal(back[0].column(12).cell(2).value, '9', 'and the position it moved is back')
+})
+
+test('only an opening comes back out that way', () => {
+  const rows = sheet()
+
+  assert.equal(cancelGroup(rows, 0, 8), rows, 'not a closing')
+  assert.equal(cancelGroup(rows, 0, 1), rows, 'not a plain position')
 })

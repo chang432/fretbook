@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import ActionBar from './ActionBar.jsx'
 import Popover from './Popover.jsx'
-import { ImportIcon, RewindIcon } from './icons.jsx'
+import { GroupStartIcon, ImportIcon, RewindIcon } from './icons.jsx'
 
 /**
  * The buttons that come up over the position being written in: copying what
@@ -10,8 +10,10 @@ import { ImportIcon, RewindIcon } from './icons.jsx'
  * here.
  *
  * Each is offered only where it means something — there is a position
- * before this one to copy, and this one is somewhere a group can be put —
- * and where neither is, there is no bar at all rather than an empty one.
+ * before this one to copy, and this one is somewhere a group can be put,
+ * which nowhere inside another group is — and where none of them is, and
+ * nothing was passed in besides, there is no bar at all rather than an
+ * empty one.
  *
  * The bar itself is ActionBar, which every one of these shares — where it
  * stands and how it follows its cell is that component's business.
@@ -22,7 +24,16 @@ import { ImportIcon, RewindIcon } from './icons.jsx'
  * measured from — the list would be placed from the corner of the bar
  * instead of the corner of the window, and land nowhere near its button.
  */
-export default function CellMenu({ anchor, groups, onPlace, canCopy, canPlace, onCopy, children }) {
+export default function CellMenu({
+  anchor,
+  groups,
+  onPlace,
+  canCopy,
+  canPlace,
+  onCopy,
+  onOpenGroup,
+  children,
+}) {
   // The button the group list hangs off, which is also what says it is open.
   const [listing, setListing] = useState(null)
 
@@ -32,6 +43,21 @@ export default function CellMenu({ anchor, groups, onPlace, canCopy, canPlace, o
     <ActionBar anchor={anchor} label="This position">
       {children}
       {canCopy && <button type="button" className="action-bar-button" title="Copy previous position" aria-label="Copy previous position" onMouseDown={(event) => event.preventDefault()} onClick={onCopy}><RewindIcon width={20} height="14" /></button>}
+      {/* Opening a group here. The button wears the mark it makes: the
+          bar, and the two half-arrows that come off it. */}
+      {canPlace && (
+        <button
+          type="button"
+          className="action-bar-button"
+          title="Start a new group here"
+          aria-label="Start a new group here"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={onOpenGroup}
+        >
+          <GroupStartIcon />
+        </button>
+      )}
+
       {canPlace && (
         <button
           type="button"

@@ -5,11 +5,15 @@ import {
   GROUP_START,
   Row,
   copyPreviousPosition,
+  previousWrittenPosition,
   STANDARD_TUNING,
+  cancelGroup,
   deleteGroup,
   deleteRef,
+  endGroup,
   markColumn,
   nameGroup,
+  startGroup,
   placeGroup,
   setRepeat,
   writeCell,
@@ -123,6 +127,7 @@ function mockRows() {
 export default function TabEditorV2Lab() {
   const [rows, setRows] = useState(mockRows)
   const [ties, setTies] = useState([])
+  const [marks, setMarks] = useState([])
 
   /**
    * Write one cell. What that means to the sheet is the model's business —
@@ -132,6 +137,7 @@ export default function TabEditorV2Lab() {
   const handleCellChange = (row, col, string, value) => {
     setRows((prev) => writeCell(prev, row, col, string, value))
     setTies((prev) => prev.filter((tie) => tie.row !== row || tie.string !== string || (tie.from !== col && tie.to !== col)))
+    if (rows[row].column(col).cell(string).with(value).isEmpty) setMarks((prev) => prev.filter((mark) => mark.row !== row || mark.col !== col || mark.string !== string))
   }
 
   const handleTie = (row, string, source, target) => {
@@ -171,16 +177,30 @@ export default function TabEditorV2Lab() {
   const handlePlaceGroup = (row, col, name) => {
     setRows((prev) => placeGroup(prev, row, col, name))
     setTies((prev) => prev.filter((tie) => tie.row !== row))
+    setMarks((prev) => prev.filter((mark) => mark.row !== row))
   }
+
+  /**
+   * Writing a new group, in two presses: the first says where it opens and
+   * puts that column down, the second says which position it ends after.
+   * A group opened and then thought better of comes back out again, so the
+   * sheet never holds an opening with no end.
+   */
+  const handleStartGroup = (row, col) => setRows((prev) => startGroup(prev, row, col))
+
+  const handleEndGroup = (row, start, col) =>
+    setRows((prev) => endGroup(prev, row, start, col))
+
+  const handleCancelGroup = (row, col) => setRows((prev) => cancelGroup(prev, row, col))
 
   /**
    * Off the sheet. A group goes with every place it is played, since those
    * are only pointers back to it; one of those places goes on its own and
    * leaves the group where it is.
    */
-  const handleDeleteGroup = (row, col) => { setRows((prev) => deleteGroup(prev, row, col)); setTies([]) }
+  const handleDeleteGroup = (row, col) => { setRows((prev) => deleteGroup(prev, row, col)); setTies([]); setMarks([]) }
 
-  const handleDeleteRef = (row, col) => { setRows((prev) => deleteRef(prev, row, col)); setTies((prev) => prev.filter((tie) => tie.row !== row)) }
+  const handleDeleteRef = (row, col) => { setRows((prev) => deleteRef(prev, row, col)); setTies((prev) => prev.filter((tie) => tie.row !== row)); setMarks((prev) => prev.filter((mark) => mark.row !== row)) }
 
   return (
     <div className="app">
@@ -196,7 +216,7 @@ export default function TabEditorV2Lab() {
         <h1 style={{ margin: 0, font: '600 20px Georgia, "Times New Roman", serif' }}>
           TabEditorV2 — bench
         </h1>
-        <button type="button" onClick={() => { setRows(mockRows()); setTies([]) }}>
+        <button type="button" onClick={() => { setRows(mockRows()); setTies([]); setMarks([]) }}>
           Reset mock notes
         </button>
       </header>
@@ -209,10 +229,24 @@ export default function TabEditorV2Lab() {
           onRepeatChange={handleRepeatChange}
           onNameChange={handleNameChange}
           onRowNameChange={handleRowNameChange}
-          onCopyPrevious={(row, col) => { setRows((prev) => copyPreviousPosition(prev, row, col)); setTies((prev) => prev.filter((tie) => tie.row !== row || (tie.from !== col && tie.to !== col))) }}
+          onCopyPrevious={(row, col) => {
+            const source = previousWrittenPosition(rows, row, col)
+            const sourceRow = rows.findIndex((item) => item.columns.includes(source))
+            setRows((prev) => copyPreviousPosition(prev, row, col))
+            setTies((prev) => prev.filter((tie) => tie.row !== row || (tie.from !== col && tie.to !== col)))
+            setMarks((prev) => [...prev.filter((mark) => mark.row !== row || mark.col !== col), ...prev.filter((mark) => mark.row === sourceRow && mark.col === source?.rowPosition).map((mark) => ({ ...mark, row, col }))])
+          }}
           ties={ties}
+          marks={marks}
+          onToggleMark={(row, col, string) => setMarks((prev) => {
+            const exists = prev.some((mark) => mark.row === row && mark.col === col && mark.string === string)
+            return exists ? prev.filter((mark) => mark.row !== row || mark.col !== col || mark.string !== string) : [...prev, { row, col, string, symbol: 'zigzag' }]
+          })}
           onTie={handleTie}
           onPlaceGroup={handlePlaceGroup}
+          onStartGroup={handleStartGroup}
+          onEndGroup={handleEndGroup}
+          onCancelGroup={handleCancelGroup}
           onDeleteGroup={handleDeleteGroup}
           onDeleteRef={handleDeleteRef}
         />

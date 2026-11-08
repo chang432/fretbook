@@ -23,6 +23,18 @@ function without(row, gone) {
 }
 
 /**
+ * The row that results from putting one more column into it, at the place
+ * that column says it stands. Everything from there along is pushed one
+ * position further on, and the length keeps up.
+ */
+function inserted(row, column) {
+  const at = column.rowPosition
+  const after = row.columns.slice(at).map((each, i) => each.at(at + 1 + i))
+
+  return new Row(row.length + 1, [...row.columns.slice(0, at), column, ...after], row.name)
+}
+
+/**
  * One row of the sheet: its own run of positions, however many that is.
  *
  * A row's length is its own. Nothing divides it — there are no bars — and
@@ -121,6 +133,71 @@ export class Row {
       this.columns.map((each, c) => (c === col ? marked : each)),
       this.name,
     )
+  }
+
+  /**
+   * This row with a new group opened at `col`: a column given over to
+   * saying so goes in there, and the position that stood at `col` — along
+   * with everything past it — moves one along, so that it falls inside the
+   * group rather than before it.
+   *
+   * Nothing is written over. A group's ends are columns in their own
+   * right, so opening one lengthens the row rather than taking a position
+   * away from it.
+   *
+   * Not inside another group, for the same reason a group played here
+   * cannot be: see `withGroupAt`.
+   */
+  withStartAt(col, name) {
+    if (col < 0 || col > this.columns.length) return this
+    if (this.groupAt(col)) return this
+
+    return inserted(this, new Column(col, null, GROUP_START, { name }))
+  }
+
+  /**
+   * This row with the group opened at `start` closed after `col`, which is
+   * the last position it holds. The closing column goes in just past that
+   * one, carrying a count of one to begin with.
+   *
+   * `col` has to be one of the positions `closersFor` offers: past the
+   * opening, and with nothing in between that already belongs to a group.
+   */
+  withEndAt(start, col) {
+    if (!this.closersFor(start).includes(col)) return this
+
+    return inserted(this, new Column(col + 1, null, GROUP_END, { repeat: 1 }))
+  }
+
+  /**
+   * The positions that could close a group opened at `start`: everything
+   * past it, up to the first column that is already some group's.
+   *
+   * A group may not reach over another group's marks — it would hold one
+   * end of that group and not the other — so the run stops there rather
+   * than skipping past.
+   */
+  closersFor(start) {
+    const out = []
+
+    for (let at = start + 1; at < this.columns.length; at += 1) {
+      if (this.columns[at].isGroupMark) break
+      out.push(at)
+    }
+
+    return out
+  }
+
+  /**
+   * This row without the column that opens a group at `col`, which is how
+   * a group opened and then thought better of is taken back. Only an
+   * opening comes out this way: a group with both ends goes through
+   * `withoutGroupAt`.
+   */
+  withoutOpeningAt(col) {
+    if (this.columns[col]?.cssMode !== GROUP_START) return this
+
+    return without(this, new Set([col]))
   }
 
   /**
