@@ -494,8 +494,9 @@ export default function TabEditorV2({
           // Opening a group puts its first column down at once and leaves
           // the rest of the row waiting to be told where it ends.
           onOpenGroup={() => {
-            if (!onStartGroup(working.row, working.col)) return
-            setWorking({ kind: 'opening', row: working.row, col: working.col + 1 })
+            const start = onStartGroup(working.row, working.col)
+            if (start === null) return
+            setWorking({ kind: 'opening', row: working.row, col: start })
             setCursor(null)
           }}
           // A row always keeps one position, so the last one standing is

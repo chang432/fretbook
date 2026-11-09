@@ -449,15 +449,18 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
 
   const handleStartGroup = useCallback((row, col) => {
     const before = sheetRef.current
-    if (!before.rows[row] || before.rows[row].groupAt(col)) return false
-    const spaced = insertColumn(before.rows, row, col)
-    const opened = startGroup(spaced, row, col + 1)
-    if (opened === spaced) return false
-    pendingGroup.current = { row, start: col + 1, before }
+    if (!before.rows[row] || before.rows[row].groupAt(col)) return null
+    const extra = col === 0 ? 1 : 0
+    const spaced = extra ? insertColumn(before.rows, row, col) : before.rows
+    const start = col + extra
+    const opened = startGroup(spaced, row, start)
+    if (opened === spaced) return null
+    pendingGroup.current = { row, start, before }
     setRows(opened)
-    setTies((prev) => prev.map((tie) => tie.row === row ? { ...tie, from: tie.from >= col ? tie.from + 2 : tie.from, to: tie.to >= col ? tie.to + 2 : tie.to } : tie))
-    setMarks((prev) => prev.map((mark) => mark.row === row && mark.col >= col ? { ...mark, col: mark.col + 2 } : mark))
-    return true
+    const shift = 1 + extra
+    setTies((prev) => prev.map((tie) => tie.row === row ? { ...tie, from: tie.from >= col ? tie.from + shift : tie.from, to: tie.to >= col ? tie.to + shift : tie.to } : tie))
+    setMarks((prev) => prev.map((mark) => mark.row === row && mark.col >= col ? { ...mark, col: mark.col + shift } : mark))
+    return start
   }, [])
 
   const handleEndGroup = useCallback((row, start, col) => {
