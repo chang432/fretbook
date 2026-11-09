@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Popover from './Popover.jsx'
 import { NOTE_NAME } from '../utils/files.js'
-import { fetchNote } from '../utils/notes.js'
+import { followSheetLink, sheetPath } from '../utils/route.js'
 
 /**
  * What each of the three presses asks for and says. Kept as a table rather
@@ -121,9 +121,9 @@ export default function PublishMenu({
       <Popover anchor={anchor} className="publish-menu" label={words.done} onClose={onClose}>
         <p className="publish-done">{words.done}</p>
         {mode !== 'delete' && (
-          <button type="button" onClick={async () => { const sheet = await fetchNote(written.slug); if (sheet) onOpen({ slug: written.slug, sheet }); else setError("Could not open this sheet") }}>
+          <a href={sheetPath(written.slug)} onClick={(event) => followSheetLink(event, onOpen, written.slug)}>
             Open saved sheet
-          </button>
+          </a>
         )}
         <p className="publish-hint">{words.after}</p>
         {error && <p className="publish-error" role="alert">{error}</p>}

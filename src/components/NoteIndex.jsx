@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
 import Popover from './Popover.jsx'
-import { fetchManifest, fetchNote } from '../utils/notes.js'
+import { fetchManifest } from '../utils/notes.js'
+import { followSheetLink, sheetPath } from '../utils/route.js'
 
-/** Browse and open saved sheets without leaving the editor. */
+/** Browse saved sheets from the editor. */
 export default function NoteIndex({ anchor, onClose, onOpen, onDraft, hasPublished }) {
   const [notes, setNotes] = useState(null)
-  const [opening, setOpening] = useState(null)
-  const [error, setError] = useState('')
 
   useEffect(() => {
     let active = true
@@ -15,17 +14,6 @@ export default function NoteIndex({ anchor, onClose, onOpen, onDraft, hasPublish
     })
     return () => { active = false }
   }, [])
-
-  const open = async (slug) => {
-    setOpening(slug)
-    setError('')
-    const sheet = await fetchNote(slug)
-    if (sheet) onOpen({ slug, sheet })
-    else {
-      setOpening(null)
-      setError(`Could not open “${slug}”. It may no longer be available.`)
-    }
-  }
 
   return (
     <Popover anchor={anchor} className="sheet-picker" label="Saved sheets" onClose={onClose} centered>
@@ -37,15 +25,14 @@ export default function NoteIndex({ anchor, onClose, onOpen, onDraft, hasPublish
         <ul className="note-list">
           {notes.map(({ slug, title }) => (
             <li key={slug}>
-              <button type="button" className="note-list-link" disabled={!!opening} onClick={() => open(slug)}>
+              <a href={sheetPath(slug)} className="note-list-link" onClick={(event) => followSheetLink(event, onOpen, slug)}>
                 <span className="note-list-title">{title || slug}</span>
-                <span className="note-list-slug">{opening === slug ? 'Opening…' : slug}</span>
-              </button>
+                <span className="note-list-slug">{slug}</span>
+              </a>
             </li>
           ))}
         </ul>
       )}
-      {error && <p className="publish-error" role="alert">{error}</p>}
     </Popover>
   )
 }

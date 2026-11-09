@@ -799,7 +799,7 @@ export default function App({ published = null, onOpenSheet }) {
       )}
 
       {sheetPicker && (
-        <NoteIndex anchor={sheetPicker} onClose={() => setSheetPicker(null)} onOpen={onOpenSheet} onDraft={() => onOpenSheet(null)} hasPublished={!!published} />
+        <NoteIndex anchor={sheetPicker} onClose={() => setSheetPicker(null)} onOpen={(slug) => { setSheetPicker(null); onOpenSheet(slug) }} onDraft={() => onOpenSheet(null)} hasPublished={!!published} />
       )}
 
       {writeMenu && (

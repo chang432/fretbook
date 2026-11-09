@@ -36,6 +36,7 @@
   background: transparent;
   color: inherit;
   text-align: left;
+  text-decoration: none;
 }
 
 .note-list-link:hover { background: var(--paper); }
