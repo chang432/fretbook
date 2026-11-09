@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createSheet, fromJson, isEmpty, toAsciiTab, toJson } from '../src/utils/sheet.js'
+import { createSheet, fromJson, isEmpty, toJson } from '../src/utils/sheet.js'
 import {
   GROUP_END,
   GROUP_REF,
@@ -118,14 +118,4 @@ test('the player repeats a group, and plays one written elsewhere', () => {
     ],
   )
   assert.equal(songBeats(runs), 2 + 3 * 3 + 5 + 1 + 3 * 2 + 6)
-})
-
-test('the ASCII export draws the repeat bars and the count over them', () => {
-  const text = toAsciiTab(sheet(), STANDARD_TUNING)
-
-  assert.match(text, /^Intro$/m)
-  assert.match(text, /x3/, 'the count stands over the bar that closes the group')
-  assert.match(text, /\|:/, 'and the group opens')
-  assert.match(text, /:\|/, 'and closes')
-  assert.match(text, /:A:/, 'with the group played again on the second row')
 })

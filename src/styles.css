@@ -25,7 +25,6 @@
  *   …-strings     its strings and the cells written on them
  *   …-groups      the columns that open and close a group inside it
  *   …-annotations the arcs and symbols drawn over them
- *   output        the exported image and text
  *   live          the strip the song plays past
  *   v2            the second editor's own look, over the parts it shares
  */
@@ -41,6 +40,5 @@
 @import './styles/staff-strings.css';
 @import './styles/staff-groups.css';
 @import './styles/staff-annotations.css';
-@import './styles/output.css';
 @import './styles/live.css';
 @import './styles/v2.css';

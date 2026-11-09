@@ -11,7 +11,6 @@ import {
   createSheet,
   fromJson,
   isEmpty,
-  toAsciiTab,
   toJson,
 } from './utils/sheet.js'
 import {
@@ -99,7 +98,6 @@ export default function App({ published = null, onOpenSheet }) {
   const [ties, setTies] = useState(saved.ties)
   const [marks, setMarks] = useState(saved.marks)
   const [status, setStatus] = useState('')
-  const [showText, setShowText] = useState(false)
   // The open write panel, as the button it hangs under and which of the three
   // presses it is — they are one panel asking for different things.
   const [writeMenu, setWriteMenu] = useState(null)
@@ -122,7 +120,6 @@ export default function App({ published = null, onOpenSheet }) {
   const audioRef = useRef(null)
 
   const sheet = useMemo(() => ({ rows, ties, marks }), [rows, ties, marks])
-  const asciiTab = useMemo(() => toAsciiTab(sheet, STANDARD_TUNING), [sheet])
   // The sheet as the bucket would hold it. One memo serves both the writes
   // below and the test of whether a published note has been changed at all.
   const json = useMemo(
@@ -861,13 +858,6 @@ export default function App({ published = null, onOpenSheet }) {
           + New row
         </button>
       </main>
-
-      <section className="output">
-        <button type="button" className="link" onClick={() => setShowText((v) => !v)}>
-          {showText ? 'Hide' : 'Show'} text output
-        </button>
-        {showText && <pre className="output-pre">{empty ? '(nothing written yet)' : asciiTab}</pre>}
-      </section>
 
       {live && (
         <LiveMode

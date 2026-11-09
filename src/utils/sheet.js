@@ -50,9 +50,6 @@ export const readMemo = (raw) => (typeof raw === 'string' ? raw.slice(0, MAX_MEM
 export const MARK_ZIGZAG = 'zigzag'
 export const MARK_SYMBOLS = [MARK_ZIGZAG]
 
-/** Letter appended to the fret in ASCII exports, which cannot draw a symbol. */
-export const MARK_ASCII = { [MARK_ZIGZAG]: 'w' }
-
 /** The symbol sitting above a note, or null. */
 export const markAt = (marks, row, col, string) =>
   marks.find((mark) => mark.row === row && mark.col === col && mark.string === string)?.symbol ??
@@ -250,101 +247,4 @@ export function fromJson(text) {
   )
 
   return { rows, ties, marks, title: data.title, memo: readMemo(data.memo) }
-}
-
-/* The sheet as text ------------------------------------------------------- */
-
-/**
- * The sheet as ASCII tab: one block per row, strings high to low.
- *
- * A group's two ends are drawn as repeat barlines, the way they would be in
- * printed tab, and how many times it is played is written above the line
- * that closes it. A column standing in for a group played elsewhere carries
- * that group's name between the two barlines.
- */
-export function toAsciiTab({ rows, ties, marks }, tuning = STANDARD_TUNING) {
-  const blocks = rows.map((row, at) => {
-    // What each position is drawn as, which settles how wide it has to be
-    // before any of it is written out.
-    const tokens = row.columns.map((column) => {
-      if (column.cssMode === GROUP_START) return '|:'
-      if (column.cssMode === GROUP_END) return ':|'
-      if (column.isGroupRef) return `:${column.name}:`
-      return null
-    })
-
-    const widths = row.columns.map((column, col) => {
-      if (tokens[col]) return tokens[col].length
-      return Math.max(
-        1,
-        ...column.cells.map((cell) => {
-          if (cell.isEmpty) return 1
-          const symbol = markAt(marks, at, col, cell.string)
-          return cell.value.length + (symbol ? MARK_ASCII[symbol].length : 0)
-        }),
-      )
-    })
-
-    // Where each position starts along the line, so the counts above and the
-    // arcs below can be written over the right one.
-    const offsets = []
-    let cursor = 0
-    row.columns.forEach((_, col) => {
-      if (col > 0) cursor += 1
-      offsets.push(cursor)
-      cursor += widths[col]
-    })
-    const span = cursor
-
-    const lines = tuning.map((label, string) => {
-      let body = ''
-      row.columns.forEach((column, col) => {
-        if (col > 0) body += '-'
-        const cell = column.cell(string)
-        const symbol = cell.isEmpty ? null : markAt(marks, at, col, string)
-        const token =
-          tokens[col] ?? (cell.isEmpty ? '-' : cell.value + (symbol ? MARK_ASCII[symbol] : ''))
-        body += token.padEnd(widths[col], tokens[col] ? ':' : '-')
-      })
-
-      const chars = body.split('')
-      ties
-        .filter((tie) => tie.row === at && tie.string === string)
-        .forEach((tie) => {
-          const from = offsets[tie.from] + widths[tie.from]
-          const to = offsets[tie.to] - 1
-          for (let i = from; i <= to && i < chars.length; i += 1) {
-            if (chars[i] === '-') chars[i] = '~'
-          }
-        })
-
-      return `${label}|-${chars.join('')}-|`
-    })
-
-    // How many times each group is played, written over the barline that
-    // closes it — there being nowhere on a string line to put it.
-    const counts = Array(span).fill(' ')
-    row.groups.forEach(({ end, repeat }) => {
-      const say = `x${repeat ?? 1}`
-      for (let i = 0; i < say.length && offsets[end] + i < span; i += 1) {
-        counts[offsets[end] + i] = say[i]
-      }
-    })
-    row.columns
-      .filter((column) => column.isGroupRef)
-      .forEach((column) => {
-        const say = `x${column.repeat ?? 1}`
-        for (let i = 0; i < say.length && offsets[column.rowPosition] + i < span; i += 1) {
-          counts[offsets[column.rowPosition] + i] = say[i]
-        }
-      })
-
-    // Three spaces to clear the `e|-` every string line opens with, so a
-    // count stands over the barline it belongs to.
-    const over = counts.join('').trimEnd()
-
-    return [...(row.name ? [row.name] : []), ...(over ? [`   ${over}`] : []), ...lines].join('\n')
-  })
-
-  return blocks.join('\n\n') + '\n'
 }
