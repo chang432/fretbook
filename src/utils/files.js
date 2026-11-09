@@ -7,13 +7,11 @@
  * settled in the one place.
  */
 
-/**
- * What a published note may be called: lowercase letters and digits in runs,
- * joined by a single hyphen or underscore. The two marks are interchangeable
- * so that a JSON export's own stem, which `slugify` joins with underscores,
- * is publishable as it comes.
- */
-export const NOTE_NAME = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/
+/** New sheet names use letters and digits separated by underscores. */
+export const NOTE_NAME = /^[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/
+
+/** Existing saved sheets may have been published with hyphens. */
+export const SAVED_NOTE_NAME = /^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$/
 
 /**
  * Filesystem-safe file stem from the sheet's title. A run of anything that

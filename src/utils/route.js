@@ -1,11 +1,11 @@
-import { NOTE_NAME } from './files.js'
+import { SAVED_NOTE_NAME } from './files.js'
 
 export const sheetPath = (slug) => `/sheets/${slug}`
 
 /** Match only valid saved-sheet names; all other paths open the draft. */
 export function sheetSlug(pathname) {
-  const match = /^\/sheets\/([a-z0-9]+(?:[-_][a-z0-9]+)*)\/?$/.exec(pathname)
-  return match && NOTE_NAME.test(match[1]) ? match[1] : null
+  const match = /^\/sheets\/([^/]+)\/?$/.exec(pathname)
+  return match && SAVED_NOTE_NAME.test(match[1]) ? match[1] : null
 }
 
 /** Leave modified and non-primary clicks to the browser. */

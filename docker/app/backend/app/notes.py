@@ -60,10 +60,12 @@ from flask import Blueprint, Response, jsonify, request
 
 notes = Blueprint("notes", __name__)
 
-# The same shape the publisher enforces (NOTE_NAME in src/utils/tab.js). A slug
+# The same naming rules the publisher enforces in src/utils/files.js. A slug
 # is user input on its way into a key, so it is checked against the pattern that
 # already defines a legal note name rather than merely scrubbed of "..".
-NOTE_NAME = re.compile(r"^[a-z0-9]+(?:[-_][a-z0-9]+)*$")
+NOTE_NAME = re.compile(r"[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*")
+# Existing saved sheets can still have the formerly permitted hyphens.
+SAVED_NOTE_NAME = re.compile(r"[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*")
 
 #: Notes sit under a prefix and the manifest does not, so no note is barred
 #: from being called "notes".
@@ -241,7 +243,7 @@ def note(slug: str):
     if unconfigured := _unconfigured():
         return unconfigured
 
-    if not NOTE_NAME.match(slug):
+    if not SAVED_NOTE_NAME.fullmatch(slug):
         return jsonify(error="not a note name"), 404
 
     body = _object(f"{PREFIX}/{slug}.json")
@@ -511,7 +513,7 @@ def publish(slug: str):
     if unconfigured := _unconfigured():
         return unconfigured
 
-    if not NOTE_NAME.match(slug):
+    if not NOTE_NAME.fullmatch(slug):
         return jsonify(error="not a note name"), 400
 
     body, title, refused = _submitted_sheet()
@@ -565,7 +567,7 @@ def update(slug: str):
     if unconfigured := _unconfigured():
         return unconfigured
 
-    if not NOTE_NAME.match(slug):
+    if not SAVED_NOTE_NAME.fullmatch(slug):
         return jsonify(error="not a note name"), 400
 
     # Before the body is read, let alone judged: an unauthorised caller gets
@@ -615,7 +617,7 @@ def unpublish(slug: str):
     if unconfigured := _unconfigured():
         return unconfigured
 
-    if not NOTE_NAME.match(slug):
+    if not SAVED_NOTE_NAME.fullmatch(slug):
         return jsonify(error="not a note name"), 400
 
     if refused := _wrong_password():

@@ -479,8 +479,7 @@ notes/tie_that_binds_by_drake.json   →   saved sheet tie_that_binds_by_drake
 
 To publish from a file: **Export → JSON file**, then publish the file. An
 export is named after its title with underscores between the words, which is
-already a publishable name — rename it only if you want a different saved-sheet name, keeping to lowercase letters and digits joined by single dashes or
-underscores.
+already a publishable name — rename it only if you want a different saved-sheet name, using letters and numbers separated by single underscores.
 
 **The bucket is the only place a note lives.** A reader can open one and play
 with it, but nothing they do is saved anywhere, and publishing — the button or
