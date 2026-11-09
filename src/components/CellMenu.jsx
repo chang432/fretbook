@@ -133,16 +133,18 @@ export default function CellMenu({
                   key={`${group.row}:${group.start}`}
                   type="button"
                   className="group-list-item"
+                  // Nothing but the letter is shown: a group is known by its
+                  // name and by nothing else, so where it happens to be
+                  // written is not what is being chosen between. The label
+                  // says the rest, for anyone who cannot see the staff.
+                  aria-label={`Play group ${group.name} here`}
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => {
                     onPlace(group.name)
                     setListing(null)
                   }}
                 >
-                  <span className="group-list-name">{group.name}</span>
-                  <span className="group-list-where">
-                    Row {group.row + 1}, position {group.start + 1}
-                  </span>
+                  {group.name}
                 </button>
               ))
             )}
