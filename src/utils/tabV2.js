@@ -30,6 +30,7 @@
  */
 export { Cell, STRING_COUNT, MAX_FRET } from './cell.js'
 import { DEFAULT_GROUP_NAME, GROUP_START } from './column.js'
+import { Row } from './row.js'
 
 export {
   Column,
@@ -44,6 +45,23 @@ export { DEFAULT_ROW_LENGTH, Row } from './row.js'
 
 /** Top-to-bottom string labels in standard tuning. */
 export const STANDARD_TUNING = ['e', 'B', 'G', 'D', 'A', 'E']
+
+/** A paste may extend the row, but may not overwrite a group indicator. */
+export function canPasteAt(row, at, count) {
+  return Boolean(row && Number.isInteger(at) && at >= 0 && at < row.length && Number.isInteger(count) && count > 0 &&
+    !row.columns.slice(at, at + count).some((column) => column.isGroupMark))
+}
+
+export function pasteColumns(sheet, sourceRow, start, end, targetRow, at) {
+  const source = sheet[sourceRow]
+  const target = sheet[targetRow]
+  if (!source || !Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end >= source.length) return sheet
+  const copied = source.columns.slice(start, end + 1)
+  if (copied.some((column) => column.isGroupMark) || !canPasteAt(target, at, copied.length)) return sheet
+  const columns = [...target.columns.slice(0, at), ...copied, ...target.columns.slice(at + copied.length)]
+    .map((column, index) => column.at(index))
+  return sheet.map((row, index) => index === targetRow ? new Row(columns.length, columns, row.name) : row)
+}
 
 /**
  * Write one cell, and hand back the sheet that results.

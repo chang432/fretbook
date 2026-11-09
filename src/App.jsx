@@ -23,6 +23,7 @@ import {
   endGroup,
   insertColumn,
   nameGroup,
+  pasteColumns,
   placeGroup,
   previousWrittenPosition,
   resizeRow,
@@ -393,17 +394,11 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
 
   const handlePasteRange = (sourceRow, start, end, targetRow, at) => {
     const standing = sheetRef.current.rows
-    const source = standing[sourceRow]
-    const target = standing[targetRow]
-    if (!source || !target || start < 0 || end < start || end >= source.length || at < 0) return
-    const copied = source.columns.slice(start, end + 1)
-    if (copied.some((column) => column.isGroupMark)) return
-    const count = copied.length
-    if (at + count > target.length || target.columns.slice(at, at + count).some((column) => column.isGroupMark)) return
-    const columns = [...target.columns.slice(0, at), ...copied, ...target.columns.slice(at + count)]
-      .map((column, index) => column.at(index))
+    const pasted = pasteColumns(standing, sourceRow, start, end, targetRow, at)
+    if (pasted === standing) return
+    const count = end - start + 1
     remember('pasting a section')
-    setRows(standing.map((row, index) => index === targetRow ? new Row(columns.length, columns, row.name) : row))
+    setRows(pasted)
     setMarks((prev) => [
       ...prev.filter((mark) => mark.row !== targetRow || mark.col < at || mark.col >= at + count),
       ...prev.filter((mark) => mark.row === sourceRow && mark.col >= start && mark.col <= end)

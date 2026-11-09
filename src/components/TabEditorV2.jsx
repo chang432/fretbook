@@ -7,7 +7,7 @@ import ActionBar from './ActionBar.jsx'
 import StaffOverlay from './StaffOverlay.jsx'
 import { markPath } from '../utils/layout.js'
 import GroupCover from './GroupCover.jsx'
-import { GROUP_REF, previousWrittenPosition, sheetGroups } from '../utils/tabV2.js'
+import { GROUP_REF, canPasteAt, previousWrittenPosition, sheetGroups } from '../utils/tabV2.js'
 import { staffDisplay } from '../utils/staffDisplay.js'
 
 /**
@@ -364,7 +364,7 @@ export default function TabEditorV2({
                   ))}
                   {copyRange?.phase === 'paste' && row.columns.map((column, at) => {
                     const count = copyRange.end - copyRange.start + 1
-                    if (at + count > row.length || row.columns.slice(at, at + count).some((item) => item.isGroupMark)) return null
+                    if (!canPasteAt(row, at, count)) return null
                     return <button key={`paste-${at}`} type="button" className="range-copy-choice range-copy-choice--paste" style={{ left: `calc(${display.positions[at]} * var(--cell-w))` }} aria-label={`Paste starting at position ${at + 1} in row ${staff + 1}`} title="Paste starting here" onClick={() => { onPasteRange(copyRange.row, copyRange.start, copyRange.end, staff, at); setCopyRange(null) }} />
                   })}
                   <StaffOverlay ties={shownTies} marks={shownMarks} staffStart={0} cols={display.entries.length} preview={armed && selected?.row === staff && cursor !== null ? mapTie({ string: selected.string, from: Math.min(selected.col, cursor), to: Math.max(selected.col, cursor) }) : null} />
