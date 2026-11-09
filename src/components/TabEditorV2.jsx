@@ -104,6 +104,10 @@ export default function TabEditorV2({
   const [copyRange, setCopyRange] = useState(null)
   const [expandedRefs, setExpandedRefs] = useState(() => new Set())
   const [hoveredGroup, setHoveredGroup] = useState(null)
+  const collapseRef = (reference) => {
+    setExpandedRefs((prev) => { const next = new Set(prev); next.delete(reference); return next })
+    setWorking(null)
+  }
   if (wasEditingRows !== editingRows) {
     setWasEditingRows(editingRows)
     setHeldRow(null)
@@ -370,9 +374,10 @@ export default function TabEditorV2({
                   <StaffOverlay ties={shownTies} marks={shownMarks} staffStart={0} cols={display.entries.length} preview={armed && selected?.row === staff && cursor !== null ? mapTie({ string: selected.string, from: Math.min(selected.col, cursor), to: Math.max(selected.col, cursor) }) : null} />
                   {display.previews.map(({ source, start, span, reference }) => (
                     <Fragment key={`controls-${start}`}>
+                      <button type="button" className="ref-expanded-hit" style={{ left: `calc(${start} * var(--cell-w))`, width: `calc(${span} * var(--cell-w))` }} aria-label={`Collapse group ${source.name} notes`} onMouseDown={(event) => event.preventDefault()} onClick={() => collapseRef(reference)} />
                       <div className="ref-expanded-controls" style={{ left: `calc((${start} + ${span} / 2) * var(--cell-w))` }}>
                         <span className="ref-expanded-name">{source.name}</span>
-                        <button type="button" className="ref-expanded-collapse" aria-label={`Collapse group ${source.name} notes`} aria-expanded="true" onClick={() => { setExpandedRefs((prev) => { const next = new Set(prev); next.delete(reference); return next }); setWorking(null) }}>◀</button>
+                        <button type="button" className="ref-expanded-collapse" aria-label={`Collapse group ${source.name} notes`} aria-expanded="true" onClick={() => collapseRef(reference)}>◀</button>
                       </div>
                       <span className="ref-expanded-repeat" style={{ left: `calc((${start} + ${span} - 1) * var(--cell-w))` }} aria-label={`Repeated ${reference.repeat ?? 1} times`}>x{reference.repeat ?? 1}</span>
                     </Fragment>
