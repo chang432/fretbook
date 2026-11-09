@@ -189,6 +189,27 @@ export class Row {
   }
 
   /**
+   * This row without the position at `col`, everything past it moving one
+   * closer to fill the gap.
+   *
+   * A plain position only. A group's own columns are two halves of one
+   * statement — and a column standing in for a group played here is a
+   * whole one — so taking any of them out on its own would leave the row
+   * saying something it does not mean. Those go through `withoutGroupAt`,
+   * `withoutRefAt` and `withoutOpeningAt`, each of which takes the whole
+   * of what it is removing.
+   *
+   * The last position standing stays: a row with nothing in it is a staff
+   * with nowhere to write.
+   */
+  withoutColumnAt(col) {
+    if (this.columns.length <= 1) return this
+    if (this.columns[col]?.cssMode !== false) return this
+
+    return without(this, new Set([col]))
+  }
+
+  /**
    * This row without the column that opens a group at `col`, which is how
    * a group opened and then thought better of is taken back. Only an
    * opening comes out this way: a group with both ends goes through

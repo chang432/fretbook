@@ -5,6 +5,7 @@ import {
   GROUP_START,
   Row,
   cancelGroup,
+  deleteColumn,
   deleteGroup,
   deleteRef,
   endGroup,
@@ -160,4 +161,44 @@ test('only an opening comes back out that way', () => {
 
   assert.equal(cancelGroup(rows, 0, 8), rows, 'not a closing')
   assert.equal(cancelGroup(rows, 0, 1), rows, 'not a plain position')
+})
+
+test('a position comes off the row, and the rest move one closer', () => {
+  const rows = sheet()
+  const cut = deleteColumn(rows, 0, 2)
+
+  assert.equal(cut[0].length, 15)
+  assert.deepEqual(
+    cut[0].columns.map((column) => column.rowPosition),
+    [...Array(15).keys()],
+    'the positions are renumbered with no gap',
+  )
+  assert.deepEqual(
+    cut[0].groups.map(({ start, end }) => [start, end]),
+    [[3, 7]],
+    'the group past it moves along whole',
+  )
+  assert.equal(cut[0].column(5).cell(2).value, '7', 'and the note inside it with it')
+})
+
+test('a position inside a group comes off, leaving the group shorter', () => {
+  const rows = sheet()
+  const cut = deleteColumn(rows, 0, 6)
+
+  assert.deepEqual(cut[0].groups.map(({ start, end }) => [start, end]), [[4, 7]])
+  assert.equal(cut[0].column(6).cell(2).isEmpty !== false, true, 'the note went with it')
+})
+
+test('only a plain position comes off that way', () => {
+  const rows = placeGroup(sheet(), 0, 1, 'A')
+
+  for (const [col, what] of [[1, 'a group played here'], [4, 'an opening'], [8, 'a closing']]) {
+    assert.equal(deleteColumn(rows, 0, col), rows, what)
+  }
+})
+
+test('the last position standing is kept', () => {
+  const one = [new Row(1, null, 'Just the one')]
+
+  assert.equal(deleteColumn(one, 0, 0), one)
 })

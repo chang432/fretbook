@@ -74,6 +74,7 @@ export default function TabEditorV2({
   onStartGroup,
   onEndGroup,
   onCancelGroup,
+  onDeleteColumn,
   onDeleteGroup,
   onDeleteRef,
 }) {
@@ -349,6 +350,14 @@ export default function TabEditorV2({
             onStartGroup(working.row, working.col)
             setWorking({ kind: 'opening', row: working.row, col: working.col })
             setCursor(null)
+          }}
+          // A row always keeps one position, so the last one standing is
+          // not offered up.
+          canDelete={rows[working.row]?.length > 1}
+          onDeleteColumn={() => {
+            onDeleteColumn(working.row, working.col)
+            // What was selected is not there any more.
+            setWorking(null)
           }}
           onCopy={() => onCopyPrevious(working.row, working.col)}
           onPlace={(name) => {

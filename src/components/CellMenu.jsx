@@ -2,18 +2,19 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import ActionBar from './ActionBar.jsx'
 import Popover from './Popover.jsx'
-import { GroupStartIcon, ImportIcon, RewindIcon } from './icons.jsx'
+import { CrossIcon, GroupStartIcon, ImportIcon, RewindIcon } from './icons.jsx'
 
 /**
- * The buttons that come up over the position being written in: copying what
- * was written at the position before, and playing a group written elsewhere
- * here.
+ * The buttons that come up over the position being written in: copying
+ * what was written at the position before, opening a new group here,
+ * playing a group written elsewhere here, and taking the position off the
+ * row altogether.
  *
  * Each is offered only where it means something — there is a position
- * before this one to copy, and this one is somewhere a group can be put,
- * which nowhere inside another group is — and where none of them is, and
- * nothing was passed in besides, there is no bar at all rather than an
- * empty one.
+ * before this one to copy, this one is somewhere a group can be put, which
+ * nowhere inside another group is, and the row has a position to spare —
+ * and where none of them is, and nothing was passed in besides, there is
+ * no bar at all rather than an empty one.
  *
  * The bar itself is ActionBar, which every one of these shares — where it
  * stands and how it follows its cell is that component's business.
@@ -32,12 +33,14 @@ export default function CellMenu({
   canPlace,
   onCopy,
   onOpenGroup,
+  canDelete,
+  onDeleteColumn,
   children,
 }) {
   // The button the group list hangs off, which is also what says it is open.
   const [listing, setListing] = useState(null)
 
-  if (!canCopy && !canPlace && !children) return null
+  if (!canCopy && !canPlace && !canDelete && !children) return null
 
   return (
     <ActionBar anchor={anchor} label="This position">
@@ -69,6 +72,21 @@ export default function CellMenu({
           onClick={(event) => setListing(listing ? null : event.currentTarget)}
         >
           <ImportIcon />
+        </button>
+      )}
+
+      {/* Off the row altogether, with everything past it moving one
+          closer. Last in the bar, being the one that takes away. */}
+      {canDelete && (
+        <button
+          type="button"
+          className="action-bar-button"
+          title="Delete this position"
+          aria-label="Delete this position"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={onDeleteColumn}
+        >
+          <CrossIcon />
         </button>
       )}
 

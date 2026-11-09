@@ -220,6 +220,24 @@ export function nameGroup(sheet, row, col, name) {
 }
 
 /**
+ * Take one position off a row, everything past it moving one closer. Only
+ * a plain position goes this way — see `Row.withoutColumnAt` — so a sheet
+ * handed a group's own column comes back unchanged.
+ *
+ * A position inside a group may go: the group is shorter by one, which is
+ * what taking a note out of a repeated phrase means.
+ */
+export function deleteColumn(sheet, row, col) {
+  const standing = sheet[row]
+  if (!standing) return sheet
+
+  const cut = standing.withoutColumnAt(col)
+  if (cut === standing) return sheet
+
+  return sheet.map((each, r) => (r === row ? cut : each))
+}
+
+/**
  * Take the group that opens at `col` off the sheet: its two ends and its
  * count, and with them every place it was played, since a group played
  * somewhere is only ever a pointer back to the one written here.

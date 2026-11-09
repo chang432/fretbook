@@ -119,6 +119,16 @@ export function RewindIcon({ width = 16, height = 16 }) {
   )
 }
 
+/** A cross: the position under it taken off the row altogether. */
+export function CrossIcon({ width = 16, height = 16 }) {
+  return (
+    <svg className="icon" width={width} height={height} viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M 3.8 3.8 L 12.2 12.2" />
+      <path d="M 12.2 3.8 L 3.8 12.2" />
+    </svg>
+  )
+}
+
 /**
  * The mark that opens a group, drawn small: the bar, and the two
  * half-arrows that come off it pointing in over what the group holds. The

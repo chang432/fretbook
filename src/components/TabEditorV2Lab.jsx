@@ -8,6 +8,7 @@ import {
   previousWrittenPosition,
   STANDARD_TUNING,
   cancelGroup,
+  deleteColumn,
   deleteGroup,
   deleteRef,
   endGroup,
@@ -194,6 +195,16 @@ export default function TabEditorV2Lab() {
   const handleCancelGroup = (row, col) => setRows((prev) => cancelGroup(prev, row, col))
 
   /**
+   * One position off a row. Everything past it moves one closer, so the
+   * held notes of that row no longer say where they were — the same
+   * reason putting a group down drops them.
+   */
+  const handleDeleteColumn = (row, col) => {
+    setRows((prev) => deleteColumn(prev, row, col))
+    setTies((prev) => prev.filter((tie) => tie.row !== row))
+  }
+
+  /**
    * Off the sheet. A group goes with every place it is played, since those
    * are only pointers back to it; one of those places goes on its own and
    * leaves the group where it is.
@@ -247,6 +258,7 @@ export default function TabEditorV2Lab() {
           onStartGroup={handleStartGroup}
           onEndGroup={handleEndGroup}
           onCancelGroup={handleCancelGroup}
+          onDeleteColumn={handleDeleteColumn}
           onDeleteGroup={handleDeleteGroup}
           onDeleteRef={handleDeleteRef}
         />
