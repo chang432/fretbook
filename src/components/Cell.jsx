@@ -84,6 +84,10 @@ export default function Cell({
   onSelect,
   onNavigate,
   onPlay,
+  expanded = false,
+  onToggleExpand,
+  onGroupHover,
+  onGroupLeave,
   tieTarget = false,
   onTieTarget,
   onTieHover,
@@ -160,7 +164,7 @@ export default function Cell({
   if (inGroup) slot.push('cell-slot--in-group')
 
   return (
-    <span className={slot.join(' ')}>
+    <span className={slot.join(' ')} data-column={col} onMouseEnter={onGroupHover} onMouseLeave={onGroupLeave}>
       <input
         ref={box}
         className={classes.join(' ')}
@@ -222,6 +226,11 @@ export default function Cell({
         }}
         onBlur={() => says && setCounting(false)}
       />
+      {stands && cell.string === MIDDLE_STRING + 1 && onToggleExpand && (
+        <button type="button" className="group-ref-toggle" aria-label={`${expanded ? 'Collapse' : 'Expand'} group ${name} notes`} aria-expanded={expanded} onMouseDown={(event) => event.preventDefault()} onClick={onToggleExpand}>
+          {expanded ? '◀' : '▶'}
+        </button>
+      )}
     </span>
   )
 }

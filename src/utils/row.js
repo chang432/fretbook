@@ -63,7 +63,7 @@ export class Row {
    */
   constructor(length = DEFAULT_ROW_LENGTH, columns = null, name = '') {
     this.length = length
-    this.name = name
+    this.name = name.toLowerCase()
     this.columns = columns ?? Array.from({ length }, (_, at) => new Column(at))
   }
 

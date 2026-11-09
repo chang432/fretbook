@@ -328,6 +328,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
   )
 
   const handleRowNameChange = (row, name) => {
+    name = name.toLowerCase()
     if (rows[row].name === name) return
     remember(`naming row ${row + 1}`, { token: `name:${row}` })
     setRows((prev) =>
@@ -655,7 +656,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
         <input
           className="title-input"
           value={title}
-          onChange={(event) => setTitle(event.target.value.toLowerCase())}
+          onChange={(event) => setTitle(event.target.value.toLowerCase().replace(/ /g, '_'))}
           autoCapitalize="off"
           placeholder="Untitled"
           aria-label="Title"

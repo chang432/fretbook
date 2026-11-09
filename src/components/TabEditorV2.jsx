@@ -8,6 +8,7 @@ import StaffOverlay from './StaffOverlay.jsx'
 import { markPath } from '../utils/layout.js'
 import GroupCover from './GroupCover.jsx'
 import { GROUP_REF, previousWrittenPosition, sheetGroups } from '../utils/tabV2.js'
+import { staffDisplay } from '../utils/staffDisplay.js'
 
 /**
  * The second editor, stripped to the bone: one staff per row, a cell per
@@ -59,7 +60,7 @@ const ROW_STEP = 8
  */
 function columnTop(element, col) {
   const body = element.closest('.staff-body')
-  return body?.querySelector('.string-row--top')?.children[col] ?? element
+  return body?.querySelector(`.string-row--top > [data-column="${col}"]`) ?? element
 }
 
 export default function TabEditorV2({
@@ -100,6 +101,8 @@ export default function TabEditorV2({
   const [armed, setArmed] = useState(false)
   const [cursor, setCursor] = useState(null)
   const [copyRange, setCopyRange] = useState(null)
+  const [expandedRefs, setExpandedRefs] = useState(() => new Set())
+  const [hoveredGroup, setHoveredGroup] = useState(null)
   if (wasEditingRows !== editingRows) {
     setWasEditingRows(editingRows)
     setHeldRow(null)
@@ -158,7 +161,7 @@ export default function TabEditorV2({
     if (!rows[row].column(nextCol) || rows[row].column(nextCol).isGroupMark) return
     const body = event.currentTarget.closest('.staff-body')
     const stringRow = body?.querySelectorAll('.string-row')[nextString]
-    stringRow?.children[nextCol]?.querySelector('input.cell')?.focus()
+    stringRow?.querySelector(`[data-column="${nextCol}"] > input.cell`)?.focus()
   }
 
   // A group opened and not yet closed: its opening column stands on the
@@ -297,6 +300,17 @@ export default function TabEditorV2({
       {rows.map((row, staff) => {
         const groups = row.groups
         const opened = groups.find((group) => isOpen(staff, group)) ?? null
+        const hovered = !editingRows && !opening && !copyRange && hoveredGroup?.row === staff
+          ? groups.find((group) => group.start === hoveredGroup.start && !isOpen(staff, group))
+          : null
+        const display = staffDisplay(row, sheetGroups(rows), rows, expandedRefs)
+        const mapTie = (tie) => ({ ...tie, from: display.positions[tie.from], to: display.positions[tie.to] })
+        const shownTies = ties.filter((tie) => tie.row === staff).map(mapTie)
+        const shownMarks = marks.filter((mark) => mark.row === staff).map((mark) => ({ ...mark, col: display.positions[mark.col] }))
+        display.previews.forEach(({ source, start }) => {
+          ties.filter((tie) => tie.row === source.row && tie.from > source.start && tie.to < source.end).forEach((tie) => shownTies.push({ ...tie, from: start + tie.from - source.start, to: start + tie.to - source.start }))
+          marks.filter((mark) => mark.row === source.row && mark.col > source.start && mark.col < source.end).forEach((mark) => shownMarks.push({ ...mark, col: start + mark.col - source.start }))
+        })
 
         return (
           <Fragment key={staff}>
@@ -315,20 +329,29 @@ export default function TabEditorV2({
                 string letters and the staff — see styles/v2.css. The box
                 keeps its width whether or not there is a name in it, so
                 every staff on the sheet starts at the same place. */}
-            <input className="staff-group-name" aria-label={`Staff ${staff + 1} label`} value={row.name} onFocus={(event) => event.target.select()} onChange={(event) => onRowNameChange(staff, event.target.value)} />
+            <input className="staff-group-name" aria-label={`Staff ${staff + 1} label`} value={row.name} autoCapitalize="off" onFocus={(event) => event.target.select()} onChange={(event) => onRowNameChange(staff, event.target.value)} />
 
             <div className="staff-scroll">
               <div className="staff-run">
                 <div className="staff-body">
                   {copyRange?.phase === 'select' && copyRange.row === staff && row.columns.map((column, at) => at >= copyRange.start && at <= copyRange.limit && (
-                    <button key={`select-${at}`} type="button" className="range-copy-choice" style={{ left: `calc(${at} * var(--cell-w))` }} aria-label={`Copy through position ${at + 1}`} onClick={() => setCopyRange({ ...copyRange, phase: 'paste', end: at })} />
+                    <button key={`select-${at}`} type="button" className="range-copy-choice" style={{ left: `calc(${display.positions[at]} * var(--cell-w))` }} aria-label={`Copy through position ${at + 1}`} onClick={() => setCopyRange({ ...copyRange, phase: 'paste', end: at })} />
                   ))}
                   {copyRange?.phase === 'paste' && row.columns.map((column, at) => {
                     const count = copyRange.end - copyRange.start + 1
                     if (at + count > row.length || row.columns.slice(at, at + count).some((item) => item.isGroupMark)) return null
-                    return <button key={`paste-${at}`} type="button" className="range-copy-choice range-copy-choice--paste" style={{ left: `calc(${at} * var(--cell-w))` }} aria-label={`Paste starting at position ${at + 1} in row ${staff + 1}`} title="Paste starting here" onClick={() => { onPasteRange(copyRange.row, copyRange.start, copyRange.end, staff, at); setCopyRange(null) }} />
+                    return <button key={`paste-${at}`} type="button" className="range-copy-choice range-copy-choice--paste" style={{ left: `calc(${display.positions[at]} * var(--cell-w))` }} aria-label={`Paste starting at position ${at + 1} in row ${staff + 1}`} title="Paste starting here" onClick={() => { onPasteRange(copyRange.row, copyRange.start, copyRange.end, staff, at); setCopyRange(null) }} />
                   })}
-                  <StaffOverlay ties={ties.filter((tie) => tie.row === staff)} marks={marks.filter((mark) => mark.row === staff)} staffStart={0} cols={row.length} preview={armed && selected?.row === staff && cursor !== null ? { string: selected.string, from: Math.min(selected.col, cursor), to: Math.max(selected.col, cursor) } : null} />
+                  <StaffOverlay ties={shownTies} marks={shownMarks} staffStart={0} cols={display.entries.length} preview={armed && selected?.row === staff && cursor !== null ? mapTie({ string: selected.string, from: Math.min(selected.col, cursor), to: Math.max(selected.col, cursor) }) : null} />
+                  {display.previews.map(({ source, start, span, reference }) => (
+                    <Fragment key={`controls-${start}`}>
+                      <div className="ref-expanded-controls" style={{ left: `calc((${start} + ${span} / 2) * var(--cell-w))` }}>
+                        <span className="ref-expanded-name">{source.name}</span>
+                        <button type="button" className="ref-expanded-collapse" aria-label={`Collapse group ${source.name} notes`} aria-expanded="true" onClick={() => { setExpandedRefs((prev) => { const next = new Set(prev); next.delete(reference); return next }); setWorking(null) }}>◀</button>
+                      </div>
+                      <span className="ref-expanded-repeat" style={{ left: `calc((${start} + ${span} - 1) * var(--cell-w))` }} aria-label={`Repeated ${reference.repeat ?? 1} times`}>x{reference.repeat ?? 1}</span>
+                    </Fragment>
+                  ))}
                   {tuning.map((_, stringIndex) => (
                     // Each cell draws its own piece of the string, so that a
                     // position can be left out of the line — see Cell.
@@ -350,8 +373,8 @@ export default function TabEditorV2({
                         .join(' ')}
                       key={stringIndex}
                     >
-                      {row.columns.map((column) => {
-                        const at = column.rowPosition
+                      {display.entries.map(({ column, col: at, preview, refCol }, displayAt) => {
+                        if (preview) return <span key={`preview-${displayAt}`} data-column={displayAt === display.positions[refCol] ? refCol : undefined} onMouseDown={press('ref', staff, refCol)} className={`cell-slot ref-preview${column.cssMode ? ` cell-slot--${column.cssMode}` : ''}`} aria-hidden="true"><span className={`cell ref-preview-cell${column.cell(stringIndex).isEmpty ? '' : ' cell--filled'}`}>{column.cell(stringIndex).value}</span></span>
                         const group = groups.find(
                           ({ start, end }) => at >= start && at <= end,
                         )
@@ -364,6 +387,8 @@ export default function TabEditorV2({
                             col={at}
                             string={tuning[stringIndex]}
                             mode={column.cssMode}
+                            expanded={expandedRefs.has(column)}
+                            onToggleExpand={column.isGroupRef && sheetGroups(rows).some((group) => group.name === column.name) ? () => { setExpandedRefs((prev) => { const next = new Set(prev); if (next.has(column)) next.delete(column); else next.add(column); return next }); setWorking(null) } : undefined}
                             repeat={column.repeat}
                             inGroup={Boolean(group) && isOpen(staff, group)}
                             name={column.name}
@@ -376,6 +401,8 @@ export default function TabEditorV2({
                             }
                             onNavigate={(event) => navigateCell(event, staff, at, stringIndex)}
                             onPlay={() => onPlayNote?.(stringIndex, column.cell(stringIndex).value)}
+                            onGroupHover={column.isGroupEdge && group ? () => { if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) setHoveredGroup({ row: staff, start: group.start }) } : undefined}
+                            onGroupLeave={column.isGroupEdge && group ? () => setHoveredGroup((current) => current?.row === staff && current.start === group.start ? null : current) : undefined}
                             closes={Boolean(opening) && opening.row === staff && closers.includes(at)}
                             closesNow={Boolean(opening) && opening.row === staff && cursor === at}
                             onCloseHover={() => setCursor(at)}
@@ -414,11 +441,14 @@ export default function TabEditorV2({
                       // place they are to stand.
                       key={opened.start}
                       name={opened.name}
-                      from={opened.start}
-                      span={opened.end - opened.start + 1}
+                      from={display.positions[opened.start]}
+                      span={display.positions[opened.end] - display.positions[opened.start] + 1}
                       onChange={(name) => onNameChange(staff, opened.start, name)}
                       onAnchor={setCover}
                     />
+                  )}
+                  {hovered && (
+                    <GroupCover name={hovered.name} from={display.positions[hovered.start]} span={display.positions[hovered.end] - display.positions[hovered.start] + 1} preview />
                   )}
                 </div>
 

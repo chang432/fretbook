@@ -41,7 +41,7 @@ test('a sheet survives being written to a file and read back', () => {
   assert.equal(toJson({ ...after }, STANDARD_TUNING, after.title), json, 'and again, byte for byte')
   assert.deepEqual(
     after.rows.map((row) => [row.name, row.length]),
-    [['Intro', 12], ['', 8]],
+    [['intro', 12], ['', 8]],
   )
   assert.deepEqual(
     after.rows[0].groups.map(({ start, end, name, repeat }) => [start, end, name, repeat]),

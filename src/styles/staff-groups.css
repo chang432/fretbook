@@ -160,6 +160,10 @@
   pointer-events: none;
 }
 
+.group-cover--preview .group-name {
+  pointer-events: none;
+}
+
 .group-name {
   z-index: 5;
   width: calc(var(--row-h) - 2px);
@@ -334,6 +338,86 @@
   background-color: var(--paper);
   background-image: none;
   font: 600 15px/1 Georgia, 'Times New Roman', serif;
+}
+
+.group-ref-toggle {
+  position: absolute;
+  z-index: 6;
+  top: 50%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.ref-preview {
+  background: rgb(60 91 133 / 16%);
+}
+
+.ref-expanded-controls {
+  position: absolute;
+  z-index: 6;
+  top: 50%;
+  transform: translate(-50%, calc((6px - var(--row-h)) / 2));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ref-expanded-name {
+  display: grid;
+  place-items: center;
+  width: calc(var(--row-h) - 6px);
+  height: calc(var(--row-h) - 6px);
+  border: var(--group-bar-w) solid var(--ink);
+  border-radius: 50%;
+  background: var(--paper);
+  font: 600 15px/1 Georgia, 'Times New Roman', serif;
+}
+
+.ref-expanded-collapse {
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.ref-expanded-repeat {
+  position: absolute;
+  z-index: 5;
+  top: calc(var(--row-h) / 2 - 1px);
+  display: grid;
+  place-items: center;
+  width: var(--cell-w);
+  height: calc(var(--row-h) + var(--string-w));
+  border: var(--group-bar-w) solid var(--ink);
+  background: var(--paper);
+  font: 600 11px/1 ui-monospace, Menlo, monospace;
+  pointer-events: none;
+}
+
+.string-row--segmented .ref-preview-cell {
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background-image: linear-gradient(var(--string), var(--string));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% var(--string-w);
+}
+
+.string-row--segmented .ref-preview-cell.cell--filled {
+  background-image: radial-gradient(closest-side, color-mix(in srgb, rgb(60 91 133) 16%, var(--page)) 74%, transparent 100%), linear-gradient(var(--string), var(--string));
+  background-size: auto, 100% var(--string-w);
 }
 
 /* And how often, on the top cell of the same column — the count's own rule,

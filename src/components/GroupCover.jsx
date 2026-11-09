@@ -27,11 +27,12 @@ import { normalizeGroupName } from '../utils/tabV2.js'
  * the page is concerned, so the buttons for it belong above that and not
  * above any one of its cells.
  */
-export default function GroupCover({ name, from, span, onChange, onAnchor }) {
+export default function GroupCover({ name, from, span, onChange, onAnchor, preview = false }) {
   return (
     <span
       ref={onAnchor}
-      className="group-cover"
+      className={`group-cover${preview ? ' group-cover--preview' : ''}`}
+      aria-hidden={preview || undefined}
       style={{ '--from': from, '--span': span }}
     >
       <input
@@ -41,7 +42,9 @@ export default function GroupCover({ name, from, span, onChange, onAnchor }) {
         autoComplete="off"
         spellCheck="false"
         aria-label={`Name of the group, currently ${name}`}
-        onChange={(event) => onChange(normalizeGroupName(event.target.value, name))}
+        readOnly={preview}
+        tabIndex={preview ? -1 : undefined}
+        onChange={preview ? undefined : (event) => onChange(normalizeGroupName(event.target.value, name))}
         onFocus={(event) => event.target.select()}
       />
     </span>
