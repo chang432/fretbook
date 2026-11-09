@@ -40,7 +40,7 @@ export {
   normalizeGroupName,
   normalizeRepeat,
 } from './column.js'
-export { Row } from './row.js'
+export { DEFAULT_ROW_LENGTH, Row } from './row.js'
 
 /** Top-to-bottom string labels in standard tuning. */
 export const STANDARD_TUNING = ['e', 'B', 'G', 'D', 'A', 'E']
@@ -217,6 +217,26 @@ export function nameGroup(sheet, row, col, name) {
   if (named === standing) return sheet
 
   return sheet.map((each, r) => (r === row ? named : each).withRefsRenamed(before, name))
+}
+
+/**
+ * Make a row longer or shorter by `by` positions, from the end: positive
+ * adds empty ones, negative takes them off along with whatever is written
+ * on them.
+ *
+ * Taking off stops at the last column that belongs to a group, and at the
+ * row's first position — so it may take fewer than asked, or none. A row
+ * is never cut short through a group's own columns, which would leave the
+ * group with one end or none.
+ */
+export function resizeRow(sheet, row, by) {
+  const standing = sheet[row]
+  if (!standing) return sheet
+
+  const sized = by > 0 ? standing.withTail(by) : standing.withoutTail(-by)
+  if (sized === standing) return sheet
+
+  return sheet.map((each, r) => (r === row ? sized : each))
 }
 
 /**

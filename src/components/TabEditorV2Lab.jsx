@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import TabEditorV2 from './TabEditorV2.jsx'
 import {
+  DEFAULT_ROW_LENGTH,
   GROUP_END,
   GROUP_START,
   Row,
@@ -17,6 +18,7 @@ import {
   nameGroup,
   startGroup,
   placeGroup,
+  resizeRow,
   setRepeat,
   writeCell,
 } from '../utils/tabV2.js'
@@ -24,9 +26,10 @@ import {
 /**
  * The mock sheet as raw data: one object per row, in the order they stand on
  * the page. A row says what it is called — written down its side, and left
- * out when there is nothing to call it — how long it is — nothing divides a row, so a length
- * is just a length, with no bar count to multiply up — what is written in it
- * loose, and what is written inside a group.
+ * out when there is nothing to call it — how long it is, if it is not the
+ * length every row starts at: nothing divides a row, so a length is just a
+ * length, with no bar count to multiply up — what is written in it loose,
+ * and what is written inside a group.
  *
  * Notes are [position, string, fret] triples. Positions are counted from the
  * start of their own row and string 0 is the top line, both the way the
@@ -43,7 +46,6 @@ import {
 const MOCK_SHEET = [
   {
     rowName: 'Intro riff',
-    length: 16,
     notes: [
       [0, 5, '0'],
       [2, 5, '3'],
@@ -66,7 +68,6 @@ const MOCK_SHEET = [
   },
   {
     rowName: 'Chorus',
-    length: 12,
     notes: [
       [0, 2, '7'],
       [1, 2, '7'],
@@ -94,7 +95,9 @@ const MOCK_SHEET = [
  * someone would have typed, and `writeCell` is what typing them does.
  */
 function mockRows() {
-  let sheet = MOCK_SHEET.map(({ length, rowName = '' }) => new Row(length, null, rowName))
+  let sheet = MOCK_SHEET.map(
+    ({ length = DEFAULT_ROW_LENGTH, rowName = '' }) => new Row(length, null, rowName),
+  )
 
   MOCK_SHEET.forEach(({ notes, groups }, row) => {
     const write = ([col, string, value]) => {
@@ -201,6 +204,11 @@ export default function TabEditorV2Lab() {
    * longer say where they were — the same reason putting a group down
    * drops them.
    */
+  const handleResizeRow = (row, by) => {
+    setRows((prev) => resizeRow(prev, row, by))
+    if (by < 0) setTies((prev) => prev.filter((tie) => tie.row !== row))
+  }
+
   const handleInsertColumn = (row, at) => {
     setRows((prev) => insertColumn(prev, row, at))
     setTies((prev) => prev.filter((tie) => tie.row !== row))
@@ -265,6 +273,7 @@ export default function TabEditorV2Lab() {
           onStartGroup={handleStartGroup}
           onEndGroup={handleEndGroup}
           onCancelGroup={handleCancelGroup}
+          onResizeRow={handleResizeRow}
           onInsertColumn={handleInsertColumn}
           onDeleteColumn={handleDeleteColumn}
           onDeleteGroup={handleDeleteGroup}

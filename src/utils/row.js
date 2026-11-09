@@ -23,6 +23,13 @@ function without(row, gone) {
 }
 
 /**
+ * How long a row is when nobody says otherwise. Long enough to write a
+ * phrase in without stopping to make room, and short enough that an empty
+ * sheet is not mostly empty staff.
+ */
+export const DEFAULT_ROW_LENGTH = 32
+
+/**
  * The row that results from putting one more column into it, at the place
  * that column says it stands. Everything from there along is pushed one
  * position further on, and the length keeps up.
@@ -48,13 +55,13 @@ function inserted(row, column) {
  */
 export class Row {
   /**
-   * @param {number}   length    how many positions this row holds
+   * @param {number}   [length]  how many positions this row holds
    * @param {Column[]} [columns] the positions themselves; empty when not given
    * @param {string}   [name]    what the row is called, written down its
    *   side. A row with nothing to say is called nothing, which is not the
    *   same as being unnamed: there is simply no name to write.
    */
-  constructor(length, columns = null, name = '') {
+  constructor(length = DEFAULT_ROW_LENGTH, columns = null, name = '') {
     this.length = length
     this.name = name
     this.columns = columns ?? Array.from({ length }, (_, at) => new Column(at))
@@ -63,6 +70,25 @@ export class Row {
   /** The position standing at `col`. */
   column(col) {
     return this.columns[col]
+  }
+
+  /**
+   * How many positions could come off the end of this row: the run of
+   * plain ones at the end of it, stopping at the last column that belongs
+   * to a group and never counting the first position, which stays.
+   *
+   * A group's columns are not the row's to take: cutting a row short
+   * through one would leave a group with one end, or none.
+   */
+  get spare() {
+    let count = 0
+
+    for (let at = this.columns.length - 1; at > 0; at -= 1) {
+      if (this.columns[at].isGroupMark) break
+      count += 1
+    }
+
+    return count
   }
 
   /** True when nothing is written anywhere in this row. */
@@ -186,6 +212,35 @@ export class Row {
     }
 
     return out
+  }
+
+  /**
+   * This row with `count` empty positions on the end of it. Nothing is
+   * renumbered: they go past everything that was already there.
+   */
+  withTail(count) {
+    if (count <= 0) return this
+
+    const added = Array.from(
+      { length: count },
+      (_, i) => new Column(this.columns.length + i),
+    )
+
+    return new Row(this.length + count, [...this.columns, ...added], this.name)
+  }
+
+  /**
+   * This row with up to `count` positions taken off the end of it — as
+   * many as it has to spare, which may be fewer than asked for and may be
+   * none at all. What is written on them goes with them.
+   */
+  withoutTail(count) {
+    const going = Math.min(count, this.spare)
+    if (going <= 0) return this
+
+    const kept = this.columns.slice(0, this.columns.length - going)
+
+    return new Row(kept.length, kept, this.name)
   }
 
   /**

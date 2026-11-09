@@ -14,6 +14,7 @@ import {
   nameGroup,
   nextGroupName,
   placeGroup,
+  resizeRow,
   startGroup,
   writeCell,
 } from '../src/utils/tabV2.js'
@@ -241,4 +242,43 @@ test('a position goes in at either end of a row', () => {
   assert.ok(insertColumn(rows, 0, 0)[0].column(0).isEmpty, 'before everything')
   assert.equal(insertColumn(rows, 0, 16)[0].length, 17, 'and past everything')
   assert.equal(insertColumn(rows, 0, 17), rows, 'but no further than that')
+})
+
+test('a row starts at the length every row starts at', () => {
+  assert.equal(new Row().length, 32)
+  assert.equal(new Row().columns.length, 32)
+})
+
+test('a row grows from the end, and nothing else moves', () => {
+  const rows = sheet()
+  const longer = resizeRow(rows, 0, 8)
+
+  assert.equal(longer[0].length, 24)
+  assert.deepEqual(
+    longer[0].groups.map(({ start, end }) => [start, end]),
+    [[4, 8]],
+    'the group stayed where it was',
+  )
+  assert.ok(longer[0].columns.slice(16).every((column) => column.isEmpty))
+})
+
+test('a row is cut short from the end, taking what is written there', () => {
+  const rows = sheet()
+  const shorter = resizeRow(rows, 0, -8)
+
+  // Seven positions stand past the group, so seven is all it will take.
+  assert.equal(shorter[0].length, 9)
+  assert.equal(shorter[0].groups.length, 1, 'the group is still whole')
+  assert.ok(shorter[0].columns.every((column) => column.rowPosition < 9))
+})
+
+test('a row is never cut short through a group', () => {
+  const rows = sheet()
+  // The group closes at 8, so 9 through 15 are all the row has to spare.
+  assert.equal(rows[0].spare, 7)
+
+  const once = resizeRow(rows, 0, -8)
+  assert.equal(once[0].length, 9, 'it stops at the column that closes the group')
+  assert.equal(resizeRow(once, 0, -8), once, 'and will not go further')
+  assert.equal(once[0].groups.length, 1)
 })

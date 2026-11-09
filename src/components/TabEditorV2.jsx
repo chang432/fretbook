@@ -43,6 +43,9 @@ import { GROUP_REF, previousWrittenPosition, sheetGroups } from '../utils/tabV2.
  * rows differ in length without anything having to be worked out from the
  * rows above. Driven by TabEditorV2Lab at /v2; nothing in App reaches it.
  */
+/** How many positions a press on the row's own two buttons is worth. */
+const ROW_STEP = 8
+
 /**
  * The slot at the head of the column a press landed in, whichever of its
  * six cells took the press: the buttons for a column stand over the whole
@@ -76,6 +79,7 @@ export default function TabEditorV2({
   onCancelGroup,
   onInsertColumn,
   onDeleteColumn,
+  onResizeRow,
   onDeleteGroup,
   onDeleteRef,
 }) {
@@ -327,6 +331,41 @@ export default function TabEditorV2({
                       onAnchor={setCover}
                     />
                   )}
+                </div>
+
+                {/* The row's own length, past the end of its strings. They
+                    stand inside the scroller so they travel with the row
+                    they act on, the way the first editor's do, and so that
+                    the scroll which reaches the last position reaches them.
+
+                    Taking away stops at the last column that belongs to a
+                    group, since a row cut short through one would leave the
+                    group with one end — so the button stands down when
+                    there is nothing left it may take. */}
+                <div className="row-bars">
+                  <button
+                    type="button"
+                    className="bar-button"
+                    title={`Add ${ROW_STEP} positions to this row`}
+                    aria-label={`Add ${ROW_STEP} positions to row ${staff + 1}`}
+                    onClick={() => onResizeRow(staff, ROW_STEP)}
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    className="bar-button"
+                    disabled={row.spare === 0}
+                    title={
+                      row.spare === 0
+                        ? 'Nothing here can come off the end of this row'
+                        : `Take ${Math.min(ROW_STEP, row.spare)} positions off the end of this row`
+                    }
+                    aria-label={`Take ${ROW_STEP} positions off the end of row ${staff + 1}`}
+                    onClick={() => onResizeRow(staff, -ROW_STEP)}
+                  >
+                    −
+                  </button>
                 </div>
               </div>
             </div>
