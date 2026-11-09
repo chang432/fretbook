@@ -11,6 +11,7 @@ import {
   createSheet,
   fromJson,
   isEmpty,
+  removeGroup,
   toJson,
 } from './utils/sheet.js'
 import {
@@ -18,7 +19,6 @@ import {
   STANDARD_TUNING,
   copyPreviousPosition,
   deleteColumn,
-  deleteGroup,
   deleteRef,
   endGroup,
   insertColumn,
@@ -486,12 +486,14 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
 
   const handleDeleteGroup = useCallback(
     (row, col) => {
+      const standing = sheetRef.current
+      const next = removeGroup(standing, row, col)
+      if (next === standing) return
+
       remember('deleting a group')
-      setRows((prev) => deleteGroup(prev, row, col))
-      setTies([])
-      setMarks([])
+      applySheet(next)
     },
-    [remember],
+    [remember, applySheet],
   )
 
   const handleDeleteRef = useCallback(

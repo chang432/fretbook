@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createSheet, fromJson, isEmpty, toJson } from '../src/utils/sheet.js'
+import { createSheet, fromJson, isEmpty, removeGroup, toJson } from '../src/utils/sheet.js'
 import {
   GROUP_END,
   GROUP_REF,
@@ -19,6 +19,7 @@ function sheet() {
   rows = markColumn(rows, 0, 6, GROUP_END, { repeat: 3 })
   rows = markColumn(rows, 1, 1, GROUP_REF, { name: 'A', repeat: 2 })
   rows = writeCell(rows, 0, 3, 5, '0')
+  rows = writeCell(rows, 0, 5, 5, '0')
   rows = writeCell(rows, 0, 4, 4, '12')
   rows = writeCell(rows, 1, 5, 2, '7')
 
@@ -119,4 +120,78 @@ test('the player repeats a group, and plays one written elsewhere', () => {
     ],
   )
   assert.equal(songBeats(runs), 2 + 3 * 3 + 5 + 1 + 3 * 2 + 6)
+})
+
+/** A file with one row of the given columns, groups, refs and annotations. */
+const file = ({ columns, groups = [], refs = [], ties = [], marks = [] }) =>
+  JSON.stringify({
+    format: 'fretbook',
+    version: 14,
+    title: '',
+    tuning: STANDARD_TUNING,
+    memo: '',
+    rows: [{ name: '', length: columns.length, columns, groups, refs }],
+    ties,
+    marks,
+  })
+
+const blank = (n) => Array.from({ length: n }, () => ['', '', '', '', '', ''])
+
+test('a file cannot overlap or nest groups, or put a ref on one', () => {
+  const read = fromJson(file({
+    columns: blank(10),
+    groups: [{ start: 0, end: 5, name: 'A' }, { start: 2, end: 3, name: 'B' }, { start: 5, end: 8, name: 'C' }],
+    refs: [{ at: 0, name: 'D' }, { at: 3, name: 'D' }, { at: 9, name: 'D' }],
+  }))
+
+  assert.deepEqual(read.rows[0].groups.map(({ start, end, name }) => [start, end, name]), [[0, 5, 'A']])
+  assert.equal(read.rows[0].groupEdges.length, 2, 'no orphaned ends are left behind')
+  assert.deepEqual(read.rows[0].columns.filter((c) => c.isGroupRef).map((c) => c.rowPosition), [9])
+})
+
+test('a file’s arcs and symbols must hang off a written note', () => {
+  const columns = blank(4)
+  columns[1][2] = '3'
+  columns[2][2] = '5'
+  const read = fromJson(file({
+    columns,
+    ties: [
+      { row: 0, string: 2, from: 1, to: 2 },
+      { row: -1, string: 2, from: 1, to: 2 },
+      { row: 0, string: 2, from: 2, to: 1 },
+      { row: 0, string: 9, from: 1, to: 2 },
+      { row: 0, string: 2, from: 1, to: 3 },
+      { row: 0, string: 2, from: 1, to: 40 },
+    ],
+    marks: [
+      { row: 0, col: 1, string: 2, symbol: 'zigzag' },
+      { row: 0, col: 0, string: 2, symbol: 'zigzag' },
+      { row: 0, col: 99, string: 2, symbol: 'zigzag' },
+      { row: 0, col: 1, string: -1, symbol: 'zigzag' },
+    ],
+  }))
+
+  assert.deepEqual(read.ties, [{ row: 0, string: 2, from: 1, to: 2 }])
+  assert.deepEqual(read.marks, [{ row: 0, col: 1, string: 2, symbol: 'zigzag' }])
+})
+
+test('deleting a group keeps every arc and symbol it did not stand on', () => {
+  const before = sheet()
+  // Something on the second row, which the group never touches, and on the
+  // first row past the group's closing column.
+  before.rows = writeCell(before.rows, 0, 8, 0, '1')
+  before.marks.push({ row: 1, col: 5, string: 2, symbol: 'zigzag' }, { row: 0, col: 8, string: 0, symbol: 'zigzag' })
+
+  const after = removeGroup(before, 0, 2)
+
+  assert.equal(after.rows[0].groups.length, 0)
+  assert.equal(after.rows[1].column(1).isGroupRef, false, 'the place it was played is gone too')
+  assert.deepEqual(after.ties, [{ row: 0, string: 5, from: 2, to: 4 }], 'slid one closer past the opening')
+  assert.deepEqual(after.marks, [
+    { row: 0, col: 3, string: 4, symbol: 'zigzag' },
+    { row: 1, col: 5, string: 2, symbol: 'zigzag' },
+    { row: 0, col: 6, string: 0, symbol: 'zigzag' },
+  ])
+  assert.equal(after.rows[0].column(6).cell(0).value, '1', 'and still on its note')
+  assert.equal(removeGroup(before, 0, 3), before, 'no group opens there: nothing changes')
 })

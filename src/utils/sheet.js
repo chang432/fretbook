@@ -15,12 +15,14 @@
  */
 import { MAX_FRET, STRING_COUNT } from './cell.js'
 import {
+  DEFAULT_GROUP_NAME,
   DEFAULT_ROW_LENGTH,
   GROUP_END,
   GROUP_REF,
   GROUP_START,
   Row,
   STANDARD_TUNING,
+  deleteGroup,
   markColumn,
   normalizeGroupName,
   normalizeRepeat,
@@ -63,10 +65,57 @@ export function toggleMark(marks, row, col, string, symbol) {
   return markAt(marks, row, col, string) === symbol ? kept : [...kept, { row, col, string, symbol }]
 }
 
+/**
+ * Move every arc and symbol to where its position now stands. `place(row,
+ * col)` answers with the new column, or null when that position is gone —
+ * and an arc loses both ends with either one.
+ */
+export function remapAnnotations({ ties, marks }, place) {
+  return {
+    ties: ties.flatMap((tie) => {
+      const from = place(tie.row, tie.from)
+      const to = place(tie.row, tie.to)
+      return from === null || to === null ? [] : [{ ...tie, from, to }]
+    }),
+    marks: marks.flatMap((mark) => {
+      const col = place(mark.row, mark.col)
+      return col === null ? [] : [{ ...mark, col }]
+    }),
+  }
+}
+
 /* The sheet --------------------------------------------------------------- */
 
 /** A blank sheet: one row of the length every row starts at. */
 export const createSheet = () => ({ rows: [new Row()], ties: [], marks: [] })
+
+/**
+ * Take the group opening at `col` off the sheet, with the arcs and symbols
+ * kept where they were. Hands back the same sheet when there is no such group.
+ *
+ * Only two things move: in the group's own row its two ends come out, so
+ * everything past each end slides one closer; and every place the group was
+ * played becomes an empty position where it stood, so anything held on one
+ * goes. Every other row's annotations are left alone.
+ */
+export function removeGroup(sheet, row, col) {
+  const group = sheet.rows[row]?.groups.find((each) => each.start === col)
+  if (!group) return sheet
+
+  const rows = deleteGroup(sheet.rows, row, col)
+  if (rows === sheet.rows) return sheet
+
+  const name = group.name ?? DEFAULT_GROUP_NAME
+  const place = (r, c) => {
+    const column = sheet.rows[r]?.column(c)
+    if (!column || (column.isGroupRef && column.name === name)) return null
+    if (r !== row) return c
+    if (c === group.start || c === group.end) return null
+    return c - (c > group.start ? 1 : 0) - (c > group.end ? 1 : 0)
+  }
+
+  return { ...sheet, rows, ...remapAnnotations(sheet, place) }
+}
 
 /** True when there is not a single fret written anywhere on the sheet. */
 export const isEmpty = (rows) => rows.every((row) => row.isEmpty)
@@ -209,6 +258,11 @@ export function fromJson(text) {
       for (const group of raw.groups) {
         if (!group || !inRow(group.start, length) || !inRow(group.end, length)) continue
         if (group.end <= group.start) continue
+        // Groups neither overlap nor nest: a span holding any group mark, or
+        // sitting inside a group already read, would leave orphaned ends the
+        // editor can neither read nor delete, so the later group is dropped.
+        const span = rows[at].columns.slice(group.start, group.end + 1)
+        if (span.some((column) => column.isGroupMark) || rows[at].groupAt(group.start)) continue
         rows = markColumn(rows, at, group.start, GROUP_START, {
           name: normalizeGroupName(group.name),
         })
@@ -219,6 +273,9 @@ export function fromJson(text) {
     if (Array.isArray(raw.refs)) {
       for (const ref of raw.refs) {
         if (!ref || !inRow(ref.at, length)) continue
+        // Same rule as `Row.withGroupAt`: never on a group's ends, never
+        // inside one, and never over another ref.
+        if (rows[at].column(ref.at).isGroupMark || rows[at].groupAt(ref.at)) continue
         rows = markColumn(rows, at, ref.at, GROUP_REF, {
           name: normalizeGroupName(ref.name),
           repeat: normalizeRepeat(ref.repeat),
@@ -227,24 +284,28 @@ export function fromJson(text) {
     }
   }
 
+  // An arc or symbol hangs off a written note on a plain position, so each
+  // anchor must name a real row, column and string with something on it.
+  // Anything else would be drawn at an undefined offset and then carried
+  // along by every later edit.
+  const holdsNote = (row, col, string) => {
+    if (!Number.isInteger(row) || !Number.isInteger(col) || !Number.isInteger(string)) return false
+    if (string < 0 || string >= STRING_COUNT) return false
+    const column = rows[row]?.column(col)
+    return Boolean(column) && !column.isGroupMark && !column.cell(string).isEmpty
+  }
+
   const ties = data.ties.filter(
     (tie) =>
       tie &&
-      Number.isInteger(tie.row) &&
-      tie.row < rows.length &&
-      Number.isInteger(tie.string) &&
-      Number.isInteger(tie.from) &&
-      Number.isInteger(tie.to),
+      tie.from < tie.to &&
+      holdsNote(tie.row, tie.from, tie.string) &&
+      holdsNote(tie.row, tie.to, tie.string),
   )
 
   const marks = data.marks.filter(
     (mark) =>
-      mark &&
-      Number.isInteger(mark.row) &&
-      mark.row < rows.length &&
-      Number.isInteger(mark.col) &&
-      Number.isInteger(mark.string) &&
-      MARK_SYMBOLS.includes(mark.symbol),
+      mark && MARK_SYMBOLS.includes(mark.symbol) && holdsNote(mark.row, mark.col, mark.string),
   )
 
   return { rows, ties, marks, title: data.title, memo: readMemo(data.memo) }
