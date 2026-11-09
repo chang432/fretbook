@@ -1,7 +1,7 @@
 /* The saved-sheet picker stays usable even when the list is long. */
 .sheet-picker {
-  width: min(360px, calc(100vw - 24px));
-  max-height: min(70vh, 500px);
+  box-sizing: border-box;
+  padding: 24px;
   overflow-y: auto;
 }
 

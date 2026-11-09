@@ -10,11 +10,12 @@ import { popoverPlacement } from '../utils/popover.js'
  * excluded from that: pressing it again is its own business, so its click
  * handler decides rather than this closing first and reopening after.
  */
-export default function Popover({ anchor, className, label, onClose, children }) {
+export default function Popover({ anchor, className, label, onClose, children, centered = false }) {
   const [place, setPlace] = useState(null)
   const panel = useRef(null)
 
   useLayoutEffect(() => {
+    if (centered) return undefined
     // Measured, not assumed: where the panel can sit depends on how big it is,
     // which is why it is rendered (hidden) before it is placed.
     const position = () => {
@@ -41,7 +42,7 @@ export default function Popover({ anchor, className, label, onClose, children })
       window.removeEventListener('scroll', position, true)
       window.removeEventListener('resize', position)
     }
-  }, [anchor])
+  }, [anchor, centered])
 
   useEffect(() => {
     const onPointerDown = (event) => {
@@ -70,7 +71,9 @@ export default function Popover({ anchor, className, label, onClose, children })
       // inside a hidden panel cannot take focus, which would leave a panel
       // that opens on a field — the tempo prompt — needing a click first.
       style={
-        place
+        centered
+          ? { inset: '5%' }
+          : place
           ? {
               left: `${place.x}px`,
               top: `${place.y}px`,
