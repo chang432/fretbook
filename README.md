@@ -413,8 +413,7 @@ want the password. See below.
 
 The **Sheets** button opens a list of saved sheets in a popup. Selecting one
 loads it into the editor at `/sheets/<name>`, which can be shared or bookmarked.
-The browser’s draft stays
-separate; use **Open my draft** in the popup to return to it. They live in a **private Cloudflare R2 bucket, one per environment**,
+Click **Fretbook** in the header to start a new blank sheet. They live in a **private Cloudflare R2 bucket, one per environment**,
 and the app reads them from its own origin through the backend, which is the
 one thing holding a credential for that bucket.
 

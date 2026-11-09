@@ -36,6 +36,16 @@ h1 {
   letter-spacing: 0.01em;
 }
 
+.home-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
 .title-input {
   width: 220px;
   padding: 8px 10px;

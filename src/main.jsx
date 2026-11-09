@@ -5,7 +5,7 @@ import { fetchNote } from './utils/notes.js'
 import { sheetPath, sheetSlug } from './utils/route.js'
 import './styles.css'
 
-function SheetPage({ slug, onOpenSheet }) {
+function SheetPage({ slug, onOpenSheet, onNewSheet }) {
   const [result, setResult] = useState(null)
 
   useEffect(() => {
@@ -18,13 +18,15 @@ function SheetPage({ slug, onOpenSheet }) {
 
   if (!result) return <div className="app">Opening {slug}…</div>
   if (!result.sheet) return <div className="app"><h1>Could not open “{slug}”</h1><p>The sheet may no longer be available.</p><a href="/" onClick={(event) => { event.preventDefault(); onOpenSheet(null) }}>Open my draft</a></div>
-  return <App published={{ slug, sheet: result.sheet }} onOpenSheet={onOpenSheet} />
+  return <App published={{ slug, sheet: result.sheet }} onOpenSheet={onOpenSheet} onNewSheet={onNewSheet} />
 }
 
 function Site() {
   const [path, setPath] = useState(() => window.location.pathname)
+  const [fresh, setFresh] = useState(false)
+  const [sheetKey, setSheetKey] = useState(0)
   useEffect(() => {
-    const onPopState = () => setPath(window.location.pathname)
+    const onPopState = () => { setFresh(false); setPath(window.location.pathname) }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
@@ -33,10 +35,18 @@ function Site() {
     const next = slug ? sheetPath(slug) : '/'
     if (next === window.location.pathname) return
     window.history.pushState(null, '', next)
+    setFresh(false)
     setPath(next)
   }
+  const newSheet = () => {
+    if (window.location.pathname !== '/') window.history.pushState(null, '', '/')
+    setPath('/')
+    setFresh(true)
+    // Remount even when already at / so every press starts another blank sheet.
+    setSheetKey((key) => key + 1)
+  }
   const slug = sheetSlug(path)
-  return slug ? <SheetPage key={slug} slug={slug} onOpenSheet={openSheet} /> : <App onOpenSheet={openSheet} />
+  return slug ? <SheetPage key={slug} slug={slug} onOpenSheet={openSheet} onNewSheet={newSheet} /> : <App key={sheetKey} fresh={fresh} onOpenSheet={openSheet} onNewSheet={newSheet} />
 }
 
 createRoot(document.getElementById('root')).render(

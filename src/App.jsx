@@ -73,7 +73,7 @@ function loadSaved() {
  * inside a staff, which the player reads straight off the row — see
  * utils/live.js.
  */
-export default function App({ published = null, onOpenSheet }) {
+export default function App({ published = null, fresh = false, onOpenSheet, onNewSheet }) {
   // Read the note, or localStorage, once and lazily, and seed the state below
   // from whichever it was. Nothing published and nothing saved means a blank
   // page, which is a sheet of its own rather than an absence.
@@ -86,7 +86,7 @@ export default function App({ published = null, onOpenSheet }) {
       return false
     }
   })
-  const [saved] = useState(() => published?.sheet ?? loadSaved() ?? createSheet())
+  const [saved] = useState(() => published?.sheet ?? (fresh ? createSheet() : loadSaved() ?? createSheet()))
   const [title, setTitle] = useState(saved.title ?? '')
   // The note written above the staves: prose about the sheet — a tuning, a
   // capo, what to listen for. Called a memo here because "note" already means
@@ -622,7 +622,7 @@ export default function App({ published = null, onOpenSheet }) {
   return (
     <div className="app">
       <header className="header">
-        <h1>Fretbook</h1>
+        <h1><button type="button" className="home-button" onClick={onNewSheet} title="Start a new sheet">Fretbook</button></h1>
         <input
           className="title-input"
           value={title}
@@ -799,7 +799,7 @@ export default function App({ published = null, onOpenSheet }) {
       )}
 
       {sheetPicker && (
-        <NoteIndex anchor={sheetPicker} onClose={() => setSheetPicker(null)} onOpen={(slug) => { setSheetPicker(null); onOpenSheet(slug) }} onDraft={() => onOpenSheet(null)} hasPublished={!!published} />
+        <NoteIndex anchor={sheetPicker} onClose={() => setSheetPicker(null)} onOpen={(slug) => { setSheetPicker(null); onOpenSheet(slug) }} />
       )}
 
       {writeMenu && (

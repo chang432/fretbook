@@ -4,7 +4,7 @@ import { fetchManifest } from '../utils/notes.js'
 import { followSheetLink, sheetPath } from '../utils/route.js'
 
 /** Browse saved sheets from the editor. */
-export default function NoteIndex({ anchor, onClose, onOpen, onDraft, hasPublished }) {
+export default function NoteIndex({ anchor, onClose, onOpen }) {
   const [notes, setNotes] = useState(null)
 
   useEffect(() => {
@@ -18,7 +18,6 @@ export default function NoteIndex({ anchor, onClose, onOpen, onDraft, hasPublish
   return (
     <Popover anchor={anchor} className="sheet-picker" label="Saved sheets" onClose={onClose} centered>
       <h2>Saved sheets</h2>
-      {hasPublished && <button type="button" onClick={onDraft}>Open my draft</button>}
       {notes === null && <p className="note-shell-text">Loading…</p>}
       {notes?.length === 0 && <p className="note-shell-text">No saved sheets yet.</p>}
       {notes?.length > 0 && (
