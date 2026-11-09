@@ -82,6 +82,8 @@ export default function Cell({
   onPress,
   onRepeat,
   onSelect,
+  onNavigate,
+  onPlay,
   tieTarget = false,
   onTieTarget,
   onTieHover,
@@ -180,6 +182,7 @@ export default function Cell({
               ? `Group ${name} is played here`
               : `Row ${row + 1}, string ${string}, position ${col + 1}`
         }
+        onPointerDown={!mode && !closes && !tieTarget && !cell.isEmpty ? onPlay : undefined}
         // Closing a group outranks everything: while one is being
         // opened, every lit position is a press and nothing else.
         onMouseDown={
@@ -198,6 +201,7 @@ export default function Cell({
                 : undefined
         }
         onMouseEnter={closes ? onCloseHover : tieTarget ? onTieHover : undefined}
+        onKeyDown={!mode ? onNavigate : undefined}
         // A count is settled here, since it is this cell's own; a note is
         // passed on as typed, since the model is what settles those.
         onChange={(event) =>

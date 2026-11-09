@@ -166,3 +166,26 @@
   font-size: 12px;
   line-height: 1.4;
 }
+.row-move-select {
+  position: absolute;
+  inset: 2px;
+  z-index: 8;
+  border: 1px dashed var(--edit-line);
+  border-radius: 3px;
+  background: var(--edit-wash);
+}
+
+.row-move-select:hover, .row-move-select:focus-visible {
+  background: var(--edit-wash-hover);
+}
+
+.row-move-select.is-selected {
+  border-color: var(--accent);
+  background: var(--edit-wash-held);
+}
+
+.row-move-gap { height: 12px; position: relative; }
+.row-move-drop { width: 100%; height: 100%; padding: 0; border: 0; background: transparent; display: flex; align-items: center; }
+.row-move-drop span { width: 100%; height: 2px; background: repeating-linear-gradient(to right, var(--edit-line) 0 7px, transparent 7px 13px); }
+.row-move-drop:hover span, .row-move-drop:focus-visible span { background: var(--accent); }
+

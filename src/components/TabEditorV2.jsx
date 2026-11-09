@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import Cell from './Cell.jsx'
 import CellMenu from './CellMenu.jsx'
 import DeleteBar from './DeleteBar.jsx'
@@ -63,6 +63,8 @@ function columnTop(element, col) {
 }
 
 export default function TabEditorV2({
+  editingRows,
+  onReorderRows,
   rows,
   tuning,
   onCellChange,
@@ -93,9 +95,45 @@ export default function TabEditorV2({
   // for a group — and `element` what the buttons over it hang off. Null
   // when nothing is.
   const [working, setWorking] = useState(null)
+  const [heldRow, setHeldRow] = useState(null)
+  const [wasEditingRows, setWasEditingRows] = useState(editingRows)
   const [armed, setArmed] = useState(false)
   const [cursor, setCursor] = useState(null)
   const [copyRange, setCopyRange] = useState(null)
+  if (wasEditingRows !== editingRows) {
+    setWasEditingRows(editingRows)
+    setHeldRow(null)
+    setWorking(null)
+    setArmed(false)
+    setCopyRange(null)
+  }
+
+  const chooseRow = (row) => {
+    if (heldRow === null) { setHeldRow(row); return }
+    if (heldRow !== row) {
+      const order = rows.map((_, index) => index)
+      ;[order[heldRow], order[row]] = [order[row], order[heldRow]]
+      onReorderRows(order)
+    }
+    setHeldRow(null)
+  }
+  const moveRow = (gap) => {
+    const order = rows.map((_, index) => index)
+    const [moved] = order.splice(heldRow, 1)
+    order.splice(gap > heldRow ? gap - 1 : gap, 0, moved)
+    onReorderRows(order)
+    setHeldRow(null)
+  }
+  const rowGap = (gap) => editingRows && <div className="row-move-gap">
+    {heldRow !== null && <button type="button" className="row-move-drop" aria-label={`Move row ${heldRow + 1} to position ${gap + 1}`} onClick={() => moveRow(gap)}><span /></button>}
+  </div>
+
+  useEffect(() => {
+    if (!editingRows) return undefined
+    const escape = (event) => { if (event.key === 'Escape') setHeldRow(null) }
+    document.addEventListener('keydown', escape)
+    return () => document.removeEventListener('keydown', escape)
+  }, [editingRows])
 
   useEffect(() => {
     if (!copyRange) return undefined
@@ -105,6 +143,23 @@ export default function TabEditorV2({
   }, [copyRange])
 
   const selected = working?.kind === 'cell' ? working : null
+
+  const navigateCell = (event, row, col, string) => {
+    if (armed || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+    const directions = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }
+    const direction = directions[event.key]
+    if (!direction) return
+    event.preventDefault()
+    const [dx, dy] = direction
+    const nextString = string + dy
+    if (nextString < 0 || nextString >= tuning.length) return
+    let nextCol = col + dx
+    while (dx && rows[row].column(nextCol)?.isGroupMark) nextCol += dx
+    if (!rows[row].column(nextCol) || rows[row].column(nextCol).isGroupMark) return
+    const body = event.currentTarget.closest('.staff-body')
+    const stringRow = body?.querySelectorAll('.string-row')[nextString]
+    stringRow?.children[nextCol]?.querySelector('input.cell')?.focus()
+  }
 
   // A group opened and not yet closed: its opening column stands on the
   // sheet already, and every position that could close it is lit until one
@@ -244,7 +299,10 @@ export default function TabEditorV2({
         const opened = groups.find((group) => isOpen(staff, group)) ?? null
 
         return (
-          <div className="staff" key={staff} role="group" aria-label={`Row ${staff + 1}`}>
+          <Fragment key={staff}>
+          {rowGap(staff)}
+          <div className="staff" role="group" aria-label={`Row ${staff + 1}`}>
+            {editingRows && <button type="button" className={`row-move-select${heldRow === staff ? ' is-selected' : ''}`} aria-label={heldRow === null ? `Pick up row ${staff + 1}` : heldRow === staff ? `Put down row ${staff + 1}` : `Swap row ${heldRow + 1} with row ${staff + 1}`} aria-pressed={heldRow === staff} onClick={() => chooseRow(staff)} />}
             <div className="staff-labels">
               {tuning.map((label, stringIndex) => (
                 <span className="string-label" key={stringIndex}>
@@ -316,6 +374,8 @@ export default function TabEditorV2({
                             onSelect={(element) =>
                               { setArmed(false); setWorking({ kind: 'cell', row: staff, col: at, string: stringIndex, element }) }
                             }
+                            onNavigate={(event) => navigateCell(event, staff, at, stringIndex)}
+                            onPlay={() => onPlayNote?.(stringIndex, column.cell(stringIndex).value)}
                             closes={Boolean(opening) && opening.row === staff && closers.includes(at)}
                             closesNow={Boolean(opening) && opening.row === staff && cursor === at}
                             onCloseHover={() => setCursor(at)}
@@ -415,8 +475,10 @@ export default function TabEditorV2({
               </div>
             </div>
           </div>
+          </Fragment>
         )
       })}
+      {rowGap(rows.length)}
 
       {/* The buttons over whatever is being worked on. All three hang off
           the thing itself rather than standing in the staff, so a row
@@ -432,8 +494,8 @@ export default function TabEditorV2({
           // Opening a group puts its first column down at once and leaves
           // the rest of the row waiting to be told where it ends.
           onOpenGroup={() => {
-            onStartGroup(working.row, working.col)
-            setWorking({ kind: 'opening', row: working.row, col: working.col })
+            if (!onStartGroup(working.row, working.col)) return
+            setWorking({ kind: 'opening', row: working.row, col: working.col + 1 })
             setCursor(null)
           }}
           // A row always keeps one position, so the last one standing is

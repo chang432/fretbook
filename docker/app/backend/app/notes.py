@@ -63,7 +63,7 @@ notes = Blueprint("notes", __name__)
 # The same naming rules the publisher enforces in src/utils/files.js. A slug
 # is user input on its way into a key, so it is checked against the pattern that
 # already defines a legal note name rather than merely scrubbed of "..".
-NOTE_NAME = re.compile(r"[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*")
+NOTE_NAME = re.compile(r"[a-z0-9]+(?:_[a-z0-9]+)*")
 # Existing saved sheets can still have the formerly permitted hyphens.
 SAVED_NOTE_NAME = re.compile(r"[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*")
 
@@ -73,15 +73,15 @@ PREFIX = "notes"
 MANIFEST = "notes.json"
 
 #: The sheet format an upload has to be in, mirroring `SHEET_FORMAT` and
-#: `SHEET_VERSION` in src/utils/tab.js the way NOTE_NAME above mirrors its
+#: `SHEET_VERSION` in src/utils/sheet.js the way NOTE_NAME above mirrors its
 #: pattern. Only the envelope is checked here — whether the thing inside it is
 #: a sheet the editor can open is still `fromJson`'s call, in the browser — but
 #: the envelope is what tells a current export from an old one or from a file
 #: that was never one, and a reader meeting either is the failure worth
 #: spending ten lines to avoid. A bumped version refuses uploads until this
 #: constant is bumped with it.
-SHEET_FORMAT = "fretboard-notebook"
-SHEET_VERSION = 13
+SHEET_FORMAT = "fretbook"
+SHEET_VERSION = 14
 
 #: The largest upload accepted. A note is a few KB and a long sheet tens, so
 #: this is wide enough for anything the editor produces and narrow enough that
@@ -427,12 +427,11 @@ def _sheet_title(data) -> str | None:
     # The two the editor always writes and a reader cannot do without. Their
     # contents are fromJson's business; that they are there at all is what
     # separates an export from a JSON file that happens to carry the envelope.
-    if not isinstance(data.get("columns"), list) or not data["columns"]:
-        return None
     if not isinstance(data.get("rows"), list) or not data["rows"]:
         return None
-
-    if not isinstance(data.get("structure"), list) or not isinstance(data.get("arrangement"), list):
+    if not all(isinstance(row, dict) and isinstance(row.get("columns"), list) for row in data["rows"]):
+        return None
+    if not isinstance(data.get("ties"), list) or not isinstance(data.get("marks"), list):
         return None
 
     # Untitled sheets are listed under their name, the way notes.mjs lists one.

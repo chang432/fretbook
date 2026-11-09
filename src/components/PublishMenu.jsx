@@ -147,7 +147,7 @@ export default function PublishMenu({
             value={asksPassword ? password : name}
             onChange={(event) => {
               if (asksPassword) setPassword(event.target.value)
-              else setName(event.target.value.replace(/\s/g, '_'))
+              else setName(event.target.value.toLowerCase().replace(/\s/g, '_'))
               // The reason was about what was sent, so it stops applying the
               // moment that changes.
               setError('')
@@ -165,7 +165,7 @@ export default function PublishMenu({
             before an upload, where the field cannot say why on its own. */}
         <p className="publish-hint">
           {words.warning ??
-            'Letters and numbers only; use single underscores in place of spaces.'}
+            'Lowercase letters and numbers only; use single underscores in place of spaces.'}
         </p>
 
         <button type="submit" className={words.danger ? 'danger' : ''} disabled={busy || !ready}>

@@ -40,5 +40,4 @@
 }
 
 .note-list-link:hover { background: var(--paper); }
-.note-list-title { font: 600 17px Georgia, 'Times New Roman', serif; }
-.note-list-slug { color: var(--muted); font: 12px ui-monospace, Menlo, monospace; }
+.note-list-slug { font: 600 17px Georgia, 'Times New Roman', serif; }

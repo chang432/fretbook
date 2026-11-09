@@ -5,7 +5,7 @@ import NoteIndex from './components/NoteIndex.jsx'
 import Popover from './components/Popover.jsx'
 import PublishMenu from './components/PublishMenu.jsx'
 import TabEditorV2 from './components/TabEditorV2.jsx'
-import { PresentIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
+import { PencilIcon, PresentIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
 import {
   MARK_ZIGZAG,
   createSheet,
@@ -16,7 +16,6 @@ import {
 import {
   Row,
   STANDARD_TUNING,
-  cancelGroup,
   copyPreviousPosition,
   deleteColumn,
   deleteGroup,
@@ -98,6 +97,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
   const [ties, setTies] = useState(saved.ties)
   const [marks, setMarks] = useState(saved.marks)
   const [status, setStatus] = useState('')
+  const [editingRows, setEditingRows] = useState(false)
   // The open write panel, as the button it hangs under and which of the three
   // presses it is — they are one panel asking for different things.
   const [writeMenu, setWriteMenu] = useState(null)
@@ -145,6 +145,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
   // read through a ref so the memoised handlers need not be rebuilt when it
   // changes.
   const sheetRef = useRef(sheet)
+  const pendingGroup = useRef(null)
   useEffect(() => {
     sheetRef.current = sheet
   }, [sheet])
@@ -358,6 +359,15 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
     setStatus(`Deleted row ${row + 1}`)
   }
 
+  const handleReorderRows = (order) => {
+    if (order.every((old, index) => old === index)) return
+    remember('moving a row')
+    const positions = new Map(order.map((old, index) => [old, index]))
+    setRows((prev) => order.map((index) => prev[index]))
+    setTies((prev) => prev.map((tie) => ({ ...tie, row: positions.get(tie.row) })))
+    setMarks((prev) => prev.map((mark) => ({ ...mark, row: positions.get(mark.row) })))
+  }
+
   const handleResizeRow = useCallback(
     (row, by) => {
       const standing = sheetRef.current.rows
@@ -437,22 +447,38 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
     [reshape],
   )
 
-  const handleStartGroup = useCallback(
-    (row, col) => reshape('starting a group', row, (prev) => startGroup(prev, row, col)),
-    [reshape],
-  )
+  const handleStartGroup = useCallback((row, col) => {
+    const before = sheetRef.current
+    if (!before.rows[row] || before.rows[row].groupAt(col)) return false
+    const spaced = insertColumn(before.rows, row, col)
+    const opened = startGroup(spaced, row, col + 1)
+    if (opened === spaced) return false
+    pendingGroup.current = { row, start: col + 1, before }
+    setRows(opened)
+    setTies((prev) => prev.map((tie) => tie.row === row ? { ...tie, from: tie.from >= col ? tie.from + 2 : tie.from, to: tie.to >= col ? tie.to + 2 : tie.to } : tie))
+    setMarks((prev) => prev.map((mark) => mark.row === row && mark.col >= col ? { ...mark, col: mark.col + 2 } : mark))
+    return true
+  }, [])
 
-  const handleEndGroup = useCallback(
-    (row, start, col) => reshape('writing a group', row, (prev) => endGroup(prev, row, start, col)),
-    [reshape],
-  )
+  const handleEndGroup = useCallback((row, start, col) => {
+    const pending = pendingGroup.current
+    if (!pending || pending.row !== row || pending.start !== start) return
+    const standing = sheetRef.current.rows
+    const closed = endGroup(standing, row, start, col)
+    if (closed === standing) return
+    setHistory((prev) => pushHistory(prev, { label: 'writing a group', token: null, state: pending.before }))
+    pendingGroup.current = null
+    setRows(closed)
+    const at = col + 1
+    setTies((prev) => prev.map((tie) => tie.row === row ? { ...tie, from: tie.from >= at ? tie.from + 1 : tie.from, to: tie.to >= at ? tie.to + 1 : tie.to } : tie))
+    setMarks((prev) => prev.map((mark) => mark.row === row && mark.col >= at ? { ...mark, col: mark.col + 1 } : mark))
+  }, [])
 
-  // Taking back an opening nobody closed is the undoing of `startGroup`, not
-  // an edit of its own: it costs no step of history.
-  const handleCancelGroup = useCallback(
-    (row, col) => setRows((prev) => cancelGroup(prev, row, col)),
-    [],
-  )
+  const handleCancelGroup = useCallback(() => {
+    if (!pendingGroup.current) return
+    applySheet(pendingGroup.current.before)
+    pendingGroup.current = null
+  }, [applySheet])
 
   const handleDeleteGroup = useCallback(
     (row, col) => {
@@ -626,7 +652,8 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
         <input
           className="title-input"
           value={title}
-          onChange={(event) => setTitle(event.target.value)}
+          onChange={(event) => setTitle(event.target.value.toLowerCase())}
+          autoCapitalize="off"
           placeholder="Untitled"
           aria-label="Title"
         />
@@ -749,6 +776,9 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
           >
             <UndoIcon />
           </button>
+          <button type="button" className={`icon-button${editingRows ? ' is-on' : ''}`} aria-label="Edit row order" title="Edit row order" aria-pressed={editingRows} onClick={() => setEditingRows((value) => !value)}>
+            <PencilIcon />
+          </button>
       </div>
 
       {liveMenu && (
@@ -824,6 +854,8 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
         <MemoSection memo={memo} onChange={handleMemoChange} />
 
         <TabEditorV2
+          editingRows={editingRows}
+          onReorderRows={handleReorderRows}
           rows={rows}
           tuning={STANDARD_TUNING}
           ties={ties}

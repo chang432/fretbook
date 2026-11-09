@@ -103,7 +103,7 @@ export function groupsByName(rows) {
 export function toJson({ rows, ties, marks, memo }, tuning = STANDARD_TUNING, title = '') {
   return JSON.stringify(
     {
-      format: 'fretboard-notebook',
+      format: 'fretbook',
       version: SHEET_VERSION,
       title,
       tuning,
@@ -144,6 +144,7 @@ export function toJson({ rows, ties, marks, memo }, tuning = STANDARD_TUNING, ti
 /** One fret from a file: a number within reach, or nothing. */
 const readValue = (raw) => {
   if (typeof raw !== 'string') return ''
+  if (raw.trim().toLowerCase() === 'x') return 'x'
   const digits = raw.replace(/\D/g, '').slice(0, 2)
   if (digits === '') return ''
   return Number(digits) > MAX_FRET ? '' : String(Number(digits))
@@ -170,7 +171,7 @@ export function fromJson(text) {
 
   if (
     !data ||
-    data.format !== 'fretboard-notebook' ||
+    data.format !== 'fretbook' ||
     data.version !== SHEET_VERSION ||
     typeof data.title !== 'string' ||
     typeof data.memo !== 'string' ||

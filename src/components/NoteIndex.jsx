@@ -22,10 +22,9 @@ export default function NoteIndex({ anchor, onClose, onOpen }) {
       {notes?.length === 0 && <p className="note-shell-text">No saved sheets yet.</p>}
       {notes?.length > 0 && (
         <ul className="note-list">
-          {notes.map(({ slug, title }) => (
+          {notes.map(({ slug }) => (
             <li key={slug}>
               <a href={sheetPath(slug)} className="note-list-link" onClick={(event) => followSheetLink(event, onOpen, slug)}>
-                <span className="note-list-title">{title || slug}</span>
                 <span className="note-list-slug">{slug}</span>
               </a>
             </li>

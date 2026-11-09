@@ -32,6 +32,7 @@ function sheet() {
 test('a sheet survives being written to a file and read back', () => {
   const before = sheet()
   const json = toJson({ ...before, memo: 'drop D' }, STANDARD_TUNING, 'A song')
+  assert.equal(JSON.parse(json).format, 'fretbook')
   const after = fromJson(json)
 
   assert.ok(after)
@@ -65,7 +66,7 @@ test('nothing but the current format is read', () => {
 
 test('a file cannot describe a group the model would refuse', () => {
   const json = JSON.stringify({
-    format: 'fretboard-notebook',
+    format: 'fretbook',
     version: 14,
     title: '',
     tuning: STANDARD_TUNING,

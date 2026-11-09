@@ -7,8 +7,8 @@
  * settled in the one place.
  */
 
-/** New sheet names use letters and digits separated by underscores. */
-export const NOTE_NAME = /^[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/
+/** New sheet names use lowercase letters and digits separated by underscores. */
+export const NOTE_NAME = /^[a-z0-9]+(?:_[a-z0-9]+)*$/
 
 /** Existing saved sheets may have been published with hyphens. */
 export const SAVED_NOTE_NAME = /^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$/
