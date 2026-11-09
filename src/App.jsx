@@ -99,6 +99,16 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
   const [marks, setMarks] = useState(saved.marks)
   const [status, setStatus] = useState('')
   const [editingRows, setEditingRows] = useState(false)
+  useEffect(() => {
+    if (!editingRows) return undefined
+    const leaveOnBackground = (event) => {
+      if (event.target.matches?.('html, body, #root, .app, .header, .toolbar, .toolbar-group, .sheet, .editor, .row-move-gap')) {
+        setEditingRows(false)
+      }
+    }
+    document.addEventListener('pointerdown', leaveOnBackground)
+    return () => document.removeEventListener('pointerdown', leaveOnBackground)
+  }, [editingRows])
   // The open write panel, as the button it hangs under and which of the three
   // presses it is — they are one panel asking for different things.
   const [writeMenu, setWriteMenu] = useState(null)
