@@ -45,30 +45,6 @@ export default function CellMenu({
     <ActionBar anchor={anchor} label="This position">
       {children}
       {canCopy && <button type="button" className="action-bar-button" title="Copy previous position" aria-label="Copy previous position" onMouseDown={(event) => event.preventDefault()} onClick={onCopy}><RewindIcon width={20} height="14" /></button>}
-      {/* One more position either side of this one. The arrow points at
-          the plus, which is where the new position lands. */}
-      <button
-        type="button"
-        className="action-bar-button"
-        title="Add a position before this one"
-        aria-label="Add a position before this one"
-        onMouseDown={(event) => event.preventDefault()}
-        onClick={onInsertBefore}
-      >
-        <AddColumnIcon before />
-      </button>
-
-      <button
-        type="button"
-        className="action-bar-button"
-        title="Add a position after this one"
-        aria-label="Add a position after this one"
-        onMouseDown={(event) => event.preventDefault()}
-        onClick={onInsertAfter}
-      >
-        <AddColumnIcon before={false} />
-      </button>
-
       {/* Opening a group here. The button wears the mark it makes: the
           bar, and the two half-arrows that come off it. */}
       {canPlace && (
@@ -112,6 +88,31 @@ export default function CellMenu({
           <CrossIcon />
         </button>
       )}
+
+      {/* One more position either side of this one, at the end of the bar:
+          these two make room rather than acting on what is here, and the
+          carets point the way the row opens. */}
+      <button
+        type="button"
+        className="action-bar-button"
+        title="Add a position before this one"
+        aria-label="Add a position before this one"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={onInsertBefore}
+      >
+        <AddColumnIcon before />
+      </button>
+
+      <button
+        type="button"
+        className="action-bar-button"
+        title="Add a position after this one"
+        aria-label="Add a position after this one"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={onInsertAfter}
+      >
+        <AddColumnIcon before={false} />
+      </button>
 
       {listing &&
         createPortal(
