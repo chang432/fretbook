@@ -5,7 +5,7 @@ import NoteIndex from './components/NoteIndex.jsx'
 import Popover from './components/Popover.jsx'
 import PublishMenu from './components/PublishMenu.jsx'
 import TabEditorV2 from './components/TabEditorV2.jsx'
-import { ExportIcon, ImportIcon, PresentIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
+import { PresentIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
 import {
   MARK_ZIGZAG,
   createSheet,
@@ -636,16 +636,15 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
         <div className="toolbar-group">
           <button
             type="button"
-            className="icon-button"
             onClick={exportJson}
             disabled={empty}
             aria-label="Export JSON"
             title="Export JSON"
           >
-            <ExportIcon />
+            Export
           </button>
-          <button type="button" className="icon-button" onClick={() => fileInputRef.current?.click()} aria-label="Import JSON" title="Import JSON">
-            <ImportIcon />
+          <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Import JSON" title="Import JSON">
+            Import
           </button>
           <input ref={fileInputRef} type="file" accept="application/json,.json" className="visually-hidden" onChange={importJson} />
 

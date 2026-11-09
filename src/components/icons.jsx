@@ -89,35 +89,6 @@ export function PasteIcon({ width = 16, height = 16 }) {
  * it sits in the toolbar's square buttons and in the shallower bar that floats
  * over a selected position; the box it is drawn in stays square either way.
  */
-/** An arrow coming down into a tray: bringing something in from elsewhere. */
-export function ImportIcon({ width = 16, height = 16 }) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      width={width}
-      height={height}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M8 1.8v7.4" />
-      <path d="M4.8 6.4 8 9.6l3.2-3.2" />
-      <path d="M2.4 11.2v1.6a1.4 1.4 0 0 0 1.4 1.4h8.4a1.4 1.4 0 0 0 1.4-1.4v-1.6" />
-    </svg>
-  )
-}
-
-export function ExportIcon({ width = 16, height = 16 }) {
-  return (
-    <svg viewBox="0 0 16 16" width={width} height={height} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M8 10 V2 M4.8 5.2 8 2 l3.2 3.2 M2.4 11.2 v1.6 a1.4 1.4 0 0 0 1.4 1.4 h8.4 a1.4 1.4 0 0 0 1.4-1.4 v-1.6" />
-    </svg>
-  )
-}
-
 export function RewindIcon({ width = 16, height = 16 }) {
   return (
     <svg className="icon" width={width} height={height} viewBox="0 0 16 16" aria-hidden="true">
