@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import Cell from './Cell.jsx'
 import CellMenu from './CellMenu.jsx'
 import DeleteBar from './DeleteBar.jsx'
@@ -96,6 +96,7 @@ export default function TabEditorV2({
   // for a group — and `element` what the buttons over it hang off. Null
   // when nothing is.
   const [working, setWorking] = useState(null)
+  const focusAfterDelete = useRef(null)
   const [heldRow, setHeldRow] = useState(null)
   const [wasEditingRows, setWasEditingRows] = useState(editingRows)
   const [armed, setArmed] = useState(false)
@@ -144,6 +145,14 @@ export default function TabEditorV2({
     document.addEventListener('keydown', cancel)
     return () => document.removeEventListener('keydown', cancel)
   }, [copyRange])
+
+  useLayoutEffect(() => {
+    const target = focusAfterDelete.current
+    if (!target) return
+    focusAfterDelete.current = null
+    target.body.querySelectorAll('.string-row')[target.string]
+      ?.querySelector(`[data-column="${target.col}"] > input.cell`)?.focus()
+  }, [rows])
 
   const selected = working?.kind === 'cell' ? working : null
 
@@ -550,9 +559,21 @@ export default function TabEditorV2({
             setWorking(null)
           }}
           onDeleteColumn={() => {
-            onDeleteColumn(working.row, working.col)
-            // What was selected is not there any more.
-            setWorking(null)
+            const { row, col, string, element } = working
+            const columns = rows[row].columns
+            // Select the next writable position, or the previous one at the end.
+            const next = columns.findIndex((column, at) => at > col && !column.isGroupMark)
+            const previous = columns.findLastIndex((column, at) => at < col && !column.isGroupMark)
+            const target = next === -1 ? previous : next - 1
+            const body = element.closest('.staff-body')
+            onDeleteColumn(row, col)
+            setArmed(false)
+            if (target < 0 || !body) {
+              setWorking(null)
+            } else {
+              focusAfterDelete.current = { body, col: target, string }
+              setWorking({ ...working, col: target })
+            }
           }}
           onCopy={() => onCopyPrevious(working.row, working.col)}
           onPlace={(name) => {
