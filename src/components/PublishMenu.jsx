@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import NoteLink from './NoteLink.jsx'
 import Popover from './Popover.jsx'
-import { NOTE_NAME } from '../utils/tab.js'
+import { NOTE_NAME } from '../utils/files.js'
 import { NOTES_PATH, notePath } from '../utils/route.js'
 
 /**

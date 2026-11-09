@@ -18,7 +18,7 @@
  * and no difference between the dev and prod bundles. Under `npm run dev` the
  * Vite dev server proxies /api to the compose stack — see vite.config.js.
  */
-import { fromJson } from './tab.js'
+import { fromJson } from './sheet.js'
 import { notePath } from './route.js'
 
 /** The manifest the index page lists. */

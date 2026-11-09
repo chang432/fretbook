@@ -3,17 +3,13 @@ import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import NoteIndex from './components/NoteIndex.jsx'
 import NotePage from './components/NotePage.jsx'
-import TabEditorV2Lab from './components/TabEditorV2Lab.jsx'
 import { useRoute } from './utils/route.js'
 import './styles.css'
 
-/** The whole of the routing: four addresses, one of them the editor itself. */
+/** The whole of the routing: three addresses, one of them the editor itself. */
 function Site() {
   const route = useRoute()
   if (route.name === 'index') return <NoteIndex />
-  // The second editor on mock data, reached only by typing /v2: nothing in the
-  // app links to it, and it holds nothing the sheet in this browser can lose.
-  if (route.name === 'lab') return <TabEditorV2Lab />
   // Keyed by slug: moving between two notes starts the page and the editor
   // under it over on the new one, rather than leaving the old sheet standing
   // while the new file is fetched.

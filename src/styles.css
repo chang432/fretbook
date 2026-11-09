@@ -17,14 +17,10 @@
  *   base          the reset, the page, and the frame the sheet sits in
  *   toolbar       the controls across the top
  *   notes         the published notes: the list, and one note's page
- *   edit-mode     what putting the sheet in order looks like
  *   popovers      the menus that hang off the toolbar
- *   sheet         the staves' own container
+ *   sheet         the staves' own container, and the button that adds a row
  *   memo          the sheet's written note
- *   arrangement   the running order of groups
- *   groups        the bars and brackets rows are written inside
  *   staff         the frame one row is drawn in
- *   …-row-head    its name line
  *   …-controls    its buttons and position strips
  *   …-strings     its strings and the cells written on them
  *   …-groups      the columns that open and close a group inside it
@@ -37,14 +33,10 @@
 @import './styles/base.css';
 @import './styles/toolbar.css';
 @import './styles/notes.css';
-@import './styles/edit-mode.css';
 @import './styles/popovers.css';
 @import './styles/sheet.css';
 @import './styles/memo.css';
-@import './styles/arrangement.css';
-@import './styles/groups.css';
 @import './styles/staff.css';
-@import './styles/staff-row-head.css';
 @import './styles/staff-controls.css';
 @import './styles/staff-strings.css';
 @import './styles/staff-groups.css';

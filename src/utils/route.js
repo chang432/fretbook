@@ -6,7 +6,6 @@
  *   /                 the editor — one sheet, kept in this browser
  *   /notes            the published notes, listed
  *   /notes/<name>     one published note, fetched from the bucket
- *   /v2               the bench the second editor is built on, on mock data
  *
  * These are addresses in the app, not files: the server serves index.html for
  * all of them (see docker/app/caddy/Caddyfile), so a deep link and a press
@@ -14,13 +13,10 @@
  * is utils/notes.js's business.
  */
 import { useEffect, useState } from 'react'
-import { NOTE_NAME } from './tab.js'
+import { NOTE_NAME } from './files.js'
 
 /** Where the published notes are listed. */
 export const NOTES_PATH = '/notes'
-
-/** Where TabEditorV2 is stood up on mock data, for testing it by hand. */
-export const LAB_PATH = '/v2'
 
 /** The address one note is read at, and the link that opens it. */
 export const notePath = (slug) => `${NOTES_PATH}/${slug}`
@@ -35,7 +31,6 @@ export function readRoute(pathname = window.location.pathname) {
   // for a note called ''.
   const path = pathname.replace(/\/+$/, '') || '/'
   if (path === NOTES_PATH) return { name: 'index' }
-  if (path === LAB_PATH) return { name: 'lab' }
 
   if (path.startsWith(`${NOTES_PATH}/`)) {
     const slug = decodeURIComponent(path.slice(NOTES_PATH.length + 1))

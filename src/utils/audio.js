@@ -9,7 +9,7 @@
  * tuning into arithmetic instead of node-graph tricks.
  */
 
-import { MAX_FRET } from './tab.js'
+import { MAX_FRET } from './cell.js'
 
 /**
  * Open strings in standard tuning as MIDI note numbers, high e first — the

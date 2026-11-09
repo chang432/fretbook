@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import StaffOverlay from './StaffOverlay.jsx'
 import { CELL_W, ROW_H, groupTone } from '../utils/layout.js'
-import { STRING_COUNT, groupLabel, rowName } from '../utils/tab.js'
+import { STRING_COUNT } from '../utils/cell.js'
 import {
   BEATS_PER_BAR,
   LEAD_IN_BEATS,
@@ -13,7 +13,6 @@ import {
   runAt,
   secondsPerBeat,
   songBeats,
-  songBlocks,
   songRuns,
 } from '../utils/live.js'
 
@@ -45,41 +44,45 @@ const fitScale = (width, height) =>
   )
 
 /**
- * One run of the song, drawn as a staff line: the row's columns as plain text,
- * with the same arcs and symbols the editor draws over them. Ties and marks
- * are held in absolute grid columns, so a row played three times gets its arcs
- * three times over without any of them being copied.
+ * One stretch of the song, drawn as a staff line: the positions it sounds as
+ * plain text, with the same arcs and symbols the editor draws over them.
  *
- * `block` is the name of the arrangement block this run opens, and is given
- * only to the run that opens one — so a group's name is written once over the
- * rows it brought, in the group's own colour, rather than over each of them.
+ * A stretch names the row it sounds and where in that row it begins, so a
+ * passage played three times is drawn three times from the one row, and its
+ * arcs and symbols come with it each time without any of them being copied.
+ *
+ * What it is called is written over the first stretch of each row; a group
+ * played more than once says which time round it is instead, since that is
+ * the thing worth knowing when the same bars come past again.
  */
-const LiveRun = memo(function LiveRun({ run, name, block, grid, ties, marks, simpleMode }) {
+const LiveRun = memo(function LiveRun({ run, row, ties, marks, simpleMode }) {
   return (
     <div
       className={`live-run${run.opens ? ' live-run--opens' : ''}`}
-      style={{ width: run.cols * CELL_W, '--group': groupTone(run.groupId) }}
+      style={{ width: run.cols * CELL_W, '--group': groupTone(run.section) }}
     >
-      {/* The group's name over the block it opens: what is being played, which
-          on a sheet read off a music stand is the thing worth knowing. */}
-      {!simpleMode && block && <span className="live-block-label">{block}</span>}
+      {/* Which time round it is, where that is more than one: the same bars
+          coming past again are worth telling apart. */}
+      {!simpleMode && run.passes > 1 && (
+        <span className="live-block-label">{`${run.pass} of ${run.passes}`}</span>
+      )}
       {/* A row that has been named is called by its name here — that is what
           the player wrote it down for — and one that has not is called by its
           number, the way the row itself is. */}
-      {!simpleMode && (
-        <span className="live-run-label">{name || `Row ${run.row + 1}`}</span>
+      {!simpleMode && run.opens && (
+        <span className="live-run-label">{run.label || `Row ${run.row + 1}`}</span>
       )}
       <StaffOverlay
         ties={ties}
         marks={marks}
-        staffStart={run.gridStart}
+        staffStart={run.from}
         cols={run.cols}
         preview={null}
       />
       {Array.from({ length: STRING_COUNT }, (_, stringIndex) => (
         <div className="string-row" key={stringIndex}>
           {Array.from({ length: run.cols }, (_, offset) => {
-            const value = grid[run.gridStart + offset]?.[stringIndex] ?? ''
+            const value = row?.column(run.from + offset)?.cell(stringIndex)?.value ?? ''
             return (
               <span className={`live-cell${value ? ' cell--filled' : ''}`} key={offset}>
                 {value}
@@ -98,23 +101,19 @@ const LiveRun = memo(function LiveRun({ run, name, block, grid, ties, marks, sim
  * on its parent and the little box marking the beat being played change from
  * frame to frame.
  */
-const LiveStrip = memo(function LiveStrip({ runs, groups, names, grid, ties, marks, simpleMode }) {
+const LiveStrip = memo(function LiveStrip({ runs, rows, ties, marks, simpleMode }) {
   return (
     <div className="live-strip">
       {runs.map((run) => (
-        // Keyed by where the run stands in the song, not by which row it is:
-        // a group standing twice in the arrangement plays the same rows twice,
-        // and those are different stretches of the timeline.
+        // Keyed by the beat it starts on, which is the one thing no two
+        // stretches share: a passage played three times is three stretches
+        // over the same positions of the same row.
         <LiveRun
-          key={`${run.at}:${run.row}`}
+          key={run.beat}
           run={run}
-          // Resolved here rather than in the run: the run carries the row's id
-          // and its group's, and what either is called is the sheet's business.
-          name={rowName(names, run.rowId)}
-          block={run.opens ? groupLabel(groups, run.groupId) : ''}
-          grid={grid}
-          ties={ties}
-          marks={marks}
+          row={rows[run.row]}
+          ties={ties.filter((tie) => tie.row === run.row)}
+          marks={marks.filter((mark) => mark.row === run.row)}
           simpleMode={simpleMode}
         />
       ))}
@@ -126,10 +125,11 @@ const LiveStrip = memo(function LiveStrip({ runs, groups, names, grid, ties, mar
  * Live mode: the song played back full-screen against a fixed playhead, with
  * the tab sliding left underneath it at the chosen tempo.
  *
- * What is played is the arrangement — the sheet's groups in the order they
- * were laid out, each block expanded into the rows its group holds — so a
- * chorus written once and arranged twice comes past twice. `songRuns` does
- * that expansion, and everything here walks the flat list it returns.
+ * What is played is the sheet, read top to bottom: every row in turn, with
+ * each group in a row coming past as many times as its count says and every
+ * column standing in for a group played elsewhere bringing that group's bars
+ * here. `songRuns` does that expansion, and everything here walks the flat
+ * list it returns.
  *
  * Position is held in beats — fractional, so it is also the x offset of the
  * strip in cell widths — and lives in a ref rather than in state: it changes
@@ -147,10 +147,13 @@ export default function LiveMode({
   onPlayColumn,
   onClose,
 }) {
-  const { grid, ties, marks, names = {}, groups } = sheet
-  const runs = useMemo(() => songRuns(sheet), [sheet])
+  const { rows, ties, marks } = sheet
+  const runs = useMemo(() => songRuns(rows), [rows])
   const total = useMemo(() => songBeats(runs), [runs])
-  const blocks = useMemo(() => songBlocks(runs), [runs])
+  // How many rows of the sheet have anything to play, for the readout to
+  // count in: a stretch says which row of the sheet it belongs to, which is
+  // not always the row it sounds.
+  const sections = useMemo(() => new Set(runs.map((run) => run.section)).size, [runs])
 
   const [playing, setPlaying] = useState(true)
   const [beat, setBeat] = useState(-LEAD_IN_BEATS)
@@ -183,8 +186,8 @@ export default function LiveMode({
   /** Sound everything written on the column a beat lands on. */
   const sound = useCallback(
     (at) => {
-      const col = columnAt(runs, at)
-      if (col !== null) onPlayColumn(col)
+      const position = columnAt(runs, at)
+      if (position) onPlayColumn(position.row, position.col)
     },
     [runs, onPlayColumn],
   )
@@ -302,11 +305,16 @@ export default function LiveMode({
   }
 
   const run = runAt(runs, beat)
-  // The arrangement is what is being played, so the readout counts in it: the
-  // group whose block this is, where that block stands among the ones that
-  // play, and the bar reached inside the row the playhead is on.
+  // The sheet is what is being played, so the readout counts in it: what this
+  // stretch is called, which row of the sheet it belongs to, which time round
+  // it is where that is more than one, and the bar reached inside it.
   const readout = run
-    ? `${groupLabel(groups, run.groupId)} · ${run.block + 1} of ${blocks} · bar ${barOf(run, beat)}/${run.cols / BEATS_PER_BAR}`
+    ? [
+        run.label || `Row ${run.row + 1}`,
+        `${run.section + 1} of ${sections}`,
+        ...(run.passes > 1 ? [`play ${run.pass} of ${run.passes}`] : []),
+        `bar ${barOf(run, beat)}`,
+      ].join(' · ')
     : beat < 0
       ? 'Ready'
       : 'End of song'
@@ -372,9 +380,7 @@ export default function LiveMode({
           <div className="live-track" ref={trackRef}>
             <LiveStrip
               runs={runs}
-              groups={groups}
-              names={names}
-              grid={grid}
+              rows={rows}
               ties={ties}
               marks={marks}
               simpleMode={simpleMode}

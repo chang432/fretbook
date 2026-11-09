@@ -1,5 +1,5 @@
 import { CELL_W, ROW_H, markPath, markPoint, tiePath, tieSegment } from '../utils/layout.js'
-import { STRING_COUNT } from '../utils/tab.js'
+import { STRING_COUNT } from '../utils/cell.js'
 
 /**
  * Everything drawn over one staff line that is not a number: tie arcs joining

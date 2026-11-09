@@ -12,3 +12,26 @@
   display: flex;
   flex-direction: column;
 }
+
+/* A new staff, at the foot of the sheet where the next one would be
+   written. It is the only control down here and it acts on the sheet
+   rather than on any row, so it stands on its own and full width rather
+   than joining a bar of buttons. */
+.add-row {
+  display: block;
+  width: 100%;
+  margin-top: 18px;
+  padding: 12px;
+  border: 1px dashed var(--bar);
+  border-radius: 10px;
+  background: none;
+  color: var(--muted);
+  font: 600 14px Georgia, 'Times New Roman', serif;
+  cursor: pointer;
+}
+
+.add-row:hover {
+  border-color: var(--accent);
+  border-style: solid;
+  color: var(--accent);
+}

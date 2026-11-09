@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Cell from './Cell.jsx'
 import CellMenu from './CellMenu.jsx'
 import DeleteBar from './DeleteBar.jsx'
+import { TrashIcon } from './icons.jsx'
 import ActionBar from './ActionBar.jsx'
 import StaffOverlay from './StaffOverlay.jsx'
 import { markPath } from '../utils/layout.js'
@@ -80,6 +81,9 @@ export default function TabEditorV2({
   onInsertColumn,
   onDeleteColumn,
   onResizeRow,
+  onDeleteRow,
+  canDeleteRow = false,
+  onPlayNote,
   onDeleteGroup,
   onDeleteRef,
 }) {
@@ -283,7 +287,10 @@ export default function TabEditorV2({
                             repeat={column.repeat}
                             inGroup={Boolean(group) && isOpen(staff, group)}
                             name={column.name}
-                            onChange={(value) => onCellChange(staff, at, stringIndex, value)}
+                            onChange={(value) => {
+                              onCellChange(staff, at, stringIndex, value)
+                              if (value) onPlayNote?.(stringIndex, value)
+                            }}
                             onSelect={(element) =>
                               { setArmed(false); setWorking({ kind: 'cell', row: staff, col: at, string: stringIndex, element }) }
                             }
@@ -365,6 +372,22 @@ export default function TabEditorV2({
                     onClick={() => onResizeRow(staff, -ROW_STEP)}
                   >
                     −
+                  </button>
+                  {/* And the row itself. The sheet keeps one row, so the
+                      last one standing cannot be taken off it. */}
+                  <button
+                    type="button"
+                    className="bar-button bar-button--delete"
+                    disabled={!canDeleteRow}
+                    title={
+                      canDeleteRow
+                        ? 'Delete this row — Undo takes it back'
+                        : 'The sheet keeps at least one row'
+                    }
+                    aria-label={`Delete row ${staff + 1}`}
+                    onClick={() => onDeleteRow(staff)}
+                  >
+                    <TrashIcon />
                   </button>
                 </div>
               </div>
