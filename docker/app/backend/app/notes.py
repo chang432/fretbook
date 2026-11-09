@@ -453,12 +453,12 @@ def _submitted_sheet():
     try:
         data = json.loads(body)
     except ValueError:
-        return None, None, (jsonify(error="that is not a Fretboard Notebook export"), 400)
+        return None, None, (jsonify(error="that is not a Fretbook export"), 400)
 
     title = _sheet_title(data)
     if title is None:
         return None, None, (
-            jsonify(error="that is not a current Fretboard Notebook export"),
+            jsonify(error="that is not a current Fretbook export"),
             400,
         )
 

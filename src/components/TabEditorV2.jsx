@@ -80,6 +80,7 @@ export default function TabEditorV2({
   onCancelGroup,
   onInsertColumn,
   onDeleteColumn,
+  onPasteRange,
   onResizeRow,
   onDeleteRow,
   canDeleteRow = false,
@@ -94,6 +95,14 @@ export default function TabEditorV2({
   const [working, setWorking] = useState(null)
   const [armed, setArmed] = useState(false)
   const [cursor, setCursor] = useState(null)
+  const [copyRange, setCopyRange] = useState(null)
+
+  useEffect(() => {
+    if (!copyRange) return undefined
+    const cancel = (event) => { if (event.key === 'Escape') setCopyRange(null) }
+    document.addEventListener('keydown', cancel)
+    return () => document.removeEventListener('keydown', cancel)
+  }, [copyRange])
 
   const selected = working?.kind === 'cell' ? working : null
 
@@ -248,6 +257,14 @@ export default function TabEditorV2({
             <div className="staff-scroll">
               <div className="staff-run">
                 <div className="staff-body">
+                  {copyRange?.phase === 'select' && copyRange.row === staff && row.columns.map((column, at) => at >= copyRange.start && at <= copyRange.limit && (
+                    <button key={`select-${at}`} type="button" className="range-copy-choice" style={{ left: `calc(${at} * var(--cell-w))` }} aria-label={`Copy through position ${at + 1}`} onClick={() => setCopyRange({ ...copyRange, phase: 'paste', end: at })} />
+                  ))}
+                  {copyRange?.phase === 'paste' && row.columns.map((column, at) => {
+                    const count = copyRange.end - copyRange.start + 1
+                    if (at + count > row.length || row.columns.slice(at, at + count).some((item) => item.isGroupMark)) return null
+                    return <button key={`paste-${at}`} type="button" className="range-copy-choice range-copy-choice--paste" style={{ left: `calc(${at} * var(--cell-w))` }} aria-label={`Paste starting at position ${at + 1} in row ${staff + 1}`} title="Paste starting here" onClick={() => { onPasteRange(copyRange.row, copyRange.start, copyRange.end, staff, at); setCopyRange(null) }} />
+                  })}
                   <StaffOverlay ties={ties.filter((tie) => tie.row === staff)} marks={marks.filter((mark) => mark.row === staff)} staffStart={0} cols={row.length} preview={armed && selected?.row === staff && cursor !== null ? { string: selected.string, from: Math.min(selected.col, cursor), to: Math.max(selected.col, cursor) } : null} />
                   {tuning.map((_, stringIndex) => (
                     // Each cell draws its own piece of the string, so that a
@@ -427,6 +444,13 @@ export default function TabEditorV2({
             setWorking(null)
           }}
           canDelete={rows[working.row]?.length > 1}
+          onCopyRange={() => {
+            const columns = rows[working.row].columns
+            let limit = working.col
+            while (limit + 1 < columns.length && !columns[limit + 1].isGroupMark) limit += 1
+            setCopyRange({ phase: 'select', row: working.row, start: working.col, limit })
+            setWorking(null)
+          }}
           onDeleteColumn={() => {
             onDeleteColumn(working.row, working.col)
             // What was selected is not there any more.

@@ -68,6 +68,29 @@
   outline: none;
 }
 
+.range-copy-choice {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--cell-w);
+  z-index: 6;
+  border: 0;
+  background: rgb(168 73 47 / 16%);
+  cursor: pointer;
+}
+
+.range-copy-choice:hover, .range-copy-choice:focus-visible {
+  background: rgb(168 73 47 / 32%);
+}
+
+.range-copy-choice--paste {
+  background: rgb(60 91 133 / 18%);
+}
+
+.range-copy-choice--paste:hover, .range-copy-choice--paste:focus-visible {
+  background: rgb(60 91 133 / 34%);
+}
+
 /* The buttons over whatever is being worked on — a position being written
    in, a group held open, a column where one is played — and the groups one
    of them opens. All hang off what opened them, positioned from its own

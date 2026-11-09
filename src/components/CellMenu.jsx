@@ -36,6 +36,7 @@ export default function CellMenu({
   onDeleteColumn,
   onInsertBefore,
   onInsertAfter,
+  onCopyRange,
   children,
 }) {
   // The button the group list hangs off, which is also what says it is open.
@@ -76,6 +77,9 @@ export default function CellMenu({
 
       {/* Off the row altogether, with everything past it moving one
           closer. Last in the bar, being the one that takes away. */}
+      <button type="button" className="action-bar-button" title="Copy a section" aria-label="Copy a section" onMouseDown={(event) => event.preventDefault()} onClick={onCopyRange}>
+        <svg className="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="4" width="8" height="10" rx="1"/><path d="M 3 11 H 2 V 2 H 10 V 3" /></svg>
+      </button>
       {canDelete && (
         <button
           type="button"

@@ -31,7 +31,7 @@ export default function NotePage({ slug }) {
   useEffect(() => {
     if (!title) return undefined
     const previous = document.title
-    document.title = `${title} · Fretboard Notebook`
+    document.title = `${title} · Fretbook`
     return () => {
       document.title = previous
     }

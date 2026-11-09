@@ -367,7 +367,7 @@ function publish(bucket, files) {
     }
 
     if (!fromJson(text)) {
-      errors.push(`${file}: not a Fretboard Notebook export the editor can open`)
+      errors.push(`${file}: not a Fretbook export the editor can open`)
       continue
     }
 

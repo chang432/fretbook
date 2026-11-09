@@ -396,6 +396,31 @@ export default function App({ published = null }) {
     [reshape],
   )
 
+  const handlePasteRange = (sourceRow, start, end, targetRow, at) => {
+    const standing = sheetRef.current.rows
+    const source = standing[sourceRow]
+    const target = standing[targetRow]
+    if (!source || !target || start < 0 || end < start || end >= source.length || at < 0) return
+    const copied = source.columns.slice(start, end + 1)
+    if (copied.some((column) => column.isGroupMark)) return
+    const count = copied.length
+    if (at + count > target.length || target.columns.slice(at, at + count).some((column) => column.isGroupMark)) return
+    const columns = [...target.columns.slice(0, at), ...copied, ...target.columns.slice(at + count)]
+      .map((column, index) => column.at(index))
+    remember('pasting a section')
+    setRows(standing.map((row, index) => index === targetRow ? new Row(columns.length, columns, row.name) : row))
+    setMarks((prev) => [
+      ...prev.filter((mark) => mark.row !== targetRow || mark.col < at || mark.col >= at + count),
+      ...prev.filter((mark) => mark.row === sourceRow && mark.col >= start && mark.col <= end)
+        .map((mark) => ({ ...mark, row: targetRow, col: at + mark.col - start })),
+    ])
+    setTies((prev) => [
+      ...prev.filter((tie) => tie.row !== targetRow || ((tie.from < at || tie.from >= at + count) && (tie.to < at || tie.to >= at + count))),
+      ...prev.filter((tie) => tie.row === sourceRow && tie.from >= start && tie.to <= end)
+        .map((tie) => ({ ...tie, row: targetRow, from: at + tie.from - start, to: at + tie.to - start })),
+    ])
+  }
+
   const handleDeleteColumn = useCallback(
     (row, col) => reshape('deleting a position', row, (prev) => deleteColumn(prev, row, col)),
     [reshape],
@@ -634,7 +659,7 @@ export default function App({ published = null }) {
     }
     const parsed = fromJson(await file.text())
     if (!parsed) {
-      setStatus('That file is not a current Fretboard Notebook export')
+      setStatus('That file is not a current Fretbook export')
       return
     }
     // Opening a file replaces the title and the note as well as the sheet.
@@ -653,7 +678,7 @@ export default function App({ published = null }) {
   return (
     <div className="app">
       <header className="header">
-        <h1>Fretboard Notebook</h1>
+        <h1>Fretbook</h1>
         <input
           className="title-input"
           value={title}
@@ -906,6 +931,7 @@ export default function App({ published = null }) {
           onDeleteRef={handleDeleteRef}
           onResizeRow={handleResizeRow}
           onInsertColumn={handleInsertColumn}
+          onPasteRange={handlePasteRange}
           onDeleteColumn={handleDeleteColumn}
           onDeleteRow={handleDeleteRow}
           canDeleteRow={rows.length > 1}
