@@ -149,9 +149,9 @@ export default function TabEditorV2({
   useLayoutEffect(() => {
     const target = focusAfterDelete.current
     if (!target) return
-    focusAfterDelete.current = null
     target.body.querySelectorAll('.string-row')[target.string]
       ?.querySelector(`[data-column="${target.col}"] > input.cell`)?.focus()
+    focusAfterDelete.current = null
   }, [rows])
 
   const selected = working?.kind === 'cell' ? working : null
@@ -406,7 +406,7 @@ export default function TabEditorV2({
                               if (value) onPlayNote?.(stringIndex, value)
                             }}
                             onSelect={(element) =>
-                              { setArmed(false); setWorking({ kind: 'cell', row: staff, col: at, string: stringIndex, element }) }
+                              { setArmed(false); setWorking({ kind: 'cell', row: staff, col: at, string: stringIndex, element, menuAnchor: focusAfterDelete.current?.menuAnchor }) }
                             }
                             onNavigate={(event) => navigateCell(event, staff, at, stringIndex)}
                             onPlay={() => onPlayNote?.(stringIndex, column.cell(stringIndex).value)}
@@ -524,7 +524,7 @@ export default function TabEditorV2({
           scrolling inside itself cannot clip them. */}
       {working?.kind === 'cell' && (
         <CellMenu
-          anchor={columnTop(working.element, working.col)}
+          anchor={working.menuAnchor ?? columnTop(working.element, working.col)}
           groups={groups}
           canCopy={Boolean(previousWrittenPosition(rows, working.row, working.col))}
           // Not into the middle of a group: that position is the group's
@@ -566,13 +566,16 @@ export default function TabEditorV2({
             const previous = columns.findLastIndex((column, at) => at < col && !column.isGroupMark)
             const target = next === -1 ? previous : next - 1
             const body = element.closest('.staff-body')
+            // Keep the panel where it was while the selected position moves.
+            const rect = columnTop(element, col).getBoundingClientRect()
+            const menuAnchor = working.menuAnchor ?? { getBoundingClientRect: () => rect }
             onDeleteColumn(row, col)
             setArmed(false)
             if (target < 0 || !body) {
               setWorking(null)
             } else {
-              focusAfterDelete.current = { body, col: target, string }
-              setWorking({ ...working, col: target })
+              focusAfterDelete.current = { body, col: target, string, menuAnchor }
+              setWorking({ ...working, col: target, menuAnchor })
             }
           }}
           onCopy={() => onCopyPrevious(working.row, working.col)}
