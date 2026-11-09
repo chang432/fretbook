@@ -1,21 +1,21 @@
 """The published notes: read out of R2 over the S3 API, and written back to it.
 
 The bucket is private: nothing but this process can reach it, and the browser
-reaches a note by asking its own origin for /api/notes/<slug>. A browser cannot
+reaches a note by asking its own origin for /api/sheets/<slug>. A browser cannot
 sign an S3 request — signing needs the R2 token, and anything in the bundle is
 readable by anyone who opens devtools — so this is the hop that lets the bucket
 stop being public. See docs/notes-via-s3-client.md.
 
 The keys are the ones scripts/notes.mjs writes, unchanged:
 
-    notes.json            the manifest /notes lists
+    notes.json            the saved-sheet manifest
     notes/<name>.json     one note, the editor's own JSON export
 
-    GET    /api/notes          the manifest
-    GET    /api/notes/<slug>   one note
-    PUT    /api/notes/<slug>   publish the sheet in the body under that name
-    POST   /api/notes/<slug>   replace that note — password required
-    DELETE /api/notes/<slug>   take that note down — password required
+    GET    /api/sheets          the manifest
+    GET    /api/sheets/<slug>   one note
+    PUT    /api/sheets/<slug>   publish the sheet in the body under that name
+    POST   /api/sheets/<slug>   replace that note — password required
+    DELETE /api/sheets/<slug>   take that note down — password required
 
 The manifest is read and rewritten as an object rather than rebuilt by listing
 the bucket, so the token this holds needs GetObject, PutObject and DeleteObject
@@ -89,7 +89,7 @@ SHEET_VERSION = 13
 MAX_UPLOAD_BYTES = 512 * 1024
 
 #: How much of a title is kept in the manifest. The note itself is stored
-#: byte for byte whatever this says; only the line /notes lists is clipped,
+#: byte for byte whatever this says; only the manifest entry is clipped,
 #: so one upload cannot make the index unreadable for everyone else.
 MAX_TITLE_CHARS = 120
 
@@ -114,7 +114,7 @@ UPLOADS_PER_MINUTE = 20
 
 #: How long an object is reused before R2 is asked again. The same window
 #: notes:publish puts on a note, which is the trade this cache makes: a publish
-#: appears within a minute instead of instantly, and /notes costs one GetObject
+#: appears within a minute instead of instantly, and the list costs one GetObject
 #: a minute instead of one per page view.
 TTL_SECONDS = 60
 
@@ -207,7 +207,7 @@ def _json(body: bytes, cache_control: str):
     )
 
 
-@notes.get("/notes")
+@notes.get("/sheets")
 def index():
     """The manifest, as `[{ slug, title }]`.
 
@@ -235,7 +235,7 @@ def index():
     return _json(body, "no-store")
 
 
-@notes.get("/notes/<slug>")
+@notes.get("/sheets/<slug>")
 def note(slug: str):
     """One note — the editor's own JSON export, byte for byte."""
     if unconfigured := _unconfigured():
@@ -379,7 +379,7 @@ def _manifest_entries() -> list[dict]:
 
 
 def _save_manifest(entries: list[dict]) -> bool:
-    """Write the manifest, in the order /notes lists it."""
+    """Write the manifest, in the order the picker lists it."""
     # Title then slug, the order scripts/notes.mjs sorts into, so a manifest
     # this writes and one that command rebuilds list the same notes the same
     # way round.
@@ -498,12 +498,12 @@ def _wrong_password():
     return jsonify(error="that password is not right"), 401
 
 
-@notes.put("/notes/<slug>")
+@notes.put("/sheets/<slug>")
 def publish(slug: str):
-    """Publish the sheet in the body as /notes/<slug>.
+    """Publish the sheet in the body under the supplied name.
 
     201 and the note is live — the manifest is rewritten in the same call, so
-    /notes lists it on the next visit. 409 means the name is taken, which is
+    The picker lists it on the next visit. 409 means the name is taken, which is
     the whole of the protection a bucket with no versioning gets: a published
     note cannot be replaced or removed through this route, only alongside an
     unused name.
@@ -546,12 +546,12 @@ def publish(slug: str):
     # as a failed publish and inviting a second upload of the same sheet.
     listed = _list_note(slug, title or slug)
 
-    return jsonify(slug=slug, title=title, path=f"/notes/{slug}", listed=listed), 201
+    return jsonify(slug=slug, title=title, listed=listed), 201
 
 
-@notes.post("/notes/<slug>")
+@notes.post("/sheets/<slug>")
 def update(slug: str):
-    """Replace the note at /notes/<slug> with the sheet in the body.
+    """Replace the saved sheet under this name with the sheet in the body.
 
     The one route here that can destroy something. R2 keeps no versions and
     nothing else holds a copy, so what this writes over is gone — which is why
@@ -595,13 +595,13 @@ def update(slug: str):
     # this slug already has.
     listed = _list_note(slug, title or slug)
 
-    return jsonify(slug=slug, title=title, path=f"/notes/{slug}", listed=listed), 200
+    return jsonify(slug=slug, title=title, listed=listed), 200
 
 
 
-@notes.delete("/notes/<slug>")
+@notes.delete("/sheets/<slug>")
 def unpublish(slug: str):
-    """Take the note at /notes/<slug> down.
+    """Delete the saved sheet under this name.
 
     The same password as POST, for the same reason: R2 keeps no versions, the
     repo tracks no notes, and `notes/` is a cache — so the object this removes
@@ -640,4 +640,4 @@ def unpublish(slug: str):
     # reporting as a failed delete and inviting a second press.
     listed = _unlist_note(slug)
 
-    return jsonify(slug=slug, path=f"/notes/{slug}", unlisted=listed), 200
+    return jsonify(slug=slug, unlisted=listed), 200

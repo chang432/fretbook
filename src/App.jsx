@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import LiveMode from './components/LiveMode.jsx'
 import MemoSection from './components/MemoSection.jsx'
-import NoteLink from './components/NoteLink.jsx'
+import NoteIndex from './components/NoteIndex.jsx'
 import Popover from './components/Popover.jsx'
 import PublishMenu from './components/PublishMenu.jsx'
 import TabEditorV2 from './components/TabEditorV2.jsx'
@@ -35,7 +35,6 @@ import {
 import { downloadFile, slugify } from './utils/files.js'
 import { HISTORY_LIMIT, nextUndoLabel, popHistory, pushHistory } from './utils/history.js'
 import { DEFAULT_BPM, MAX_BPM, MIN_BPM, clampBpm, hasSong } from './utils/live.js'
-import { NOTES_PATH } from './utils/route.js'
 import { deleteNote, publishNote, updateNote } from './utils/notes.js'
 import { cellFrequency, createAudioEngine } from './utils/audio.js'
 
@@ -75,7 +74,7 @@ function loadSaved() {
  * inside a staff, which the player reads straight off the row — see
  * utils/live.js.
  */
-export default function App({ published = null }) {
+export default function App({ published = null, onOpenSheet }) {
   // Read the note, or localStorage, once and lazily, and seed the state below
   // from whichever it was. Nothing published and nothing saved means a blank
   // page, which is a sheet of its own rather than an absence.
@@ -104,6 +103,7 @@ export default function App({ published = null }) {
   // The open write panel, as the button it hangs under and which of the three
   // presses it is — they are one panel asking for different things.
   const [writeMenu, setWriteMenu] = useState(null)
+  const [sheetPicker, setSheetPicker] = useState(null)
   // Set once this page's note has been taken down, which leaves the sheet on
   // screen with nothing behind it: there is no note left to update or delete.
   const [deleted, setDeleted] = useState(false)
@@ -598,7 +598,7 @@ export default function App({ published = null }) {
     const result = await write.send(slug, password)
     if (!result.ok) return result
 
-    setStatus(`${write.said} /notes/${slug}`)
+    setStatus(`${write.said} ${slug}`)
     write.then?.()
     return result
   }
@@ -698,7 +698,7 @@ export default function App({ published = null }) {
                   deleted
                     ? 'This note has been taken down'
                     : changed
-                      ? `Write this sheet over /notes/${published.slug} — needs the password`
+                      ? `Write this sheet over ${published.slug} — needs the password`
                       : 'Nothing has been changed on this note yet'
                 }
               >
@@ -714,7 +714,7 @@ export default function App({ published = null }) {
                 title={
                   deleted
                     ? 'This note has been taken down'
-                    : `Take /notes/${published.slug} down for good — needs the password`
+                    : `Take ${published.slug} down for good — needs the password`
                 }
               >
                 Delete
@@ -727,14 +727,14 @@ export default function App({ published = null }) {
               disabled={empty}
               aria-haspopup="dialog"
               aria-expanded={!!writeMenu}
-              title="Put this sheet in the published notes, at a URL anyone can open"
+              title="Save this sheet so it can be opened from the sheet list"
             >
               Publish
             </button>
           )}
-          <NoteLink to={NOTES_PATH} className="button-link">
-            Browse
-          </NoteLink>
+          <button type="button" onClick={(event) => setSheetPicker(sheetPicker ? null : event.currentTarget)} aria-haspopup="dialog" aria-expanded={!!sheetPicker}>
+            Sheets
+          </button>
         </div>
       </div>
 
@@ -801,6 +801,10 @@ export default function App({ published = null }) {
         </Popover>
       )}
 
+      {sheetPicker && (
+        <NoteIndex anchor={sheetPicker} onClose={() => setSheetPicker(null)} onOpen={onOpenSheet} onDraft={() => onOpenSheet(null)} hasPublished={!!published} />
+      )}
+
       {writeMenu && (
         <PublishMenu
           anchor={writeMenu.anchor}
@@ -809,6 +813,7 @@ export default function App({ published = null }) {
           defaultSlug={fileStem}
           onClose={() => setWriteMenu(null)}
           onWrite={writeSheet}
+          onOpen={onOpenSheet}
         />
       )}
 

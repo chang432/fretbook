@@ -30,10 +30,14 @@ export default function Popover({ anchor, className, label, onClose, children })
     }
 
     position()
+    // Content can grow after an asynchronous list loads.
+    const observer = new ResizeObserver(position)
+    observer.observe(panel.current)
     // `true` catches a row scrolling as well as the page.
     window.addEventListener('scroll', position, true)
     window.addEventListener('resize', position)
     return () => {
+      observer.disconnect()
       window.removeEventListener('scroll', position, true)
       window.removeEventListener('resize', position)
     }

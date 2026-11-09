@@ -200,8 +200,8 @@ jobs:
           [ -n "${PROD_DOMAIN}" ] || missing="${missing} PROD_DOMAIN"
           [ -n "${DEV_DOMAIN}" ]  || missing="${missing} DEV_DOMAIN"
           [ -n "${ACME_EMAIL}" ]  || missing="${missing} ACME_EMAIL"
-          # Without these the stack still comes up, but /api/notes answers 503
-          # and /notes is an empty shelf — a silent half-deploy, so fail here.
+          # Without these the stack still comes up, but /api/sheets answers 503
+          # and the sheet list is empty — a silent half-deploy, so fail here.
           [ -n "${R2_ENDPOINT}" ] || missing="${missing} R2_ENDPOINT"
           if [ -n "${missing}" ]; then
             echo "::error::Missing repository variables:${missing}. Set them under Settings > Secrets and variables > Actions > Variables."

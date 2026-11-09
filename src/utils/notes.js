@@ -8,24 +8,23 @@
  * docs/notes-via-s3-client.md, and docker/app/backend/app/notes.py for the end
  * that speaks S3.
  *
- *   GET    /api/notes          the manifest /notes lists, as [{ slug, title }]
- *   GET    /api/notes/<slug>   one note, the editor's own JSON export
- *   PUT    /api/notes/<slug>   publish the sheet in the body under that name
- *   POST   /api/notes/<slug>   replace that note — password required
- *   DELETE /api/notes/<slug>   take that note down — password required
+ *   GET    /api/sheets          the saved-sheet manifest, as [{ slug, title }]
+ *   GET    /api/sheets/<slug>   one note, the editor's own JSON export
+ *   PUT    /api/sheets/<slug>   publish the sheet in the body under that name
+ *   POST   /api/sheets/<slug>   replace that note — password required
+ *   DELETE /api/sheets/<slug>   take that note down — password required
  *
  * Same origin, so there is no CORS rule, no bucket URL to inline at build time,
  * and no difference between the dev and prod bundles. Under `npm run dev` the
  * Vite dev server proxies /api to the compose stack — see vite.config.js.
  */
 import { fromJson } from './sheet.js'
-import { notePath } from './route.js'
 
 /** The manifest the index page lists. */
-export const manifestUrl = () => '/api/notes'
+export const manifestUrl = () => '/api/sheets'
 
 /** The raw JSON behind one note — the file as it sits in the bucket. */
-export const noteUrl = (slug) => `/api/notes/${slug}`
+export const noteUrl = (slug) => `/api/sheets/${slug}`
 
 /**
  * The published notes, as `{ slug, title }` in the order the index shows them.
@@ -54,7 +53,7 @@ export async function fetchManifest() {
  */
 export async function fetchNote(slug) {
   try {
-    const response = await fetch(noteUrl(slug))
+    const response = await fetch(noteUrl(slug), { cache: 'no-store' })
     if (!response.ok) return null
     return fromJson(await response.text())
   } catch {
@@ -63,7 +62,7 @@ export async function fetchNote(slug) {
 }
 
 /**
- * Publish one sheet as a new note at `/notes/<slug>`. Refused if that name is
+ * Publish one sheet as a new note under a name. Refused if that name is
  * already a note: see `updateNote` for the other half of that.
  *
  * The same hop in the other direction: the browser cannot sign an S3 request,
@@ -76,7 +75,7 @@ export async function publishNote(slug, json) {
 }
 
 /**
- * Write one sheet over the note already at `/notes/<slug>`.
+ * Write one sheet over the note already under a name.
  *
  * Final: R2 keeps no versions, and the note that was there is the only copy
  * there was. Hence the password, which the backend holds as
@@ -88,7 +87,7 @@ export async function updateNote(slug, json, password) {
 }
 
 /**
- * Take the note at `/notes/<slug>` down.
+ * Take the note under a name down.
  *
  * As final as `updateNote`, and the same password: the object it removes was
  * the only copy of that note there was. Re-publishing it is `notes:publish`
@@ -129,7 +128,7 @@ async function write(method, slug, json, headers = {}) {
       // Published — the status says so — but the body is not what this end
       // expects. The note is live either way, so it is not reported as a
       // failure that would invite a second upload of the same sheet.
-      return { ok: true, note: { slug, path: notePath(slug) } }
+      return { ok: true, note: { slug } }
     }
   }
 

@@ -1,14 +1,22 @@
-/* Published notes: the list of them, and the states one note's page has
-   before it opens. They borrow .app's width and padding. */
-/* The pages either side of the editor — the list of notes, and the two states
-   a note has before it opens. They borrow .app's width and padding. */
+/* The saved-sheet picker stays usable even when the list is long. */
+.sheet-picker {
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(70vh, 500px);
+  overflow-y: auto;
+}
+
+.sheet-picker h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
 .note-shell-text {
   color: var(--muted);
   font-size: 14px;
 }
 
 .note-list {
-  margin: 24px 0 0;
+  margin: 12px 0 0;
   padding: 0;
   list-style: none;
   border-top: 1px solid var(--bar);
@@ -16,32 +24,20 @@
 
 .note-list-link {
   display: flex;
+  width: 100%;
   flex-wrap: wrap;
   gap: 4px 16px;
   align-items: baseline;
   justify-content: space-between;
-  padding: 14px 4px;
+  padding: 12px 4px;
+  border: 0;
   border-bottom: 1px solid var(--bar);
+  border-radius: 0;
+  background: transparent;
   color: inherit;
-  text-decoration: none;
+  text-align: left;
 }
 
-.note-list-link:hover {
-  background: var(--paper);
-}
-
-.note-list-title {
-  font: 600 17px Georgia, 'Times New Roman', serif;
-}
-
-.note-list-slug {
-  color: var(--muted);
-  font: 12px ui-monospace, Menlo, monospace;
-}
-
-/* A link that reads as a link, for the places outside the toolbar where there
-   is no button beside it to match. */
-.link-inline {
-  color: var(--muted);
-  font-size: 13px;
-}
+.note-list-link:hover { background: var(--paper); }
+.note-list-title { font: 600 17px Georgia, 'Times New Roman', serif; }
+.note-list-slug { color: var(--muted); font: 12px ui-monospace, Menlo, monospace; }

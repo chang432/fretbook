@@ -23,14 +23,14 @@ npm run deploy:local  # the full deploy: verify, start, smoke-test, then watch
 
 `deploy:local` runs the phases [the CI workflow](.github/workflows/deploy.yml)
 runs against the VPS — lint and build, then the images, then a smoke test of
-`/api/health`, `/api/notes`, `/notes` and one note — and then stays, tailing
+`/api/health`, `/api/sheets`, the editor and one sheet — and then stays, tailing
 both containers: errors highlighted and counted, healthcheck probes hidden, and
 a banner whenever a container restarts or a healthcheck turns. Ctrl-C leaves
 the stack running. `--no-verify` skips the first phase, `--all` keeps the
 probes, `--down-on-exit` tears it down when you stop watching.
 
 The published notes come from a private R2 bucket rather than from the repo,
-read by the backend over the S3 API — so `/notes` is empty under a bare
+read by the backend over the S3 API — so the saved-sheet list is empty under a bare
 `npm run dev` until something is serving `/api`. `npm run stack` brings that up
 in Docker on :8080 and the dev server proxies to it; the script checks the
 credentials first and tells you how many notes came back, since a stack without
@@ -409,17 +409,18 @@ puts the sheet in the published notes, at a URL anyone can open — and a
 published note carries **Update** and **Delete** there instead, both of which
 want the password. See below.
 
-## Publishing notes
+## Saving sheets
 
-A published note is a read-only note with a URL of its own, and `/notes` lists
-them all. They live in a **private Cloudflare R2 bucket, one per environment**,
+The **Sheets** button opens a list of saved sheets in a popup. Selecting one
+loads it into the editor without changing the address. The browser’s draft stays
+separate; use **Open my draft** in the popup to return to it. They live in a **private Cloudflare R2 bucket, one per environment**,
 and the app reads them from its own origin through the backend, which is the
 one thing holding a credential for that bucket.
 
 **Publish** in the toolbar is the short way: it asks for a name — prefilled
 from the title, which is already a publishable name — and uploads the sheet to
-this environment's bucket. It is live at `/notes/<name>` as soon as the press
-finishes, and `/notes` lists it. Nothing is rebuilt, nothing is merged, and
+this environment's bucket. It appears in the Sheets popup as soon as the press
+finishes. Nothing is rebuilt, nothing is merged, and
 there is no file in between.
 
 **It cannot publish over a note**, deliberately: a name that is taken is
@@ -430,10 +431,10 @@ anyone can reach.
 Changing a note, and taking one down, are the two buttons a **published note**
 carries instead — and the two that ask for a password:
 
-| On `/notes/<name>` | What it does |
+| On an opened saved sheet | What it does |
 | --- | --- |
 | **Update** | Writes the sheet in front of you over that note, title and all. Dead until something has actually changed |
-| **Delete** | Takes the note down: the object and its line in the index. The link stops working |
+| **Delete** | Takes the note down: the object and its line in the index. It disappears from the list |
 
 Both are final — nothing else holds a copy — so each panel says what it is
 about to do before it asks for anything. The only way back from a delete is
@@ -473,13 +474,12 @@ when nothing asked for one — so a forgotten override shows up in the output
 rather than in the consequences.
 
 ```
-notes/tie_that_binds_by_drake.json   →   /notes/tie_that_binds_by_drake
+notes/tie_that_binds_by_drake.json   →   saved sheet tie_that_binds_by_drake
 ```
 
 To publish from a file: **Export → JSON file**, then publish the file. An
 export is named after its title with underscores between the words, which is
-already a publishable name — rename it only if you want the URL to read
-differently, keeping to lowercase letters and digits joined by single dashes or
+already a publishable name — rename it only if you want a different saved-sheet name, keeping to lowercase letters and digits joined by single dashes or
 underscores.
 
 **The bucket is the only place a note lives.** A reader can open one and play
@@ -503,7 +503,7 @@ is where it is argued, and what to do if it ever bites.
 
 `scripts/notes.mjs` is the whole of publishing from a terminal. It refuses a
 file the editor could not open, so a broken note never reaches a reader, and
-afterwards it rebuilds `notes.json` — the manifest `/notes` lists — from what
+afterwards it rebuilds `notes.json` — the manifest the popup lists — from what
 is actually in the bucket, so there is no list to keep in step. The button
 takes the same two cares at the other end: the backend checks the export's
 envelope before it writes, and adds the note's own line to the manifest rather
@@ -511,7 +511,7 @@ than leaving it unlisted. `npm run notes:manifest` remains the repair for a
 manifest that has drifted either way.
 
 **Nothing about a note is baked into the build.** The browser asks
-`/api/notes` and `/api/notes/<name>` on its own origin — and `PUT`s to the
+`/api/sheets` and `/api/sheets/<name>` on its own origin — and `PUT`s to the
 second of those to publish; Caddy hands them to Flask, and
 `docker/app/backend/app/notes.py` fetches the object from R2 with boto3, or
 writes it. Which bucket that means is the backend's runtime setting, so the dev and

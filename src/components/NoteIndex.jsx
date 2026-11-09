@@ -1,56 +1,51 @@
 import { useEffect, useState } from 'react'
-import NoteLink from './NoteLink.jsx'
-import { notePath } from '../utils/route.js'
-import { fetchManifest } from '../utils/notes.js'
+import Popover from './Popover.jsx'
+import { fetchManifest, fetchNote } from '../utils/notes.js'
 
-/**
- * The published notes, listed. The list is notes.json in this environment's
- * bucket, served through /api/notes and rewritten whenever a note is published
- * — so the page is current without the site being rebuilt.
- */
-export default function NoteIndex() {
+/** Browse and open saved sheets without leaving the editor. */
+export default function NoteIndex({ anchor, onClose, onOpen, onDraft, hasPublished }) {
   const [notes, setNotes] = useState(null)
+  const [opening, setOpening] = useState(null)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    let ignore = false
+    let active = true
     fetchManifest().then((list) => {
-      if (!ignore) setNotes(list)
+      if (active) setNotes(list)
     })
-    return () => {
-      ignore = true
-    }
+    return () => { active = false }
   }, [])
 
+  const open = async (slug) => {
+    setOpening(slug)
+    setError('')
+    const sheet = await fetchNote(slug)
+    if (sheet) onOpen({ slug, sheet })
+    else {
+      setOpening(null)
+      setError(`Could not open “${slug}”. It may no longer be available.`)
+    }
+  }
+
   return (
-    <div className="app note-shell">
-      <header className="header">
-        <h1>Published notes</h1>
-        <NoteLink to="/" className="link-inline">
-          Open my sheet
-        </NoteLink>
-      </header>
-
+    <Popover anchor={anchor} className="sheet-picker" label="Saved sheets" onClose={onClose}>
+      <h2>Saved sheets</h2>
+      {hasPublished && <button type="button" onClick={onDraft}>Open my draft</button>}
       {notes === null && <p className="note-shell-text">Loading…</p>}
-
-      {/* An unreachable backend lands here too, as an empty shelf. There is no
-          longer a build that does not know where the notes are: the app asks
-          its own origin, so the question is whether anything answers. */}
-      {notes?.length === 0 && (
-        <p className="note-shell-text">Nothing has been published yet.</p>
-      )}
-
+      {notes?.length === 0 && <p className="note-shell-text">No saved sheets yet.</p>}
       {notes?.length > 0 && (
         <ul className="note-list">
           {notes.map(({ slug, title }) => (
             <li key={slug}>
-              <NoteLink to={notePath(slug)} className="note-list-link">
+              <button type="button" className="note-list-link" disabled={!!opening} onClick={() => open(slug)}>
                 <span className="note-list-title">{title || slug}</span>
-                <span className="note-list-slug">/notes/{slug}</span>
-              </NoteLink>
+                <span className="note-list-slug">{opening === slug ? 'Opening…' : slug}</span>
+              </button>
             </li>
           ))}
         </ul>
       )}
-    </div>
+      {error && <p className="publish-error" role="alert">{error}</p>}
+    </Popover>
   )
 }

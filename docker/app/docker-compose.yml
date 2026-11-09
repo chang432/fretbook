@@ -5,7 +5,7 @@
 #
 # The backend's four notes variables come from a git-ignored .env beside this
 # file locally, and from /opt/fretbook-<env>-deploy.env on the VPS. Without
-# them the stack still runs: /api/notes answers 503 and /notes shows an empty
+# them the stack still runs: /api/sheets answers 503 and the sheet list shows an empty
 # shelf.
 #
 # IMAGE_TAG namespaces the images this builds. It defaults to "local" so a

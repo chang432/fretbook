@@ -86,7 +86,7 @@ require_env() {
 	[ -z "$missing" ] || die \
 		"Nothing set for:${missing}" \
 		"Put them in $ENV_FILE, or export them before running this." \
-		'Without them the stack runs but /notes is empty.'
+		'Without them the stack runs but the sheet list is empty.'
 
 	if grep -q '<account id>' "$ENV_FILE"; then
 		die "$ENV_FILE still has the <account id> placeholder in it."
@@ -135,7 +135,7 @@ container_state() {
 notes_probe() {
 	local body status count
 	body=$(mktemp)
-	status=$(curl -s -o "$body" -w '%{http_code}' "http://localhost:${PORT}/api/notes" || echo 000)
+	status=$(curl -s -o "$body" -w '%{http_code}' "http://localhost:${PORT}/api/sheets" || echo 000)
 	count=$(grep -o '"slug"' "$body" 2>/dev/null | wc -l | tr -d ' ')
 	rm -f "$body"
 	printf '%s %s\n' "$status" "$count"
@@ -145,9 +145,9 @@ notes_probe() {
 report_notes() {
 	local status=$1 count=$2
 	case "$status" in
-		200) ok "/api/notes — ${count} note(s)" ;;
-		503) warn "/api/notes says the bucket is not configured — check $ENV_FILE" ;;
-		000) warn "/api/notes did not answer" ;;
-		*)   warn "/api/notes answered HTTP ${status}" ;;
+		200) ok "/api/sheets — ${count} note(s)" ;;
+		503) warn "/api/sheets says the bucket is not configured — check $ENV_FILE" ;;
+		000) warn "/api/sheets did not answer" ;;
+		*)   warn "/api/sheets answered HTTP ${status}" ;;
 	esac
 }

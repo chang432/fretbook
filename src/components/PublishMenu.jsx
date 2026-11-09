@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import NoteLink from './NoteLink.jsx'
 import Popover from './Popover.jsx'
 import { NOTE_NAME } from '../utils/files.js'
-import { NOTES_PATH, notePath } from '../utils/route.js'
+import { fetchNote } from '../utils/notes.js'
 
 /**
  * What each of the three presses asks for and says. Kept as a table rather
@@ -10,7 +9,7 @@ import { NOTES_PATH, notePath } from '../utils/route.js'
  * one press, one receipt — and what differs between the three is wording.
  *
  * `asks` is the only structural difference. Publishing wants the name, because
- * the name is the URL; the other two want the password, because they are the
+ * the name identifies the sheet; the other two want the password, because they are the
  * two that destroy something.
  */
 const MODES = {
@@ -20,9 +19,7 @@ const MODES = {
     done: 'Published.',
     asks: 'name',
     danger: false,
-    after:
-      'It is live now, and it is the bucket’s copy from here on — nothing in ' +
-      'this browser can change it or take it down.',
+    after: 'Open the saved sheet to update or delete it with the password.',
   },
   update: {
     label: 'Update',
@@ -30,8 +27,8 @@ const MODES = {
     done: 'Updated.',
     asks: 'password',
     danger: true,
-    warning: 'This replaces the published note. There are no versions to go back to.',
-    after: 'The note is this sheet now. What was there before it is gone.',
+    warning: 'This replaces the saved sheet. There are no versions to go back to.',
+    after: 'The saved sheet matches this sheet now. What was there before it is gone.',
   },
   delete: {
     label: 'Delete',
@@ -40,8 +37,8 @@ const MODES = {
     asks: 'password',
     danger: true,
     warning:
-      'This takes the note down for good. Nothing else holds a copy of it, ' +
-      'and the link stops working.',
+      'This deletes the saved sheet for good. Nothing else holds a copy of it, ' +
+      'and it disappears from the list.',
     after: 'It is gone, and so is its line in the index.',
   },
 }
@@ -50,7 +47,7 @@ const MODES = {
  * The panel behind the buttons that write to the bucket — Publish in the
  * editor, Update and Delete on a published note.
  *
- * Publishing asks for the name because the name is the URL. It is prefilled
+ * Publishing asks for the name because the name identifies the sheet. It is prefilled
  * from the title, which `slugify` already shapes into a publishable name, and
  * checked against NOTE_NAME here as well as in the backend, so a name that
  * cannot work is said so before an upload rather than after one.
@@ -71,6 +68,7 @@ export default function PublishMenu({
   defaultSlug = '',
   onClose,
   onWrite,
+  onOpen,
 }) {
   const words = MODES[mode]
   const asksPassword = words.asks === 'password'
@@ -122,18 +120,13 @@ export default function PublishMenu({
     return (
       <Popover anchor={anchor} className="publish-menu" label={words.done} onClose={onClose}>
         <p className="publish-done">{words.done}</p>
-        {/* A note that is gone has nowhere of its own left to go, so that
-            receipt points at the shelf it has just left instead. */}
-        {mode === 'delete' ? (
-          <NoteLink to={NOTES_PATH} className="link-inline">
-            See the published notes
-          </NoteLink>
-        ) : (
-          <NoteLink to={notePath(written.slug)} className="link-inline">
-            Open /notes/{written.slug}
-          </NoteLink>
+        {mode !== 'delete' && (
+          <button type="button" onClick={async () => { const sheet = await fetchNote(written.slug); if (sheet) onOpen({ slug: written.slug, sheet }); else setError("Could not open this sheet") }}>
+            Open saved sheet
+          </button>
         )}
         <p className="publish-hint">{words.after}</p>
+        {error && <p className="publish-error" role="alert">{error}</p>}
       </Popover>
     )
   }
@@ -142,11 +135,10 @@ export default function PublishMenu({
     <Popover anchor={anchor} className="publish-menu" label={words.label} onClose={onClose}>
       <form onSubmit={submit}>
         <label className="publish-label" htmlFor={asksPassword ? 'publish-password' : 'publish-name'}>
-          {asksPassword ? `Password, for /notes/${slug}` : 'Publish as'}
+          {asksPassword ? `Password for ${slug}` : 'Publish as'}
         </label>
 
         <div className="publish-field">
-          {!asksPassword && <span className="publish-prefix">/notes/</span>}
           <input
             ref={field}
             id={asksPassword ? 'publish-password' : 'publish-name'}
