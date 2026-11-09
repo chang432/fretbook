@@ -220,6 +220,21 @@ export function nameGroup(sheet, row, col, name) {
 }
 
 /**
+ * Put an empty position into a row at `at`, everything from there along
+ * moving one further on. `at` is where the new position ends up: the
+ * column it is asked for goes before the one standing there.
+ */
+export function insertColumn(sheet, row, at) {
+  const standing = sheet[row]
+  if (!standing) return sheet
+
+  const grown = standing.withColumnAt(at)
+  if (grown === standing) return sheet
+
+  return sheet.map((each, r) => (r === row ? grown : each))
+}
+
+/**
  * Take one position off a row, everything past it moving one closer. Only
  * a plain position goes this way — see `Row.withoutColumnAt` — so a sheet
  * handed a group's own column comes back unchanged.

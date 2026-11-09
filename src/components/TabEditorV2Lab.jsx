@@ -11,6 +11,7 @@ import {
   deleteColumn,
   deleteGroup,
   deleteRef,
+  insertColumn,
   endGroup,
   markColumn,
   nameGroup,
@@ -195,10 +196,16 @@ export default function TabEditorV2Lab() {
   const handleCancelGroup = (row, col) => setRows((prev) => cancelGroup(prev, row, col))
 
   /**
-   * One position off a row. Everything past it moves one closer, so the
-   * held notes of that row no longer say where they were — the same
-   * reason putting a group down drops them.
+   * One more position in a row, and one off it. Either way everything past
+   * the place it happened is renumbered, so the held notes of that row no
+   * longer say where they were — the same reason putting a group down
+   * drops them.
    */
+  const handleInsertColumn = (row, at) => {
+    setRows((prev) => insertColumn(prev, row, at))
+    setTies((prev) => prev.filter((tie) => tie.row !== row))
+  }
+
   const handleDeleteColumn = (row, col) => {
     setRows((prev) => deleteColumn(prev, row, col))
     setTies((prev) => prev.filter((tie) => tie.row !== row))
@@ -258,6 +265,7 @@ export default function TabEditorV2Lab() {
           onStartGroup={handleStartGroup}
           onEndGroup={handleEndGroup}
           onCancelGroup={handleCancelGroup}
+          onInsertColumn={handleInsertColumn}
           onDeleteColumn={handleDeleteColumn}
           onDeleteGroup={handleDeleteGroup}
           onDeleteRef={handleDeleteRef}

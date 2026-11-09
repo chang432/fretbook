@@ -189,6 +189,21 @@ export class Row {
   }
 
   /**
+   * This row with an empty position put in at `at`, everything from there
+   * along moving one further on.
+   *
+   * Any place in the run will do, the far end included — `at` is where the
+   * new position ends up, so the one standing there now is pushed past it.
+   * A position inside a group falls inside that group, which is what
+   * adding a beat to a repeated phrase means.
+   */
+  withColumnAt(at) {
+    if (at < 0 || at > this.columns.length) return this
+
+    return inserted(this, new Column(at))
+  }
+
+  /**
    * This row without the position at `col`, everything past it moving one
    * closer to fill the gap.
    *

@@ -2,19 +2,18 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import ActionBar from './ActionBar.jsx'
 import Popover from './Popover.jsx'
-import { CrossIcon, GroupStartIcon, ImportIcon, RewindIcon } from './icons.jsx'
+import { AddColumnIcon, CrossIcon, GroupStartIcon, ImportIcon, RewindIcon } from './icons.jsx'
 
 /**
  * The buttons that come up over the position being written in: copying
- * what was written at the position before, opening a new group here,
- * playing a group written elsewhere here, and taking the position off the
- * row altogether.
+ * what was written at the position before, making room either side of it,
+ * opening a new group here, playing a group written elsewhere here, and
+ * taking the position off the row altogether.
  *
- * Each is offered only where it means something — there is a position
+ * Some are offered only where they mean something — there is a position
  * before this one to copy, this one is somewhere a group can be put, which
- * nowhere inside another group is, and the row has a position to spare —
- * and where none of them is, and nothing was passed in besides, there is
- * no bar at all rather than an empty one.
+ * nowhere inside another group is, and the row has a position to spare.
+ * Room can always be made, so the bar always has something to show.
  *
  * The bar itself is ActionBar, which every one of these shares — where it
  * stands and how it follows its cell is that component's business.
@@ -35,17 +34,41 @@ export default function CellMenu({
   onOpenGroup,
   canDelete,
   onDeleteColumn,
+  onInsertBefore,
+  onInsertAfter,
   children,
 }) {
   // The button the group list hangs off, which is also what says it is open.
   const [listing, setListing] = useState(null)
 
-  if (!canCopy && !canPlace && !canDelete && !children) return null
-
   return (
     <ActionBar anchor={anchor} label="This position">
       {children}
       {canCopy && <button type="button" className="action-bar-button" title="Copy previous position" aria-label="Copy previous position" onMouseDown={(event) => event.preventDefault()} onClick={onCopy}><RewindIcon width={20} height="14" /></button>}
+      {/* One more position either side of this one. The arrow points at
+          the plus, which is where the new position lands. */}
+      <button
+        type="button"
+        className="action-bar-button"
+        title="Add a position before this one"
+        aria-label="Add a position before this one"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={onInsertBefore}
+      >
+        <AddColumnIcon before />
+      </button>
+
+      <button
+        type="button"
+        className="action-bar-button"
+        title="Add a position after this one"
+        aria-label="Add a position after this one"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={onInsertAfter}
+      >
+        <AddColumnIcon before={false} />
+      </button>
+
       {/* Opening a group here. The button wears the mark it makes: the
           bar, and the two half-arrows that come off it. */}
       {canPlace && (

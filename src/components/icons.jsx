@@ -119,6 +119,28 @@ export function RewindIcon({ width = 16, height = 16 }) {
   )
 }
 
+/**
+ * An arrow and a plus: one more position, on the side the arrow points to.
+ * The plus is the position being added and the arrow is where it goes, so
+ * the head points at the plus rather than away from it.
+ */
+export function AddColumnIcon({ before = true, width = 20, height = 16 }) {
+  // Read left to right for one and mirrored for the other, so the pair is
+  // the same drawing twice and cannot drift apart.
+  const at = before ? 4.5 : 15.5
+  const shaft = before ? [10.5, 17] : [9.5, 3]
+  const head = before ? 13.5 : 6.5
+
+  return (
+    <svg className="icon" width={width} height={height} viewBox="0 0 20 16" aria-hidden="true">
+      <path d={`M ${at - 3} 8 H ${at + 3}`} />
+      <path d={`M ${at} 5 V 11`} />
+      <path d={`M ${shaft[0]} 8 H ${shaft[1]}`} />
+      <path d={`M ${head} 5 L ${shaft[0]} 8 L ${head} 11`} />
+    </svg>
+  )
+}
+
 /** A cross: the position under it taken off the row altogether. */
 export function CrossIcon({ width = 16, height = 16 }) {
   return (

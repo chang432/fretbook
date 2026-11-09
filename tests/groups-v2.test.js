@@ -9,6 +9,7 @@ import {
   deleteGroup,
   deleteRef,
   endGroup,
+  insertColumn,
   markColumn,
   nameGroup,
   nextGroupName,
@@ -201,4 +202,43 @@ test('the last position standing is kept', () => {
   const one = [new Row(1, null, 'Just the one')]
 
   assert.equal(deleteColumn(one, 0, 0), one)
+})
+
+test('a position goes in before the one standing there', () => {
+  const rows = sheet()
+  const wider = insertColumn(rows, 0, 12)
+
+  assert.equal(wider[0].length, 17)
+  assert.ok(wider[0].column(12).isEmpty, 'the new one is empty')
+  assert.equal(wider[0].column(13).cell(2).value, '9', 'the one that stood there moved along')
+  assert.deepEqual(
+    wider[0].groups.map(({ start, end }) => [start, end]),
+    [[4, 8]],
+    'the group before it did not move',
+  )
+})
+
+test('a position goes in after one by asking for the next place along', () => {
+  const rows = sheet()
+  const wider = insertColumn(rows, 0, 13)
+
+  assert.equal(wider[0].column(12).cell(2).value, '9', 'it stayed where it was')
+  assert.ok(wider[0].column(13).isEmpty)
+})
+
+test('a position goes in inside a group, which holds one more', () => {
+  const rows = sheet()
+  const wider = insertColumn(rows, 0, 6)
+
+  assert.deepEqual(wider[0].groups.map(({ start, end }) => [start, end]), [[4, 9]])
+  assert.ok(wider[0].column(6).isEmpty)
+  assert.equal(wider[0].column(7).cell(2).value, '7', 'the note it went in front of')
+})
+
+test('a position goes in at either end of a row', () => {
+  const rows = sheet()
+
+  assert.ok(insertColumn(rows, 0, 0)[0].column(0).isEmpty, 'before everything')
+  assert.equal(insertColumn(rows, 0, 16)[0].length, 17, 'and past everything')
+  assert.equal(insertColumn(rows, 0, 17), rows, 'but no further than that')
 })

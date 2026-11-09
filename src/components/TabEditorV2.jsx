@@ -74,6 +74,7 @@ export default function TabEditorV2({
   onStartGroup,
   onEndGroup,
   onCancelGroup,
+  onInsertColumn,
   onDeleteColumn,
   onDeleteGroup,
   onDeleteRef,
@@ -353,6 +354,16 @@ export default function TabEditorV2({
           }}
           // A row always keeps one position, so the last one standing is
           // not offered up.
+          // Either side of this position. Everything is renumbered
+          // after one goes in, so what was selected is let go of.
+          onInsertBefore={() => {
+            onInsertColumn(working.row, working.col)
+            setWorking(null)
+          }}
+          onInsertAfter={() => {
+            onInsertColumn(working.row, working.col + 1)
+            setWorking(null)
+          }}
           canDelete={rows[working.row]?.length > 1}
           onDeleteColumn={() => {
             onDeleteColumn(working.row, working.col)
