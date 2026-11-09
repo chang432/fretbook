@@ -5,7 +5,7 @@ import NoteLink from './components/NoteLink.jsx'
 import Popover from './components/Popover.jsx'
 import PublishMenu from './components/PublishMenu.jsx'
 import TabEditorV2 from './components/TabEditorV2.jsx'
-import { PresentIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
+import { ExportIcon, ImportIcon, PresentIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
 import {
   MARK_ZIGZAG,
   createSheet,
@@ -37,7 +37,6 @@ import { HISTORY_LIMIT, nextUndoLabel, popHistory, pushHistory } from './utils/h
 import { DEFAULT_BPM, MAX_BPM, MIN_BPM, clampBpm, hasSong } from './utils/live.js'
 import { NOTES_PATH } from './utils/route.js'
 import { deleteNote, publishNote, updateNote } from './utils/notes.js'
-import { renderTabToPngBlob } from './utils/renderPng.js'
 import { cellFrequency, createAudioEngine } from './utils/audio.js'
 
 // The one slot this browser keeps its sheet in. The suffix namespaces the
@@ -50,14 +49,6 @@ const STORAGE_KEY = 'fretboard-notebook:v1'
 // keeps a malformed or accidental multi-gigabyte selection from freezing the
 // page before `fromJson` can apply its structural limits.
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024
-
-/** What the Export menu offers, in the order it lists them. */
-const EXPORTS = [
-  { key: 'text', name: 'Text file', hint: 'ASCII tab, .txt' },
-  { key: 'image', name: 'Image', hint: 'PNG of the staves' },
-  { key: 'json', name: 'JSON file', hint: 'Re-open it later' },
-  { key: 'clipboard', name: 'Copy', hint: 'ASCII tab to the clipboard' },
-]
 
 /** Load the last session so a page refresh never loses written-down fingerings. */
 function loadSaved() {
@@ -109,10 +100,7 @@ export default function App({ published = null }) {
   const [ties, setTies] = useState(saved.ties)
   const [marks, setMarks] = useState(saved.marks)
   const [status, setStatus] = useState('')
-  const [confirmingClear, setConfirmingClear] = useState(false)
   const [showText, setShowText] = useState(false)
-  // The Export button's element while its menu is open, so the menu can anchor.
-  const [exportMenu, setExportMenu] = useState(null)
   // The open write panel, as the button it hangs under and which of the three
   // presses it is — they are one panel asking for different things.
   const [writeMenu, setWriteMenu] = useState(null)
@@ -199,7 +187,6 @@ export default function App({ published = null }) {
 
     setHistory(stack)
     applySheet(entry.state)
-    setConfirmingClear(false)
     setStatus(`Undid ${entry.label}`)
   }
 
@@ -575,33 +562,9 @@ export default function App({ published = null }) {
   /** What the Undo button would take back, or null when it would do nothing. */
   const undoing = nextUndoLabel(history)
 
-  const exportText = () => {
-    downloadFile(`${fileStem}.txt`, asciiTab, 'text/plain')
-    setStatus('Saved text tab')
-  }
-
   const exportJson = () => {
     downloadFile(`${fileStem}.json`, json, 'application/json')
     setStatus('Saved JSON')
-  }
-
-  const exportPng = async () => {
-    const blob = await renderTabToPngBlob(sheet, STANDARD_TUNING, title)
-    if (!blob) {
-      setStatus('Could not render image')
-      return
-    }
-    downloadFile(`${fileStem}.png`, blob)
-    setStatus('Saved image')
-  }
-
-  const copyText = async () => {
-    try {
-      await navigator.clipboard.writeText(asciiTab)
-      setStatus('Copied to clipboard')
-    } catch {
-      setStatus('Clipboard blocked — save a text file instead')
-    }
   }
 
   /** Open one of the write panels, or put it away if it is already open. */
@@ -640,15 +603,6 @@ export default function App({ published = null }) {
     return result
   }
 
-  /** Run one of the EXPORTS and put the menu away. */
-  const runExport = (key) => {
-    setExportMenu(null)
-    if (key === 'text') exportText()
-    else if (key === 'image') exportPng()
-    else if (key === 'json') exportJson()
-    else if (key === 'clipboard') copyText()
-  }
-
   const importJson = async (event) => {
     const file = event.target.files?.[0]
     event.target.value = ''
@@ -668,13 +622,6 @@ export default function App({ published = null }) {
     setStatus(`Opened ${file.name}`)
   }
 
-  const clearAll = () => {
-    remember('clearing the sheet')
-    applySheet({ ...createSheet(), memo: '' })
-    setConfirmingClear(false)
-    setStatus('Cleared')
-  }
-
   return (
     <div className="app">
       <header className="header">
@@ -692,16 +639,52 @@ export default function App({ published = null }) {
         <div className="toolbar-group">
           <button
             type="button"
-            onClick={(event) => setExportMenu(exportMenu ? null : event.currentTarget)}
+            className="icon-button"
+            onClick={exportJson}
             disabled={empty}
-            aria-haspopup="dialog"
-            aria-expanded={!!exportMenu}
+            aria-label="Export JSON"
+            title="Export JSON"
           >
-            Export
+            <ExportIcon />
           </button>
-          {/* Publishing is an export too — the same bytes, sent to the bucket
-              instead of to the disk — so it stands with Export rather than
-              with the buttons that change the sheet. */}
+          <button type="button" className="icon-button" onClick={() => fileInputRef.current?.click()} aria-label="Import JSON" title="Import JSON">
+            <ImportIcon />
+          </button>
+          <input ref={fileInputRef} type="file" accept="application/json,.json" className="visually-hidden" onChange={importJson} />
+
+          <button
+            type="button"
+            className={`icon-button${audioOn ? ' is-on' : ''}`}
+            aria-pressed={audioOn}
+            aria-label={audioOn ? 'Sound on' : 'Sound off'}
+            onClick={toggleAudio}
+            title={audioOn ? 'Sound is on — hear each note as you press it' : 'Sound is off'}
+          >
+            <SoundIcon muted={!audioOn} />
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={openLive}
+            disabled={!playable}
+            aria-haspopup="dialog"
+            aria-expanded={!!liveMenu}
+            aria-label="Play the sheet full screen"
+            title={
+              playable
+                ? 'Play the sheet full screen at a tempo'
+                : 'Write something on a staff to play it'
+            }
+          >
+            <PresentIcon />
+          </button>
+        </div>
+
+        <span className="status" role="status">
+          {status}
+        </span>
+
+        <div className="toolbar-group toolbar-group--end">
           {published ? (
             <>
               <button
@@ -749,64 +732,13 @@ export default function App({ published = null }) {
               Publish
             </button>
           )}
+          <NoteLink to={NOTES_PATH} className="button-link">
+            Browse
+          </NoteLink>
         </div>
+      </div>
 
-        <div className="toolbar-group">
-          <button type="button" onClick={() => fileInputRef.current?.click()}>
-            Import JSON
-          </button>
-          <button
-            type="button"
-            className={confirmingClear ? 'danger' : ''}
-            onClick={() => (confirmingClear ? clearAll() : setConfirmingClear(true))}
-            onBlur={() => setConfirmingClear(false)}
-            disabled={empty}
-          >
-            {confirmingClear ? 'Clear everything?' : 'Clear'}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json,.json"
-            className="visually-hidden"
-            onChange={importJson}
-          />
-        </div>
-
-        <div className="toolbar-group">
-          <button
-            type="button"
-            className={`icon-button${audioOn ? ' is-on' : ''}`}
-            aria-pressed={audioOn}
-            aria-label={audioOn ? 'Sound on' : 'Sound off'}
-            onClick={toggleAudio}
-            title={audioOn ? 'Sound is on — hear each note as you press it' : 'Sound is off'}
-          >
-            <SoundIcon muted={!audioOn} />
-          </button>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={openLive}
-            disabled={!playable}
-            aria-haspopup="dialog"
-            aria-expanded={!!liveMenu}
-            aria-label="Play the sheet full screen"
-            title={
-              playable
-                ? 'Play the sheet full screen at a tempo'
-                : 'Write something on a staff to play it'
-            }
-          >
-            <PresentIcon />
-          </button>
-        </div>
-
-        <span className="status" role="status">
-          {status}
-        </span>
-
-        <div className="toolbar-group toolbar-group--end">
+      <div className="toolbar-secondary">
           <button
             type="button"
             className="icon-button"
@@ -821,27 +753,7 @@ export default function App({ published = null }) {
           >
             <UndoIcon />
           </button>
-          <NoteLink to={NOTES_PATH} className="button-link">
-            Browse
-          </NoteLink>
-        </div>
       </div>
-
-      {exportMenu && (
-        <Popover
-          anchor={exportMenu}
-          className="export-menu"
-          label="Export"
-          onClose={() => setExportMenu(null)}
-        >
-          {EXPORTS.map(({ key, name, hint }) => (
-            <button key={key} type="button" className="export-option" onClick={() => runExport(key)}>
-              <span className="export-name">{name}</span>
-              <span className="export-hint">{hint}</span>
-            </button>
-          ))}
-        </Popover>
-      )}
 
       {liveMenu && (
         <Popover

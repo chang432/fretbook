@@ -155,8 +155,13 @@ export default function TabEditorV2({
         0,
       )
 
+  const referencedGroup = working?.kind === 'ref'
+    ? groups.find((group) => group.name === rows[working.row]?.column(working.col)?.name)
+    : null
+
   const isOpen = (staff, group) =>
-    working?.kind === 'group' && working.row === staff && working.col === group.start
+    (working?.kind === 'group' && working.row === staff && working.col === group.start) ||
+    (referencedGroup?.row === staff && referencedGroup.start === group.start)
 
   /**
    * Start on something, or stop when it is the thing already being worked
@@ -197,7 +202,7 @@ export default function TabEditorV2({
     const own = {
       cell: null,
       group: '.group-cover, .cell-slot--in-group',
-      ref: '.cell-slot--group-ref',
+      ref: '.cell-slot--group-ref, .group-cover, .cell-slot--in-group',
       opening: '.cell-slot--closing',
     }[working.kind]
 

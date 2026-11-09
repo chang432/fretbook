@@ -12,13 +12,15 @@
   gap: 8px;
 }
 
-/* Pushed to the far side by eating the toolbar's free space. It holds the two
-   controls that are not one more thing to do to the sheet — Undo, which takes
-   the last of those back, and the one link that leaves the editor — which is
-   why it wants the distance. The auto margin survives a wrap, so on a narrow
-   window the group takes its own line and stays right. */
+/* Keep the navigation link at the far side of the toolbar. */
 .toolbar-group--end {
   margin-left: auto;
+}
+
+.toolbar-secondary {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 12px;
 }
 
 /* `.button-link` shares this so the toolbar's one navigation control can be a

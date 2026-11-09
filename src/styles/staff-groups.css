@@ -21,10 +21,6 @@
      drawn on, which is the width of the cell less the bar it starts from. */
   --group-arrow: calc(var(--cell-w) / 2 - var(--group-bar-w));
 
-  /* The same, for the two that face each other across the one column a
-     group played here is drawn in: a quarter of the cell, so the pair
-     reads as a pair rather than meeting in the middle as one point. */
-  --group-arrow-pair: calc(var(--cell-w) / 4);
 }
 
 /* This cell's share of the bar, the full height of its own row, standing
@@ -299,9 +295,9 @@
   z-index: 4;
   left: var(--group-bar-w);
   right: var(--group-bar-w);
-  height: var(--group-arrow-pair);
+  height: var(--group-arrow);
   background-repeat: no-repeat;
-  background-size: var(--group-arrow-pair) 100%;
+  background-size: var(--group-arrow) 100%;
   background-position: left center, right center;
   pointer-events: none;
 }

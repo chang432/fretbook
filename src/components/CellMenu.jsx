@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import ActionBar from './ActionBar.jsx'
 import Popover from './Popover.jsx'
-import { AddColumnIcon, CrossIcon, GroupStartIcon, ImportIcon, RewindIcon } from './icons.jsx'
+import { AddColumnIcon, GroupReferenceIcon, GroupStartIcon, RewindIcon, TrashIcon } from './icons.jsx'
 
 /**
  * The buttons that come up over the position being written in: copying
@@ -71,7 +71,7 @@ export default function CellMenu({
           onMouseDown={(event) => event.preventDefault()}
           onClick={(event) => setListing(listing ? null : event.currentTarget)}
         >
-          <ImportIcon />
+          <GroupReferenceIcon />
         </button>
       )}
 
@@ -89,7 +89,7 @@ export default function CellMenu({
           onMouseDown={(event) => event.preventDefault()}
           onClick={onDeleteColumn}
         >
-          <CrossIcon />
+          <TrashIcon />
         </button>
       )}
 

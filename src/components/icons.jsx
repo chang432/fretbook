@@ -110,6 +110,14 @@ export function ImportIcon({ width = 16, height = 16 }) {
   )
 }
 
+export function ExportIcon({ width = 16, height = 16 }) {
+  return (
+    <svg viewBox="0 0 16 16" width={width} height={height} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M8 10 V2 M4.8 5.2 8 2 l3.2 3.2 M2.4 11.2 v1.6 a1.4 1.4 0 0 0 1.4 1.4 h8.4 a1.4 1.4 0 0 0 1.4-1.4 v-1.6" />
+    </svg>
+  )
+}
+
 export function RewindIcon({ width = 16, height = 16 }) {
   return (
     <svg className="icon" width={width} height={height} viewBox="0 0 16 16" aria-hidden="true">
@@ -162,6 +170,16 @@ export function GroupStartIcon({ width = 16, height = 16 }) {
       <path className="solid" d="M 2.2 2 H 4.6 V 14 H 2.2 Z" />
       <path className="solid" d="M 4.6 2 H 11 L 4.6 6.6 Z" />
       <path className="solid" d="M 4.6 14 H 11 L 4.6 9.4 Z" />
+    </svg>
+  )
+}
+
+/** Both group ends facing inward, as on a group reference in the staff. */
+export function GroupReferenceIcon({ width = 16, height = 16 }) {
+  return (
+    <svg className="icon" width={width} height={height} viewBox="0 0 16 16" aria-hidden="true">
+      <path className="solid" d="M 1.5 2 H 3.5 V 14 H 1.5 Z M 12.5 2 H 14.5 V 14 H 12.5 Z" />
+      <path className="solid" d="M 3.5 2 H 7 L 3.5 5.5 Z M 12.5 2 H 9 L 12.5 5.5 Z M 3.5 14 H 7 L 3.5 10.5 Z M 12.5 14 H 9 L 12.5 10.5 Z" />
     </svg>
   )
 }
