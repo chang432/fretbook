@@ -34,6 +34,7 @@ export default function CellMenu({
   onOpenGroup,
   canDelete,
   onDeleteColumn,
+  canInsertBefore,
   onInsertBefore,
   onInsertAfter,
   onCopyRange,
@@ -96,7 +97,7 @@ export default function CellMenu({
       {/* One more position either side of this one, at the end of the bar:
           these two make room rather than acting on what is here, and the
           carets point the way the row opens. */}
-      <button
+      {canInsertBefore && <button
         type="button"
         className="action-bar-button"
         title="Add a position before this one"
@@ -105,7 +106,7 @@ export default function CellMenu({
         onClick={onInsertBefore}
       >
         <AddColumnIcon before />
-      </button>
+      </button>}
 
       <button
         type="button"

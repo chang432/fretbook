@@ -80,3 +80,15 @@
   /* Never shrink to the scroller: the staff keeps its full width and scrolls. */
   width: max-content;
 }
+
+/* Close the staff at the last position, between the outer strings. */
+.editor--v2 .staff-body::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: calc(var(--row-h) / 2);
+  bottom: calc(var(--row-h) / 2);
+  width: var(--string-w);
+  background: var(--string);
+  pointer-events: none;
+}
