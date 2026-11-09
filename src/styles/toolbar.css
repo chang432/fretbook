@@ -17,11 +17,18 @@
   margin-left: auto;
 }
 
-.toolbar-secondary {
+.editing-panel {
+  position: fixed;
+  left: max(16px, env(safe-area-inset-left));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 30;
   display: flex;
-  justify-content: flex-start;
   gap: 8px;
-  margin-bottom: 12px;
+  padding: 8px;
+  border: 1px solid var(--bar);
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow: 0 4px 16px rgb(22 32 43 / 18%);
 }
 
 /* `.button-link` shares this so the toolbar's one navigation control can be a
@@ -87,36 +94,6 @@ button.is-on {
   width: 34px;
   height: 34px;
   padding: 0;
-}
-
-/* The edit switch, pinned to the bottom-left corner of the window. Fixed
-   rather than absolute for the reason it was moved out of the toolbar at all:
-   an absolutely placed button scrolls away with the page, and the mode is
-   most often wanted partway down a long sheet. Larger than a toolbar button,
-   and carrying a word as well as the pencil, because it is the one control
-   that changes what every other press means. */
-.edit-fab {
-  position: fixed;
-  left: 20px;
-  bottom: 20px;
-  /* Over the sheet and its popovers, under the full-screen player. */
-  z-index: 30;
-  display: inline-flex;
-  gap: 10px;
-  align-items: center;
-  padding: 15px 24px;
-  border-radius: 999px;
-  box-shadow: 0 6px 20px rgb(22 32 43 / 24%);
-  font-size: 17px;
-  font-weight: 600;
-}
-
-/* Drawn to match the bigger button it sits in, rather than the 16px box the
-   toolbar's symbols share. */
-.edit-fab .icon {
-  width: 22px;
-  height: 22px;
-  stroke-width: 1.8;
 }
 
 button.link {

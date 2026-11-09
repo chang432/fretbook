@@ -4,6 +4,7 @@
    takes the page colour, not a panel colour. */
 .sheet {
   margin-top: 16px;
+  padding-bottom: 80px;
 }
 
 /* Rows sit flush against each other: each one's rule doubles as the previous

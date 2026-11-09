@@ -762,7 +762,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
         </div>
       </div>
 
-      <div className="toolbar-secondary">
+      <div className="editing-panel" role="group" aria-label="Editing controls">
           <button
             type="button"
             className="icon-button"
