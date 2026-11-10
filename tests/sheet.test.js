@@ -197,13 +197,15 @@ test('deleting a group keeps every arc and symbol it did not stand on', () => {
 })
 
 
-test('curve targets extend past notes and group markers across the row', () => {
+test('curve targets extend past notes but stop at group edges', () => {
   let rows = [new Row(7)]
   rows = writeCell(rows, 0, 1, 0, '3')
   rows = writeCell(rows, 0, 2, 0, '5')
   rows = markColumn(rows, 0, 3, GROUP_START, { name: 'A' })
   rows = markColumn(rows, 0, 5, GROUP_END, { repeat: 1 })
-  assert.deepEqual(tieTargets(rows[0], 1), [0, 2, 4, 6])
+  assert.deepEqual(tieTargets(rows[0], 1), [0, 2])
+  assert.deepEqual(tieTargets(rows[0], 4), [])
+  assert.deepEqual(tieTargets(rows[0], 6), [])
 })
 
 test('a note can join curves on both sides and a same-side curve is replaced', () => {

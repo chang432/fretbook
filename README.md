@@ -215,8 +215,8 @@ Click a written note, press the **arc** button that appears over it, then press
 one of the highlighted positions. The two are joined by an arc — the note held
 across everything in between.
 
-- The highlight reaches every writable position on the same row, including
-  positions beyond other notes and group markers.
+- The highlight reaches writable positions on the same row, including past
+  other notes, but stops at group start and end indicators.
 - An empty position takes the selected note's fret. A position that already
   holds a note keeps its own — the arc just joins the two, so it never
   overwrites what you wrote.

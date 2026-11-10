@@ -49,10 +49,18 @@ export const readMemo = (raw) => (typeof raw === 'string' ? raw.slice(0, MAX_MEM
 
 /* Curves between notes --------------------------------------------------- */
 
-/** All writable positions on this row can be the other end of a curve. */
+/** Writable positions up to the nearest group edge in either direction. */
 export function tieTargets(row, col) {
   if (!row?.column(col) || row.column(col).isGroupMark) return []
-  return row.columns.flatMap((column, at) => at !== col && !column.isGroupMark ? [at] : [])
+  const targets = []
+  for (const step of [-1, 1]) {
+    for (let at = col + step; at >= 0 && at < row.length; at += step) {
+      const column = row.column(at)
+      if (column.isGroupEdge) break
+      if (!column.isGroupMark) targets.push(at)
+    }
+  }
+  return targets
 }
 
 /** Keep one curve on each side of a note, replacing a curve on the same side. */
