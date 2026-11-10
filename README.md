@@ -215,14 +215,13 @@ Click a written note, press the **arc** button that appears over it, then press
 one of the highlighted positions. The two are joined by an arc — the note held
 across everything in between.
 
-- The highlight runs outwards in both directions over every free position and
-  on to the next written note, where it stops; the end of the staff line stops
-  it too, so a tie never runs off the end of a line.
+- The highlight reaches every writable position on the same row, including
+  positions beyond other notes and group markers.
 - An empty position takes the selected note's fret. A position that already
   holds a note keeps its own — the arc just joins the two, so it never
   overwrites what you wrote.
-- **A note carries at most two arcs**: one back to the note before it and one
-  on to the note after it. That is what lets a note be held right through a run
+- **A note carries at most two arcs**: one back to an earlier note and one
+  on to a later note. That is what lets a note be held right through a run
   of positions — each arc picks up where the last one left off.
 - Drawing a new arc replaces only the one hanging off the same side of the
   note. The arc on its other side is left alone.

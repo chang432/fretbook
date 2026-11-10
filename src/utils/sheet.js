@@ -47,6 +47,22 @@ export const MAX_MEMO = 4000
 /** A memo from a file, cut to the limit. Anything else reads as none. */
 export const readMemo = (raw) => (typeof raw === 'string' ? raw.slice(0, MAX_MEMO) : '')
 
+/* Curves between notes --------------------------------------------------- */
+
+/** All writable positions on this row can be the other end of a curve. */
+export function tieTargets(row, col) {
+  if (!row?.column(col) || row.column(col).isGroupMark) return []
+  return row.columns.flatMap((column, at) => at !== col && !column.isGroupMark ? [at] : [])
+}
+
+/** Keep one curve on each side of a note, replacing a curve on the same side. */
+export function addTie(ties, row, string, from, to) {
+  return [
+    ...ties.filter((tie) => tie.row !== row || tie.string !== string || (tie.from !== from && tie.to !== to)),
+    { row, string, from, to },
+  ]
+}
+
 /* Symbols over a note ----------------------------------------------------- */
 
 export const MARK_ZIGZAG = 'zigzag'

@@ -8,6 +8,7 @@ import TabEditorV2 from './components/TabEditorV2.jsx'
 import { PencilIcon, PresentIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
 import {
   MARK_ZIGZAG,
+  addTie,
   createSheet,
   fromJson,
   isEmpty,
@@ -286,17 +287,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
           writeCell(prev, row, target, string, standing.rows[row].column(source).cell(string).value),
         )
       }
-      // A note carries one arc back and one on, so a new arc replaces only
-      // what hung off the same side.
-      setTies((prev) => [
-        ...prev.filter(
-          (tie) =>
-            tie.row !== row ||
-            tie.string !== string ||
-            (tie.from !== from && tie.to !== to && tie.from !== to && tie.to !== from),
-        ),
-        { row, string, from, to },
-      ])
+      setTies((prev) => addTie(prev, row, string, from, to))
     },
     [remember],
   )

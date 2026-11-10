@@ -6,6 +6,7 @@ import { TrashIcon } from './icons.jsx'
 import ActionBar from './ActionBar.jsx'
 import StaffOverlay from './StaffOverlay.jsx'
 import { markPath } from '../utils/layout.js'
+import { tieTargets } from '../utils/sheet.js'
 import GroupCover from './GroupCover.jsx'
 import { GROUP_REF, canPasteAt, previousWrittenPosition, sheetGroups } from '../utils/tabV2.js'
 import { staffDisplay } from '../utils/staffDisplay.js'
@@ -200,17 +201,9 @@ export default function TabEditorV2({
   // and there would be no way to be rid of it.
   const opening = working?.kind === 'opening' ? working : null
   const closers = opening ? (rows[opening.row]?.closersFor(opening.col) ?? []) : []
-  const targets = []
-  if (selected && rows[selected.row]?.column(selected.col)?.cell(selected.string)?.value) {
-    const columns = rows[selected.row].columns
-    for (const step of [-1, 1]) {
-      for (let at = selected.col + step; at >= 0 && at < columns.length; at += step) {
-        if (columns[at].isGroupMark) break
-        targets.push(at)
-        if (!columns[at].cell(selected.string).isEmpty) break
-      }
-    }
-  }
+  const targets = selected && rows[selected.row]?.column(selected.col)?.cell(selected.string)?.value
+    ? tieTargets(rows[selected.row], selected.col)
+    : []
 
   // The cover over the open group, once it is on the page: the buttons for
   // that group stand over the cover rather than over any one of its cells,

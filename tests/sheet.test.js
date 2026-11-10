@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createSheet, fromJson, isEmpty, removeGroup, toJson } from '../src/utils/sheet.js'
+import { addTie, createSheet, fromJson, isEmpty, removeGroup, tieTargets, toJson } from '../src/utils/sheet.js'
 import {
   GROUP_END,
   GROUP_REF,
@@ -194,4 +194,22 @@ test('deleting a group keeps every arc and symbol it did not stand on', () => {
   ])
   assert.equal(after.rows[0].column(6).cell(0).value, '1', 'and still on its note')
   assert.equal(removeGroup(before, 0, 3), before, 'no group opens there: nothing changes')
+})
+
+
+test('curve targets extend past notes and group markers across the row', () => {
+  let rows = [new Row(7)]
+  rows = writeCell(rows, 0, 1, 0, '3')
+  rows = writeCell(rows, 0, 2, 0, '5')
+  rows = markColumn(rows, 0, 3, GROUP_START, { name: 'A' })
+  rows = markColumn(rows, 0, 5, GROUP_END, { repeat: 1 })
+  assert.deepEqual(tieTargets(rows[0], 1), [0, 2, 4, 6])
+})
+
+test('a note can join curves on both sides and a same-side curve is replaced', () => {
+  let ties = addTie([], 0, 0, 0, 2)
+  ties = addTie(ties, 0, 0, 2, 4)
+  assert.deepEqual(ties, [{ row: 0, string: 0, from: 0, to: 2 }, { row: 0, string: 0, from: 2, to: 4 }])
+  ties = addTie(ties, 0, 0, 2, 5)
+  assert.deepEqual(ties, [{ row: 0, string: 0, from: 0, to: 2 }, { row: 0, string: 0, from: 2, to: 5 }])
 })
