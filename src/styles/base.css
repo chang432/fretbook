@@ -30,6 +30,12 @@ body {
   justify-content: space-between;
 }
 
+.auth-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 h1 {
   margin: 0;
   font: 600 26px/1.2 Georgia, 'Times New Roman', serif;

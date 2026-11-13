@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import AuthControls from './components/AuthControls.jsx'
 import LiveMode from './components/LiveMode.jsx'
 import MemoSection from './components/MemoSection.jsx'
 import NoteIndex from './components/NoteIndex.jsx'
@@ -659,6 +660,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
           placeholder="Untitled"
           aria-label="Title"
         />
+        <AuthControls />
       </header>
 
       <div className="toolbar">

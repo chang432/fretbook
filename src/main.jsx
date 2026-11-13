@@ -1,9 +1,13 @@
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { ClerkProvider } from '@clerk/react'
 import App from './App.jsx'
 import { fetchNote } from './utils/notes.js'
 import { sheetPath, sheetSlug } from './utils/route.js'
 import './styles.css'
+
+const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
+if (!PUBLISHABLE_KEY) throw new Error('Add VITE_CLERK_PUBLISHABLE_KEY to .env.local')
 
 function SheetPage({ slug, onOpenSheet, onNewSheet }) {
   const [result, setResult] = useState(null)
@@ -51,6 +55,8 @@ function Site() {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <Site />
+    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+      <Site />
+    </ClerkProvider>
   </StrictMode>,
 )
