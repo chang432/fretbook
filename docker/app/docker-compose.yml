@@ -69,6 +69,9 @@ services:
       # that root rather than to this file.
       context: ../..
       dockerfile: docker/app/caddy/Dockerfile
+      args:
+        # Inlined into the bundle by Vite; see the Dockerfile's build stage.
+        VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-}
     image: fretbook-web:${IMAGE_TAG:-local}
     restart: unless-stopped
     ports:

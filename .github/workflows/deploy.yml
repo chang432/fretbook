@@ -62,6 +62,10 @@ name: Build, verify and deploy to the VPS
 #                      (docs/notes-upload-from-app.md). It can be the same
 #                      token a laptop publishes with, or its own — either can
 #                      then be rolled without the other.
+#   DEV_CLERK_PUBLISHABLE_KEY   (variables, not secrets: they are public)
+#   PROD_CLERK_PUBLISHABLE_KEY  The Clerk publishable key each environment's
+#                      web image is built with. Vite inlines it, so without it
+#                      the image build fails; the preflight checks for it.
 #   PUBLISH_PASSWORD   The password the Update and Delete buttons on a
 #                      published note ask for, which is the only way to write
 #                      over one or take it down. Optional: without it those
@@ -151,6 +155,8 @@ jobs:
         run: npm test
 
       - name: Build the frontend
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ inputs.env_name == 'prod' && vars.PROD_CLERK_PUBLISHABLE_KEY || vars.DEV_CLERK_PUBLISHABLE_KEY }}
         run: npm run build
 
       - name: Confirm the build produced an entrypoint
@@ -190,6 +196,7 @@ jobs:
           R2_ENDPOINT: ${{ vars.R2_ENDPOINT }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          CLERK_PUBLISHABLE_KEY: ${{ inputs.env_name == 'prod' && vars.PROD_CLERK_PUBLISHABLE_KEY || vars.DEV_CLERK_PUBLISHABLE_KEY }}
           SITE_DOMAIN: ${{ inputs.site_domain }}
           ENV_NAME: ${{ inputs.env_name }}
         run: |
@@ -203,6 +210,11 @@ jobs:
           # Without these the stack still comes up, but /api/sheets answers 503
           # and the sheet list is empty — a silent half-deploy, so fail here.
           [ -n "${R2_ENDPOINT}" ] || missing="${missing} R2_ENDPOINT"
+          # The web image build refuses an empty key, and the deploy tears the
+          # old stack down before it builds, so catch it before the SSH step.
+          if [ -z "${CLERK_PUBLISHABLE_KEY}" ]; then
+            if [ "${ENV_NAME}" = "prod" ]; then missing="${missing} PROD_CLERK_PUBLISHABLE_KEY"; else missing="${missing} DEV_CLERK_PUBLISHABLE_KEY"; fi
+          fi
           if [ -n "${missing}" ]; then
             echo "::error::Missing repository variables:${missing}. Set them under Settings > Secrets and variables > Actions > Variables."
             exit 1
@@ -242,6 +254,7 @@ jobs:
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           PUBLISH_PASSWORD: ${{ secrets.PUBLISH_PASSWORD }}
+          CLERK_PUBLISHABLE_KEY: ${{ inputs.env_name == 'prod' && vars.PROD_CLERK_PUBLISHABLE_KEY || vars.DEV_CLERK_PUBLISHABLE_KEY }}
         with:
           host: ${{ vars.VPS_IP }}
           username: ${{ inputs.ssh_user }}
@@ -252,7 +265,7 @@ jobs:
           # Give the remote shell a generous budget: a cold box installs Docker
           # and builds both images from scratch on the first run.
           command_timeout: 30m
-          envs: REPO_FULL,ENV_NAME,BRANCH,SITE_DOMAIN,PROD_DOMAIN,DEV_DOMAIN,ACME_EMAIL,PROD_PORT,DEV_PORT,R2_ENDPOINT,R2_ACCESS_KEY_ID,R2_SECRET_ACCESS_KEY,PUBLISH_PASSWORD
+          envs: REPO_FULL,ENV_NAME,BRANCH,SITE_DOMAIN,PROD_DOMAIN,DEV_DOMAIN,ACME_EMAIL,PROD_PORT,DEV_PORT,R2_ENDPOINT,R2_ACCESS_KEY_ID,R2_SECRET_ACCESS_KEY,PUBLISH_PASSWORD,CLERK_PUBLISHABLE_KEY
           script: |
             set -euo pipefail
 
@@ -363,6 +376,7 @@ jobs:
             AWS_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
             AWS_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
             FRETBOOK_PUBLISH_PASSWORD=${PUBLISH_PASSWORD:-}
+            VITE_CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
             EOF
 
             # --- Rebuild and run this environment's stack -------------------

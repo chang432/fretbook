@@ -70,7 +70,7 @@ require_env() {
 	fi
 
 	local missing="" name
-	for name in FRETBOOK_NOTES_BUCKET FRETBOOK_R2_ENDPOINT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
+	for name in FRETBOOK_NOTES_BUCKET FRETBOOK_R2_ENDPOINT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY VITE_CLERK_PUBLISHABLE_KEY; do
 		# Either source will do, and compose agrees: it interpolates from the
 		# shell first and falls back to the file. So a shell that already
 		# carries a credential — an `aws configure export-credentials` eval, a
