@@ -92,6 +92,19 @@ name: Build, verify and deploy to the VPS
 
 on:
   workflow_dispatch:
+    inputs:
+      env_name:
+        description: Short environment tag; must be dev or prod.
+        required: true
+        type: string
+      branch:
+        description: Branch to deploy.
+        required: true
+        type: string
+      site_domain:
+        description: Hostname this environment is served on.
+        required: true
+        type: string
   workflow_call:
     inputs:
       env_name:
