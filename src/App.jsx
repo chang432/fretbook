@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAuth } from '@clerk/react'
 import AuthControls from './components/AuthControls.jsx'
 import LiveMode from './components/LiveMode.jsx'
 import MemoSection from './components/MemoSection.jsx'
@@ -76,6 +77,7 @@ function loadSaved() {
  * utils/live.js.
  */
 export default function App({ published = null, fresh = false, onOpenSheet, onNewSheet }) {
+  const { isSignedIn } = useAuth()
   // Read the note, or localStorage, once and lazily, and seed the state below
   // from whichever it was. Nothing published and nothing saved means a blank
   // page, which is a sheet of its own rather than an absence.
@@ -662,6 +664,8 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
         />
         <AuthControls />
       </header>
+
+      {!published && isSignedIn && <p>hello</p>}
 
       <div className="toolbar">
         <div className="toolbar-group">
