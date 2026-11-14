@@ -5,6 +5,7 @@ import LiveMode from './components/LiveMode.jsx'
 import MemoSection from './components/MemoSection.jsx'
 import NoteIndex from './components/NoteIndex.jsx'
 import Popover from './components/Popover.jsx'
+import PricingPopup from './components/PricingPopup.jsx'
 import PublishMenu from './components/PublishMenu.jsx'
 import TabEditorV2 from './components/TabEditorV2.jsx'
 import { PencilIcon, PresentIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
@@ -77,6 +78,7 @@ function loadSaved(storageKey) {
  */
 export default function App({ published = null, fresh = false, onOpenSheet, onNewSheet }) {
   const { isSignedIn, userId, getToken } = useAuth()
+  const [showPricing, setShowPricing] = useState(false)
   const storageKey = userId ? `${STORAGE_KEY}:${userId}` : null
   // Read the note, or localStorage, once and lazily, and seed the state below
   // from whichever it was. Nothing published and nothing saved means a blank
@@ -661,6 +663,11 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
           placeholder="Untitled"
           aria-label="Title"
         />
+        {!published && (
+          <button type="button" onClick={() => setShowPricing(true)} aria-haspopup="dialog" aria-expanded={showPricing}>
+            Subscribe
+          </button>
+        )}
         <AuthControls />
       </header>
       <div className="toolbar">
