@@ -670,6 +670,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
         )}
         <AuthControls />
       </header>
+      {showPricing && <PricingPopup onClose={() => setShowPricing(false)} />}
       <div className="toolbar">
         <div className="toolbar-group">
           <button
