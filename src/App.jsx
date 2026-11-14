@@ -663,7 +663,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
           placeholder="Untitled"
           aria-label="Title"
         />
-        {!published && isLoaded && isSignedIn && !has({ plan: 'plan_test' }) && (
+        {!published && isLoaded && isSignedIn && !has({ plan: 'u:plan_test' }) && (
           <button type="button" onClick={() => setShowPricing(true)} aria-haspopup="dialog" aria-expanded={showPricing}>
             Subscribe
           </button>

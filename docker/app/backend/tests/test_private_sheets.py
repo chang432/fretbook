@@ -4,6 +4,7 @@ import io
 import json
 import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
 import jwt
@@ -104,6 +105,50 @@ class SheetsTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers['Cache-Control'], 'private, no-store')
         self.assertEqual(self.request('POST', url, user='user_bob', data=self.sheet).status_code, 200)
+
+
+    def test_free_limit_pro_access_and_downgrade(self):
+        for name in ('one', 'two', 'three'):
+            self.assertEqual(self.request('PUT', f'/api/sheets/{name}', data=self.sheet).status_code, 201)
+        denied = self.request('PUT', '/api/sheets/four', data=self.sheet)
+        self.assertEqual(denied.status_code, 403)
+        self.assertEqual(denied.json['code'], 'sheet_limit')
+        self.assertIn('Subscribe', denied.json['error'])
+        # A different user's sheets and an organization plan cannot grant access.
+        self.assertEqual(self.request('PUT', '/api/sheets/other', user='user_bob', data=self.sheet).status_code, 201)
+        self.assertEqual(self.request('PUT', '/api/sheets/four', jwt_token=token(pla='o:plan_test'), data=self.sheet).status_code, 403)
+        self.assertEqual(self.request('PUT', '/api/sheets/four', jwt_token=token(pla='u:plan_test', key=OTHER), data=self.sheet).status_code, 401)
+        self.assertEqual(self.request('PUT', '/api/sheets/four', jwt_token=token(pla='u:plan_test'), data=self.sheet).status_code, 201)
+        self.assertEqual(self.request('PUT', '/api/sheets/five', jwt_token=token(pla='o:other,u:plan_test'), data=self.sheet).status_code, 201)
+        # Existing sheets remain accessible and manageable after a downgrade.
+        self.assertEqual(self.request('GET', '/api/sheets/four').status_code, 200)
+        self.assertEqual(self.request('POST', '/api/sheets/four', data=self.sheet).status_code, 200)
+        self.assertEqual(self.request('DELETE', '/api/sheets/four').status_code, 200)
+        self.assertEqual(self.request('PUT', '/api/sheets/six', data=self.sheet).status_code, 403)
+        self.assertEqual(self.request('DELETE', '/api/sheets/five').status_code, 200)
+        self.assertEqual(self.request('DELETE', '/api/sheets/three').status_code, 200)
+        self.assertEqual(self.request('PUT', '/api/sheets/six', data=self.sheet).status_code, 201)
+
+    def test_concurrent_saves_share_the_last_free_slot(self):
+        for name in ('one', 'two'):
+            self.assertEqual(self.request('PUT', f'/api/sheets/{name}', data=self.sheet).status_code, 201)
+        signed = token()
+        app = create_app()
+
+        def save(name):
+            with app.test_client() as client:
+                return client.put(f'/api/sheets/{name}', data=self.sheet,
+                                  headers={'Authorization': 'Bearer ' + signed}).status_code
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(save, ('three', 'four')))
+        self.assertEqual(sorted(results), [201, 403])
+        self.assertEqual(len(self.store.objects), 3)
+
+    def test_listing_failure_does_not_bypass_limit(self):
+        with patch.object(self.store, 'paginate', side_effect=error(500)):
+            self.assertEqual(self.request('PUT', '/api/sheets/one', data=self.sheet).status_code, 503)
+        self.assertEqual(self.store.objects, {})
 
 
 if __name__ == '__main__':

@@ -406,7 +406,9 @@ rows are yours to add, so a file records the sheet exactly as you left it.
 
 Sign in with Clerk to save and open your own sheets. **Save** asks for a name;
 **Sheets** lists the signed-in user's library. Open a sheet to update or delete
-it. Sheet URLs are private to their owner, even when bookmarked or shared.
+it. Free users can save up to three sheets; Pro users can save more. Existing
+sheets remain readable, editable, and deletable after a downgrade. Sheet URLs
+are private to their owner, even when bookmarked or shared.
 Signed-out users can use the editor and export JSON, but have no saved-sheet
 list or persistent browser draft. Signed-in drafts are kept separately per user
 in the browser; saved sheets live in R2 and can be opened on other devices.
@@ -415,7 +417,10 @@ The browser sends a Clerk session token to Flask for every sheet request. Flask
 verifies the token and uses its stable user ID (`sub`) to access only
 `sheets/<user_id>/<name>.json` in the private R2 bucket. It lists objects by
 prefix and sends sheet JSON to the browser. The R2 token needs Object Read &
-Write access, including list access. Responses are private and not cached.
+Write access, including list access. Responses are private and not cached. The limit uses the verified Clerk
+session token’s user-plan claim; plan changes can take until the token refreshes.
+Concurrent saves are serialized between the workers in the single backend
+container. Multiple backend replicas would need a shared lock.
 
 Local Docker setup requires `VITE_CLERK_PUBLISHABLE_KEY` and
 `CLERK_AUTHORIZED_PARTIES` in `docker/app/.env`; the latter is a comma-separated

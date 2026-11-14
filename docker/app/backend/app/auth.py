@@ -29,7 +29,7 @@ def _jwks(issuer):
 
 
 def authenticated_user():
-    """Return the signed user ID, or a fail-closed HTTP response."""
+    """Return verified session claims, or a fail-closed HTTP response."""
     authorization = request.headers.get('Authorization', '')
     if not authorization.startswith('Bearer ') or not authorization[7:]:
         return None, (jsonify(error='sign in required'), 401)
@@ -48,6 +48,6 @@ def authenticated_user():
             return None, (jsonify(error='authentication is not configured'), 503)
         if claims.get('azp') not in parties:
             raise jwt.InvalidTokenError('invalid authorized party')
-        return user_id, None
+        return claims, None
     except (ValueError, UnicodeError, binascii.Error, jwt.PyJWTError):
         return None, (jsonify(error='invalid or expired session'), 401)

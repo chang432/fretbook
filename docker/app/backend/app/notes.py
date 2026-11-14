@@ -1,8 +1,12 @@
 """Private sheets stored in R2 under sheets/<verified Clerk user ID>/."""
 
+import fcntl
+import hashlib
 import json
 import os
 import re
+import tempfile
+from contextlib import contextmanager
 from functools import wraps
 
 import boto3
@@ -14,6 +18,8 @@ from .auth import authenticated_user
 
 notes = Blueprint('notes', __name__)
 MAX_UPLOAD_BYTES = 512 * 1024
+FREE_SHEET_LIMIT = 3
+PRO_PLAN = 'u:plan_test'
 NAME = re.compile(r'[a-z0-9]+(?:_[a-z0-9]+)*')
 _client = None
 
@@ -29,14 +35,43 @@ def _s3():
 def private(f):
     @wraps(f)
     def wrapped(*args, **kwargs):
-        user, error = authenticated_user()
+        claims, error = authenticated_user()
         if error:
             return error
         if not os.environ.get('FRETBOOK_NOTES_BUCKET') or not os.environ.get('FRETBOOK_R2_ENDPOINT'):
             return jsonify(error='the sheets bucket is not configured'), 503
-        g.sheet_prefix = f'sheets/{user}/'
+        g.sheet_prefix = f"sheets/{claims['sub']}/"
+        plans = claims.get('pla')
+        g.is_pro = isinstance(plans, str) and PRO_PLAN in (plan.strip() for plan in plans.split(','))
         return f(*args, **kwargs)
     return wrapped
+
+
+@contextmanager
+def _save_lock():
+    # The two Gunicorn workers share this container's filesystem. Lock all
+    # creates for one user so checking R2 and writing a new key is serialized.
+    name = hashlib.sha256(g.sheet_prefix.encode()).hexdigest()
+    path = os.path.join(tempfile.gettempdir(), f'fretbook-sheets-{name}.lock')
+    with open(path, 'a+', encoding='utf-8') as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
+def _sheet_names():
+    paginator = _s3().get_paginator('list_objects_v2')
+    for page in paginator.paginate(Bucket=_bucket(), Prefix=g.sheet_prefix):
+        for item in page.get('Contents', []):
+            name = item['Key'][len(g.sheet_prefix):]
+            if name.endswith('.json') and NAME.fullmatch(name[:-5]):
+                yield name[:-5]
+
+
+def _sheet_count_at_limit():
+    return sum(1 for _ in _sheet_names()) >= FREE_SHEET_LIMIT
 
 
 def _key(slug):
@@ -76,15 +111,7 @@ def no_store(response):
 @private
 def index():
     try:
-        paginator = _s3().get_paginator('list_objects_v2')
-        result = []
-        for page in paginator.paginate(Bucket=_bucket(), Prefix=g.sheet_prefix):
-            for item in page.get('Contents', []):
-                key = item['Key']
-                name = key[len(g.sheet_prefix):]
-                if name.endswith('.json') and NAME.fullmatch(name[:-5]):
-                    result.append({'slug': name[:-5], 'title': name[:-5]})
-        return jsonify(sorted(result, key=lambda entry: entry['slug']))
+        return jsonify([{'slug': slug, 'title': slug} for slug in sorted(_sheet_names())])
     except (BotoCoreError, ClientError):
         return jsonify(error='the sheets bucket cannot be reached'), 503
 
@@ -119,11 +146,15 @@ def write_sheet(slug):
         if request.method == 'DELETE':
             _s3().head_object(Bucket=_bucket(), Key=key)
             _s3().delete_object(Bucket=_bucket(), Key=key)
+        elif request.method == 'PUT':
+            with _save_lock():
+                if not g.is_pro and _sheet_count_at_limit():
+                    return jsonify(error='The free plan allows a maximum of 3 saved sheets. Subscribe to save more sheets.', code='sheet_limit'), 403
+                _s3().put_object(Bucket=_bucket(), Key=key, Body=body, ContentType='application/json',
+                                 CacheControl='private, no-store', IfNoneMatch='*')
         else:
-            # Conditional puts avoid overwriting another request's new sheet.
-            options = {'IfNoneMatch': '*'} if request.method == 'PUT' else {'IfMatch': '*'}
             _s3().put_object(Bucket=_bucket(), Key=key, Body=body, ContentType='application/json',
-                             CacheControl='private, no-store', **options)
+                             CacheControl='private, no-store', IfMatch='*')
         return jsonify(slug=slug), 201 if request.method == 'PUT' else 200
     except ClientError as error:
         code = error.response.get('ResponseMetadata', {}).get('HTTPStatusCode')
@@ -132,5 +163,5 @@ def write_sheet(slug):
         if _missing(error) or (request.method == 'POST' and code == 412):
             return jsonify(error='no such sheet'), 404
         return jsonify(error='the sheet could not be saved'), 503
-    except BotoCoreError:
+    except (BotoCoreError, OSError):
         return jsonify(error='the sheets bucket cannot be reached'), 503
