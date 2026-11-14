@@ -109,6 +109,11 @@ on:
         description: Hostname this environment is served on.
         required: true
         type: string
+      ssh_user:
+        description: SSH login user; must have passwordless sudo.
+        required: false
+        type: string
+        default: ubuntu
   workflow_call:
     inputs:
       env_name:
