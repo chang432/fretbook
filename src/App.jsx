@@ -77,7 +77,7 @@ function loadSaved(storageKey) {
  * utils/live.js.
  */
 export default function App({ published = null, fresh = false, onOpenSheet, onNewSheet }) {
-  const { isSignedIn, userId, getToken } = useAuth()
+  const { isLoaded, isSignedIn, userId, getToken, has } = useAuth()
   const [showPricing, setShowPricing] = useState(false)
   const storageKey = userId ? `${STORAGE_KEY}:${userId}` : null
   // Read the note, or localStorage, once and lazily, and seed the state below
@@ -663,7 +663,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
           placeholder="Untitled"
           aria-label="Title"
         />
-        {!published && (
+        {!published && isLoaded && isSignedIn && !has({ plan: 'pro' }) && (
           <button type="button" onClick={() => setShowPricing(true)} aria-haspopup="dialog" aria-expanded={showPricing}>
             Subscribe
           </button>
