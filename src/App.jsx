@@ -52,9 +52,9 @@ const STORAGE_KEY = 'fretboard-notebook:v1'
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024
 
 /** Load the last session so a page refresh never loses written-down fingerings. */
-function loadSaved() {
+function loadSaved(storageKey) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(storageKey)
     return raw ? fromJson(raw) : null
   } catch {
     return null
@@ -65,8 +65,7 @@ function loadSaved() {
  * The editor. Normally it holds the one sheet this browser keeps, read from
  * and written back to localStorage as it is worked on.
  *
- * `published` puts it over a note that came from the bucket instead — the
- * object there is the note, and nothing here can change it. Two things follow
+ * `published` opens a saved sheet from the user’s bucket prefix. Two things follow
  * from that: the sheet is seeded from the note rather than from storage, and
  * the autosave below is off, so reading a published note leaves the reader's
  * own sheet exactly where it was.
@@ -77,20 +76,21 @@ function loadSaved() {
  * utils/live.js.
  */
 export default function App({ published = null, fresh = false, onOpenSheet, onNewSheet }) {
-  const { isSignedIn } = useAuth()
+  const { isSignedIn, userId, getToken } = useAuth()
+  const storageKey = userId ? `${STORAGE_KEY}:${userId}` : null
   // Read the note, or localStorage, once and lazily, and seed the state below
   // from whichever it was. Nothing published and nothing saved means a blank
   // page, which is a sheet of its own rather than an absence.
   const [unreadableSave] = useState(() => {
-    if (published) return false
+    if (published || !storageKey) return false
     try {
-      const raw = localStorage.getItem(STORAGE_KEY)
+      const raw = localStorage.getItem(storageKey)
       return !!raw && !fromJson(raw)
     } catch {
       return false
     }
   })
-  const [saved] = useState(() => published?.sheet ?? (fresh ? createSheet() : loadSaved() ?? createSheet()))
+  const [saved] = useState(() => published?.sheet ?? (fresh ? createSheet() : (storageKey && loadSaved(storageKey)) || createSheet()))
   const [title, setTitle] = useState(saved.title ?? '')
   // The note written above the staves: prose about the sheet — a tuning, a
   // capo, what to listen for. Called a memo here because "note" already means
@@ -516,13 +516,13 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
   useEffect(() => {
     // A published note is the server's, and the reader has a sheet of their
     // own that this one is only being read in front of.
-    if (published || unreadableSave) return
+    if (published || unreadableSave || !storageKey) return
     try {
-      localStorage.setItem(STORAGE_KEY, toJson({ ...sheet, memo }, STANDARD_TUNING, title))
+      localStorage.setItem(storageKey, toJson({ ...sheet, memo }, STANDARD_TUNING, title))
     } catch {
       // Private-mode / quota failures are not worth interrupting the user for.
     }
-  }, [published, unreadableSave, sheet, memo, title])
+  }, [published, unreadableSave, sheet, memo, title, storageKey])
 
   useEffect(() => {
     if (!status) return undefined
@@ -602,28 +602,27 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
 
   /** What each of the three presses does, and what it leaves behind. */
   const writes = {
-    publish: { send: (slug) => publishNote(slug, json), said: 'Published' },
+    publish: { send: (slug) => publishNote(slug, json, getToken), said: 'Saved' },
     update: {
-      send: (slug, password) => updateNote(slug, json, password),
+      send: (slug) => updateNote(slug, json, getToken),
       said: 'Updated',
       // What was sent is what the note holds now, so it becomes the thing a
       // further change is measured against.
       then: () => setSentAs(json),
     },
     delete: {
-      send: (slug, password) => deleteNote(slug, password),
+      send: (slug) => deleteNote(slug, getToken),
       said: 'Deleted',
       then: () => setDeleted(true),
     },
   }
 
   /**
-   * Write to this environment's bucket: a new note at /notes/<slug>, this
-   * sheet over the published note the page is showing, or that note gone.
+   * Write to the signed-in user's library: create, update or delete a sheet.
    */
-  const writeSheet = async (slug, password) => {
+  const writeSheet = async (slug) => {
     const write = writes[writeMenu?.mode ?? 'publish']
-    const result = await write.send(slug, password)
+    const result = await write.send(slug)
     if (!result.ok) return result
 
     setStatus(`${write.said} ${slug}`)
@@ -729,7 +728,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
                   deleted
                     ? 'This note has been taken down'
                     : changed
-                      ? `Write this sheet over ${published.slug} — needs the password`
+                      ? `Write this sheet over ${published.slug}`
                       : 'Nothing has been changed on this note yet'
                 }
               >
@@ -745,7 +744,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
                 title={
                   deleted
                     ? 'This note has been taken down'
-                    : `Take ${published.slug} down for good — needs the password`
+                    : `Take ${published.slug} down for good`
                 }
               >
                 Delete
@@ -755,12 +754,12 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
             <button
               type="button"
               onClick={(event) => openWrite('publish', event.currentTarget)}
-              disabled={empty}
+              disabled={empty || !isSignedIn}
               aria-haspopup="dialog"
               aria-expanded={!!writeMenu}
-              title="Save this sheet so it can be opened from the sheet list"
+              title={isSignedIn ? 'Save this sheet to your library' : 'Sign in to save sheets'}
             >
-              Publish
+              Save
             </button>
           )}
           <button type="button" onClick={(event) => setSheetPicker(sheetPicker ? null : event.currentTarget)} aria-haspopup="dialog" aria-expanded={!!sheetPicker}>

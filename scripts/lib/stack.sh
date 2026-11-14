@@ -70,7 +70,7 @@ require_env() {
 	fi
 
 	local missing="" name
-	for name in FRETBOOK_NOTES_BUCKET FRETBOOK_R2_ENDPOINT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY VITE_CLERK_PUBLISHABLE_KEY; do
+	for name in FRETBOOK_NOTES_BUCKET FRETBOOK_R2_ENDPOINT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY VITE_CLERK_PUBLISHABLE_KEY CLERK_AUTHORIZED_PARTIES; do
 		# Either source will do, and compose agrees: it interpolates from the
 		# shell first and falls back to the file. So a shell that already
 		# carries a credential — an `aws configure export-credentials` eval, a
@@ -129,25 +129,15 @@ container_state() {
 		$ids 2>/dev/null
 }
 
-# The notes are the part most likely to be misconfigured, and the part a green
-# healthcheck says nothing about: the bucket is a different thing from the
-# process being up. Echoes "<http status> <note count>".
+# The private sheets endpoint must reject requests without a session token.
 notes_probe() {
-	local body status count
-	body=$(mktemp)
-	status=$(curl -s -o "$body" -w '%{http_code}' "http://localhost:${PORT}/api/sheets" || echo 000)
-	count=$(grep -o '"slug"' "$body" 2>/dev/null | wc -l | tr -d ' ')
-	rm -f "$body"
-	printf '%s %s\n' "$status" "$count"
+  curl -s -o /dev/null -w '%{http_code}' "http://localhost:${PORT}/api/sheets" || echo 000
 }
 
-# Says what a notes probe means, at whatever indent the caller is using.
 report_notes() {
-	local status=$1 count=$2
-	case "$status" in
-		200) ok "/api/sheets — ${count} note(s)" ;;
-		503) warn "/api/sheets says the bucket is not configured — check $ENV_FILE" ;;
-		000) warn "/api/sheets did not answer" ;;
-		*)   warn "/api/sheets answered HTTP ${status}" ;;
-	esac
+  case "$1" in
+    401) ok "/api/sheets requires sign-in" ;;
+    000) warn "/api/sheets did not answer" ;;
+    *) warn "/api/sheets answered HTTP $1; expected 401" ;;
+  esac
 }

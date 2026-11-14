@@ -66,12 +66,6 @@ name: Build, verify and deploy to the VPS
 #   PROD_CLERK_PUBLISHABLE_KEY  The Clerk publishable key each environment's
 #                      web image is built with. Vite inlines it, so without it
 #                      the image build fails; the preflight checks for it.
-#   PUBLISH_PASSWORD   The password the Update and Delete buttons on a
-#                      published note ask for, which is the only way to write
-#                      over one or take it down. Optional: without it those
-#                      buttons answer 503 and everything else works, so it is
-#                      how an environment opts into being editable from a
-#                      browser.
 #
 # Nothing is needed to read the code: the repo is public, so the VPS clones it
 # anonymously.
@@ -192,6 +186,9 @@ jobs:
       - name: Install backend dependencies
         run: pip install -r docker/app/backend/requirements.txt
 
+      - name: Test private sheet access
+        run: PYTHONPATH=docker/app/backend python -m unittest discover -s docker/app/backend/tests -v
+
       - name: Import the Flask app
         # gunicorn only imports wsgi:app at startup, so a broken import or a
         # blueprint clash would otherwise surface as a crash-looping container
@@ -272,7 +269,6 @@ jobs:
           R2_ENDPOINT: ${{ vars.R2_ENDPOINT }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          PUBLISH_PASSWORD: ${{ secrets.PUBLISH_PASSWORD }}
           CLERK_PUBLISHABLE_KEY: ${{ inputs.env_name == 'prod' && vars.PROD_CLERK_PUBLISHABLE_KEY || vars.DEV_CLERK_PUBLISHABLE_KEY }}
         with:
           host: ${{ vars.VPS_IP }}
@@ -284,7 +280,7 @@ jobs:
           # Give the remote shell a generous budget: a cold box installs Docker
           # and builds both images from scratch on the first run.
           command_timeout: 30m
-          envs: REPO_FULL,ENV_NAME,BRANCH,SITE_DOMAIN,PROD_DOMAIN,DEV_DOMAIN,ACME_EMAIL,PROD_PORT,DEV_PORT,R2_ENDPOINT,R2_ACCESS_KEY_ID,R2_SECRET_ACCESS_KEY,PUBLISH_PASSWORD,CLERK_PUBLISHABLE_KEY
+          envs: REPO_FULL,ENV_NAME,BRANCH,SITE_DOMAIN,PROD_DOMAIN,DEV_DOMAIN,ACME_EMAIL,PROD_PORT,DEV_PORT,R2_ENDPOINT,R2_ACCESS_KEY_ID,R2_SECRET_ACCESS_KEY,CLERK_PUBLISHABLE_KEY
           script: |
             set -euo pipefail
 
@@ -394,8 +390,8 @@ jobs:
             FRETBOOK_R2_ENDPOINT=${R2_ENDPOINT}
             AWS_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
             AWS_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
-            FRETBOOK_PUBLISH_PASSWORD=${PUBLISH_PASSWORD:-}
             VITE_CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
+            CLERK_AUTHORIZED_PARTIES=https://${SITE_DOMAIN}
             EOF
 
             # --- Rebuild and run this environment's stack -------------------
