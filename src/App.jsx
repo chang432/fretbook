@@ -663,9 +663,6 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
         />
         <AuthControls />
       </header>
-
-      {!published && isSignedIn && <p>hello</p>}
-
       <div className="toolbar">
         <div className="toolbar-group">
           <button
