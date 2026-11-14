@@ -91,6 +91,7 @@ name: Build, verify and deploy to the VPS
 #   - Docker is installed by the deploy step when missing; nothing else is.
 
 on:
+  workflow_dispatch:
   workflow_call:
     inputs:
       env_name:
