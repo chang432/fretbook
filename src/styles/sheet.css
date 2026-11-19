@@ -16,12 +16,12 @@
 
 /* A new staff, at the foot of the sheet where the next one would be
    written. It is the only control down here and it acts on the sheet
-   rather than on any row, so it stands on its own and full width rather
-   than joining a bar of buttons. */
+   rather than on any row, so it stands on its own, as wide as its words and
+   centred under the staves, rather than joining a bar of buttons. */
 .add-row {
   display: block;
-  width: 100%;
-  margin-top: 18px;
+  width: auto;
+  margin: 18px auto 0;
   padding: 12px;
   border: 1px dashed var(--bar);
   border-radius: 10px;
