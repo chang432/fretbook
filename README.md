@@ -404,8 +404,13 @@ rows are yours to add, so a file records the sheet exactly as you left it.
 
 ## Saving sheets
 
-Sign in with Clerk to save and open your own sheets. **Save** asks for a name;
-**Sheets** lists the signed-in user's library. Open a sheet to update or delete
+Sign in with Clerk to save and open your own sheets. The sheet's title sits
+centred in the toolbar; the pencil beside it makes it editable. Titles are
+lowercase letters, digits and spaces, up to 40 characters, and the spaces
+become underscores whenever the sheet is written out (export, save, browser
+draft) and turn back into spaces when it is read in. **Save** (the disk icon)
+asks to confirm saving under that name, and needs a title; **Sheets** (the
+list icon) lists the signed-in user's library. Open a sheet to update or delete
 it. Free users can save up to three sheets; Pro users can save more. Existing
 sheets remain readable, editable, and deletable after a downgrade. Sheet URLs
 are private to their owner, even when bookmarked or shared.
@@ -450,7 +455,8 @@ src/
   components/ArrangementSection.jsx the running order: the groups as blocks, left to right
   components/LiveMode.jsx   the full-screen player: playhead, scrolling tab, transport
   components/Popover.jsx    the anchored panel behind the export, publish and tempo menus
-  components/PublishMenu.jsx the name and confirmation for saving or changing a sheet
+  components/PublishMenu.jsx the confirmation for saving or changing a sheet
+  components/SheetTitle.jsx the toolbar's title: text with a pencil, a box while edited
   components/icons.jsx      the drawn symbols on the buttons that carry no words
   utils/tab.js              grid, tie and mark model; ASCII/JSON; downloads
   utils/notes.js            the published notes: the /api calls that fetch them, and the three that change one
