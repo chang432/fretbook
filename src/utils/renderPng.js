@@ -29,7 +29,7 @@ const ARROW = CELL_W / 2 - BAR_W
 
 const COLORS = {
   paper: '#fbf8f1',
-  page: '#ece7dc',
+  page: '#fff7ed',
   line: '#2f3a45',
   ink: '#16202b',
   label: '#7d8894',
