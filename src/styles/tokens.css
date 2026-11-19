@@ -4,11 +4,10 @@
  * is defined by the width of its input cell alone.
  */
 :root {
-  /* Two typefaces, both loaded in index.html: Anta for the app's words, and
-     Fira Sans for the tab — the frets on the staves and the string labels.
-     Fira Sans is loaded at 500 (medium) only, so its rules ask for 500. */
-  --font: 'Anta', sans-serif;
-  --staff-font: 'Fira Sans', sans-serif;
+  /* Two typefaces, both loaded in index.html: Fira Sans (500, medium) for
+     all text, and Anta for the Fretbook wordmark alone. */
+  --font: 'Fira Sans', sans-serif;
+  --logo-font: 'Anta', sans-serif;
   --cell-w: 36px;
   --row-h: 34px;
   /* How thick a string is drawn, whether as one line across a row or as a

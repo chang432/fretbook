@@ -60,6 +60,8 @@ h1 {
   background: transparent;
   color: inherit;
   font: inherit;
+  /* The wordmark: the one place Anta is used. */
+  font-family: var(--logo-font);
   letter-spacing: inherit;
   cursor: pointer;
 }

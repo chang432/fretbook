@@ -82,7 +82,7 @@ function count(ctx, { x, top, repeat }) {
   ctx.strokeRect(x + BAR_W / 2, y + BAR_W / 2, CELL_W - BAR_W, height - BAR_W)
 
   ctx.fillStyle = COLORS.ink
-  ctx.font = '600 11px Anta, sans-serif'
+  ctx.font = '600 11px "Fira Sans", sans-serif'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(`x${repeat ?? 1}`, x + CELL_W / 2, y + height / 2 + 1)
@@ -113,7 +113,7 @@ export function renderTabToCanvas({ rows, ties, marks }, tuning, title, scale = 
 
   if (title) {
     ctx.fillStyle = COLORS.ink
-    ctx.font = '600 22px Anta, sans-serif'
+    ctx.font = '600 22px "Fira Sans", sans-serif'
     ctx.textAlign = 'left'
     ctx.textBaseline = 'alphabetic'
     ctx.fillText(title, PAD, PAD + 24)
@@ -135,7 +135,7 @@ export function renderTabToCanvas({ rows, ties, marks }, tuning, title, scale = 
     // the staff is too short to write down the side of in an image.
     if (row.name) {
       ctx.fillStyle = COLORS.label
-      ctx.font = '600 13px Anta, sans-serif'
+      ctx.font = '600 13px "Fira Sans", sans-serif'
       ctx.textAlign = 'left'
       ctx.textBaseline = 'alphabetic'
       ctx.fillText(row.name, gridLeft, head + 14)
@@ -207,7 +207,7 @@ export function renderTabToCanvas({ rows, ties, marks }, tuning, title, scale = 
         ctx.stroke()
 
         ctx.fillStyle = COLORS.ink
-        ctx.font = '600 15px Anta, sans-serif'
+        ctx.font = '600 15px "Fira Sans", sans-serif'
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillText(column.name ?? '', x + CELL_W / 2, cy + 1)

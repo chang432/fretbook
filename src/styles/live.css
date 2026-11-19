@@ -260,7 +260,7 @@
   width: var(--cell-w);
   height: var(--row-h);
   color: var(--ink);
-  font: 500 17px/1 var(--staff-font);
+  font: 500 17px/1 var(--font);
 }
 
 /* The position being played, travelling with the tab under the playhead. */
