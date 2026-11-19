@@ -137,7 +137,7 @@
 .live-tempo button {
   width: 30px;
   padding: 6px 0;
-  font: 400 16px/1 var(--font);
+  font: 500 16px/1 var(--font);
 }
 
 .live-bpm {
@@ -151,7 +151,7 @@
 .live-readout {
   margin-left: auto;
   color: var(--muted);
-  font: 13px var(--font);
+  font: 500 13px var(--font);
   font-variant-numeric: tabular-nums;
 }
 

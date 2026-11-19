@@ -40,4 +40,4 @@
 }
 
 .note-list-link:hover { background: var(--paper); }
-.note-list-slug { font: 600 17px var(--font); }
+.note-list-slug { font: 400 17px var(--font); }

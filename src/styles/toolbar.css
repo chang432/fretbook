@@ -126,6 +126,11 @@ button,
   text-decoration: none;
 }
 
+/* Import and Export: words rather than symbols, set lighter than the rest. */
+.file-button {
+  font-weight: 400;
+}
+
 button:hover:not(:disabled),
 .button-link:hover {
   border-color: var(--muted);

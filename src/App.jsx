@@ -663,11 +663,12 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
       <div className="toolbar">
         <div className="toolbar-start">
           <div className="toolbar-group">
-            <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Import JSON" title="Import JSON">
+            <button type="button" className="file-button" onClick={() => fileInputRef.current?.click()} aria-label="Import JSON" title="Import JSON">
               Import
             </button>
             <button
               type="button"
+              className="file-button"
               onClick={exportJson}
               disabled={empty}
               aria-label="Export JSON"

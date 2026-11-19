@@ -33,7 +33,7 @@
    is open, which is the one place the state is drawn. */
 .memo-caret {
   display: inline-block;
-  font: 400 12px/1 var(--font);
+  font: 500 12px/1 var(--font);
   transition: transform 0.12s ease-out;
 }
 
