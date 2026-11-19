@@ -1,10 +1,61 @@
-/* Toolbar: the controls across the top of the editor. */
+/* Toolbar: the controls across the top of the editor, with the sheet's title
+   held in the middle — the two outer columns share what is left equally, so
+   the title stays centred however many buttons sit either side of it. */
 .toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 24px 0 12px;
+}
+
+.toolbar-start {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 16px;
-  margin: 24px 0 12px;
+  min-width: 0;
+}
+
+/* Too narrow for one row: the title goes on top, the buttons beneath. */
+@media (max-width: 720px) {
+  .toolbar {
+    grid-template-columns: 1fr auto;
+  }
+
+  .toolbar .sheet-title {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+}
+
+.sheet-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sheet-title-text {
+  font: 600 18px Georgia, 'Times New Roman', serif;
+  white-space: nowrap;
+}
+
+.sheet-title-text.is-empty {
+  color: var(--muted);
+}
+
+/* Just the pencil: no box or fill behind it, at rest or under the pointer. */
+.sheet-title-edit,
+.sheet-title-edit:hover:not(:disabled) {
+  border: 0;
+  background: none;
+  color: var(--muted);
+}
+
+.sheet-title-edit:hover:not(:disabled) {
+  color: var(--ink);
 }
 
 .toolbar-group {
@@ -14,7 +65,7 @@
 
 /* Keep the navigation link at the far side of the toolbar. */
 .toolbar-group--end {
-  margin-left: auto;
+  justify-self: end;
 }
 
 .editing-panel {
@@ -30,6 +81,11 @@
   height: 40px;
   border-color: var(--bar);
   border-radius: 0;
+}
+
+.editing-panel .icon-button .icon {
+  width: 24px;
+  height: 24px;
 }
 
 .editing-panel .icon-button:first-child {
@@ -112,6 +168,12 @@ button.is-on {
   width: 34px;
   height: 34px;
   padding: 0;
+}
+
+/* The symbol fills all but 4.5px either side of its button. */
+.icon-button .icon {
+  width: 16px;
+  height: 16px;
 }
 
 button.link {

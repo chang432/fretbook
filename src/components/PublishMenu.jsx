@@ -9,13 +9,17 @@ const MODES = {
   delete: { label: 'Delete', busy: 'Deleting…', done: 'Deleted.', warning: 'This permanently deletes the saved sheet.' },
 }
 
-export default function PublishMenu({ anchor, mode = 'publish', note = null, defaultSlug = '', onClose, onWrite, onOpen }) {
+/**
+ * The panel under Save, Update and Delete: what is about to happen, and the
+ * button that does it. Save names the sheet after its title on the main
+ * screen, so there is nothing to type here.
+ */
+export default function PublishMenu({ anchor, mode = 'publish', note = null, slug: titleSlug = '', onClose, onWrite, onOpen }) {
   const words = MODES[mode]
-  const [name, setName] = useState(defaultSlug)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [written, setWritten] = useState(null)
-  const slug = mode === 'publish' ? name.trim() : note
+  const slug = mode === 'publish' ? titleSlug : note
   const ready = mode !== 'publish' || NOTE_NAME.test(slug)
 
   const submit = async (event) => {
@@ -38,15 +42,8 @@ export default function PublishMenu({ anchor, mode = 'publish', note = null, def
         </>
       ) : (
         <form onSubmit={submit}>
-          {mode === 'publish' && (
-            <>
-              <label className="publish-label" htmlFor="publish-name">Save as</label>
-              <div className="publish-field">
-                <input id="publish-name" className="publish-input" value={name} onChange={(event) => { setName(event.target.value.toLowerCase().replace(/\s/g, '_')); setError('') }} disabled={busy} autoFocus autoComplete="off" spellCheck={false} autoCapitalize="off" />
-              </div>
-            </>
-          )}
-          <p className="publish-hint">{words.warning ?? 'Lowercase letters and numbers only; use single underscores in place of spaces.'}</p>
+          {mode === 'publish' && <p className="publish-confirm">Save current sheet as '{slug}'?</p>}
+          {words.warning && <p className="publish-hint">{words.warning}</p>}
           <button type="submit" className={mode === 'delete' ? 'danger' : ''} disabled={busy || !ready}>{busy ? words.busy : words.label}</button>
           {error && <p className="publish-error" role="alert">{error}</p>}
         </form>

@@ -5,10 +5,10 @@ import LiveMode from './components/LiveMode.jsx'
 import MemoSection from './components/MemoSection.jsx'
 import NoteIndex from './components/NoteIndex.jsx'
 import Popover from './components/Popover.jsx'
-import PricingPopup from './components/PricingPopup.jsx'
 import PublishMenu from './components/PublishMenu.jsx'
+import SheetTitle from './components/SheetTitle.jsx'
 import TabEditorV2 from './components/TabEditorV2.jsx'
-import { PencilIcon, PresentIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
+import { ListIcon, PencilIcon, PresentIcon, SaveIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
 import {
   MARK_ZIGZAG,
   addTie,
@@ -35,7 +35,7 @@ import {
   startGroup,
   writeCell,
 } from './utils/tabV2.js'
-import { downloadFile, slugify } from './utils/files.js'
+import { downloadFile, readSheetName, slugify, writeSheetName } from './utils/files.js'
 import { HISTORY_LIMIT, nextUndoLabel, popHistory, pushHistory } from './utils/history.js'
 import { DEFAULT_BPM, MAX_BPM, MIN_BPM, clampBpm, hasSong } from './utils/live.js'
 import { deleteNote, publishNote, updateNote } from './utils/notes.js'
@@ -77,8 +77,7 @@ function loadSaved(storageKey) {
  * utils/live.js.
  */
 export default function App({ published = null, fresh = false, onOpenSheet, onNewSheet }) {
-  const { isLoaded, isSignedIn, userId, getToken, has } = useAuth()
-  const [showPricing, setShowPricing] = useState(false)
+  const { isSignedIn, userId, getToken } = useAuth()
   const storageKey = userId ? `${STORAGE_KEY}:${userId}` : null
   // Read the note, or localStorage, once and lazily, and seed the state below
   // from whichever it was. Nothing published and nothing saved means a blank
@@ -93,7 +92,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
     }
   })
   const [saved] = useState(() => published?.sheet ?? (fresh ? createSheet() : (storageKey && loadSaved(storageKey)) || createSheet()))
-  const [title, setTitle] = useState(saved.title ?? '')
+  const [title, setTitle] = useState(() => readSheetName(saved.title))
   // The note written above the staves: prose about the sheet — a tuning, a
   // capo, what to listen for. Called a memo here because "note" already means
   // a fret on a string, and a published sheet besides.
@@ -140,7 +139,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
   // The sheet as the bucket would hold it. One memo serves both the writes
   // below and the test of whether a published note has been changed at all.
   const json = useMemo(
-    () => toJson({ ...sheet, memo }, STANDARD_TUNING, title),
+    () => toJson({ ...sheet, memo }, STANDARD_TUNING, writeSheetName(title)),
     [sheet, memo, title],
   )
   const empty = useMemo(() => isEmpty(rows), [rows])
@@ -149,8 +148,10 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
   const playable = useMemo(() => hasSong(rows) && !empty, [rows, empty])
   // The published note as this page opened it, taken once and through the
   // same `toJson` an upload goes through, so the two compare byte for byte.
+  // Its title is cleaned the way the editor's is, so an old title being made
+  // to fit the naming rule does not on its own count as a change.
   const [openedAs] = useState(() =>
-    published ? toJson({ ...saved, memo: saved.memo ?? '' }, STANDARD_TUNING, saved.title ?? '') : null,
+    published ? toJson({ ...saved, memo: saved.memo ?? '' }, STANDARD_TUNING, writeSheetName(readSheetName(saved.title))) : null,
   )
   const [sentAs, setSentAs] = useState(null)
   const changed = openedAs !== null && json !== (sentAs ?? openedAs)
@@ -187,7 +188,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
     if (next.rows) setRows(next.rows)
     if (next.ties) setTies(next.ties)
     if (next.marks) setMarks(next.marks)
-    if (next.title !== undefined) setTitle(next.title)
+    if (next.title !== undefined) setTitle(readSheetName(next.title))
     if (next.memo !== undefined) setMemo(next.memo)
   }, [])
 
@@ -520,11 +521,11 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
     // own that this one is only being read in front of.
     if (published || unreadableSave || !storageKey) return
     try {
-      localStorage.setItem(storageKey, toJson({ ...sheet, memo }, STANDARD_TUNING, title))
+      localStorage.setItem(storageKey, json)
     } catch {
       // Private-mode / quota failures are not worth interrupting the user for.
     }
-  }, [published, unreadableSave, sheet, memo, title, storageKey])
+  }, [published, unreadableSave, json, storageKey])
 
   useEffect(() => {
     if (!status) return undefined
@@ -588,6 +589,8 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
   }
 
   const fileStem = slugify(title)
+  // Saving names the sheet after its title, so there has to be one.
+  const named = title.trim() !== ''
 
   /** What the Undo button would take back, or null when it would do nothing. */
   const undoing = nextUndoLabel(history)
@@ -655,69 +658,59 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
     <div className="app">
       <header className="header">
         <h1><button type="button" className="home-button" onClick={onNewSheet} title="Start a new sheet">Fretbook</button></h1>
-        <input
-          className="title-input"
-          value={title}
-          onChange={(event) => setTitle(event.target.value.toLowerCase().replace(/ /g, '_'))}
-          autoCapitalize="off"
-          placeholder="Untitled"
-          aria-label="Title"
-        />
-        {!published && isLoaded && isSignedIn && !has({ plan: 'u:plan_test' }) && (
-          <button type="button" onClick={() => setShowPricing(true)} aria-haspopup="dialog" aria-expanded={showPricing}>
-            Subscribe
-          </button>
-        )}
         <AuthControls />
       </header>
-      {showPricing && <PricingPopup onClose={() => setShowPricing(false)} />}
       <div className="toolbar">
-        <div className="toolbar-group">
-          <button
-            type="button"
-            onClick={exportJson}
-            disabled={empty}
-            aria-label="Export JSON"
-            title="Export JSON"
-          >
-            Export
-          </button>
-          <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Import JSON" title="Import JSON">
-            Import
-          </button>
-          <input ref={fileInputRef} type="file" accept="application/json,.json" className="visually-hidden" onChange={importJson} />
+        <div className="toolbar-start">
+          <div className="toolbar-group">
+            <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Import JSON" title="Import JSON">
+              Import
+            </button>
+            <button
+              type="button"
+              onClick={exportJson}
+              disabled={empty}
+              aria-label="Export JSON"
+              title="Export JSON"
+            >
+              Export
+            </button>
+            <input ref={fileInputRef} type="file" accept="application/json,.json" className="visually-hidden" onChange={importJson} />
 
-          <button
-            type="button"
-            className={`icon-button${audioOn ? ' is-on' : ''}`}
-            aria-pressed={audioOn}
-            aria-label={audioOn ? 'Sound on' : 'Sound off'}
-            onClick={toggleAudio}
-            title={audioOn ? 'Sound is on — hear each note as you press it' : 'Sound is off'}
-          >
-            <SoundIcon muted={!audioOn} />
-          </button>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={openLive}
-            disabled={!playable}
-            aria-haspopup="dialog"
-            aria-expanded={!!liveMenu}
-            aria-label="Play the sheet full screen"
-            title={
-              playable
-                ? 'Play the sheet full screen at a tempo'
-                : 'Write something on a staff to play it'
-            }
-          >
-            <PresentIcon />
-          </button>
+            <button
+              type="button"
+              className={`icon-button${audioOn ? ' is-on' : ''}`}
+              aria-pressed={audioOn}
+              aria-label={audioOn ? 'Sound on' : 'Sound off'}
+              onClick={toggleAudio}
+              title={audioOn ? 'Sound is on — hear each note as you press it' : 'Sound is off'}
+            >
+              <SoundIcon muted={!audioOn} />
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              onClick={openLive}
+              disabled={!playable}
+              aria-haspopup="dialog"
+              aria-expanded={!!liveMenu}
+              aria-label="Play the sheet full screen"
+              title={
+                playable
+                  ? 'Play the sheet full screen at a tempo'
+                  : 'Write something on a staff to play it'
+              }
+            >
+              <PresentIcon />
+            </button>
+          </div>
+
+          <span className="status" role="status">
+            {status}
+          </span>
         </div>
 
-        <span className="status" role="status">
-          {status}
-        </span>
+        <SheetTitle title={title} onChange={setTitle} />
 
         <div className="toolbar-group toolbar-group--end">
           {published ? (
@@ -758,17 +751,25 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
           ) : (
             <button
               type="button"
+              className="icon-button"
               onClick={(event) => openWrite('publish', event.currentTarget)}
-              disabled={empty || !isSignedIn}
+              disabled={empty || !isSignedIn || !named}
               aria-haspopup="dialog"
               aria-expanded={!!writeMenu}
-              title={isSignedIn ? 'Save this sheet to your library' : 'Sign in to save sheets'}
+              aria-label="Save"
+              title={
+                !isSignedIn
+                  ? 'Sign in to save sheets'
+                  : !named
+                    ? 'Give the sheet a title to save it'
+                    : 'Save this sheet to your library'
+              }
             >
-              Save
+              <SaveIcon />
             </button>
           )}
-          <button type="button" onClick={(event) => setSheetPicker(sheetPicker ? null : event.currentTarget)} aria-haspopup="dialog" aria-expanded={!!sheetPicker}>
-            Sheets
+          <button type="button" className="icon-button" onClick={(event) => setSheetPicker(sheetPicker ? null : event.currentTarget)} aria-haspopup="dialog" aria-expanded={!!sheetPicker} aria-label="Sheets" title="Your saved sheets">
+            <ListIcon />
           </button>
         </div>
       </div>
@@ -848,7 +849,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
           anchor={writeMenu.anchor}
           mode={writeMenu.mode}
           note={published?.slug ?? null}
-          defaultSlug={fileStem}
+          slug={fileStem}
           onClose={() => setWriteMenu(null)}
           onWrite={writeSheet}
           onOpen={onOpenSheet}
