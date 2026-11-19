@@ -10,8 +10,8 @@ body {
   background: var(--page);
   color: var(--ink);
   font: 16px/1.5 var(--font);
-  /* Anta has a single 400 weight. Rules that ask for 600 get that face
-     as it is, rather than a bold the browser fakes by thickening it. */
+  /* Only the 400 weight of each typeface is loaded. Rules that ask for 600
+     get that face as it is, rather than a bold the browser fakes by thickening it. */
   font-synthesis: none;
 }
 
