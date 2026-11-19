@@ -10,7 +10,7 @@ body {
   background: var(--page);
   color: var(--ink);
   font: 16px/1.5 var(--font);
-  /* Audiowide has a single 400 weight. Rules that ask for 600 get that face
+  /* Anta has a single 400 weight. Rules that ask for 600 get that face
      as it is, rather than a bold the browser fakes by thickening it. */
   font-synthesis: none;
 }
