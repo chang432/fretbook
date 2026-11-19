@@ -81,7 +81,6 @@
   height: 40px;
   /* Twice the usual button's border, so the pinned pair stands off the page. */
   border-width: 2px;
-  border-color: var(--bar);
   border-radius: 0;
 }
 
@@ -113,7 +112,8 @@
 button,
 .button-link {
   padding: 7px 12px;
-  border: 1px solid var(--bar);
+  /* Black, the one edge colour for every button that has an edge. */
+  border: 1px solid #000;
   border-radius: 8px;
   background: var(--button);
   color: var(--ink);
