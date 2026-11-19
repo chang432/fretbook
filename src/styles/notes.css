@@ -19,7 +19,7 @@
   margin: 12px 0 0;
   padding: 0;
   list-style: none;
-  border-top: 1px solid var(--bar);
+  border-top: 1px solid var(--separator);
 }
 
 .note-list-link {
@@ -31,7 +31,7 @@
   justify-content: space-between;
   padding: 12px 4px;
   border: 0;
-  border-bottom: 1px solid var(--bar);
+  border-bottom: 1px solid var(--separator);
   border-radius: 0;
   background: transparent;
   color: inherit;

@@ -6,7 +6,7 @@
   flex-direction: column;
   align-items: flex-start;
   padding: 10px 0;
-  border-top: 1px solid var(--bar);
+  border-top: 1px solid var(--separator);
 }
 
 /* The heading is the control: the whole line folds the note away and brings
