@@ -33,7 +33,7 @@
    is open, which is the one place the state is drawn. */
 .memo-caret {
   display: inline-block;
-  font: 400 12px/1 ui-monospace, Menlo, monospace;
+  font: 400 12px/1 var(--font);
   transition: transform 0.12s ease-out;
 }
 
@@ -44,7 +44,7 @@
 /* Set like the Groups label beside it, so the two read as one pair of
    headings rather than as two different kinds of thing. */
 .memo-heading {
-  font: 600 10px/1 ui-monospace, Menlo, monospace;
+  font: 600 10px/1 var(--font);
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }

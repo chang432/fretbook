@@ -38,7 +38,7 @@
 }
 
 .sheet-title-text {
-  font: 600 18px Georgia, 'Times New Roman', serif;
+  font: 600 18px var(--font);
   white-space: nowrap;
 }
 

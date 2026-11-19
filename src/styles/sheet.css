@@ -27,7 +27,7 @@
   border-radius: 10px;
   background: none;
   color: var(--muted);
-  font: 600 14px Georgia, 'Times New Roman', serif;
+  font: 600 14px var(--font);
   cursor: pointer;
 }
 

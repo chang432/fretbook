@@ -173,7 +173,7 @@
   border-radius: 4px;
   background: var(--paper);
   color: var(--ink);
-  font: 600 17px/1 Georgia, 'Times New Roman', serif;
+  font: 600 17px/1 var(--font);
   text-align: center;
   caret-color: var(--accent);
   pointer-events: auto;
@@ -253,7 +253,7 @@
   background-image: none;
   padding: 2px 2px 0 0;
   text-align: center;
-  font: 600 11px/1 ui-monospace, Menlo, monospace;
+  font: 600 11px/1 var(--font);
   letter-spacing: -0.5px;
 }
 
@@ -337,7 +337,7 @@
   border-radius: 50%;
   background-color: var(--paper);
   background-image: none;
-  font: 600 15px/1 Georgia, 'Times New Roman', serif;
+  font: 600 15px/1 var(--font);
 }
 
 .group-ref-toggle {
@@ -391,7 +391,7 @@
   border: var(--group-bar-w) solid var(--ink);
   border-radius: 50%;
   background: var(--paper);
-  font: 600 15px/1 Georgia, 'Times New Roman', serif;
+  font: 600 15px/1 var(--font);
 }
 
 .ref-expanded-collapse {
@@ -415,7 +415,7 @@
   height: calc(var(--row-h) + var(--string-w));
   border: var(--group-bar-w) solid var(--ink);
   background: var(--paper);
-  font: 600 11px/1 ui-monospace, Menlo, monospace;
+  font: 600 11px/1 var(--font);
   pointer-events: none;
 }
 
@@ -454,6 +454,6 @@
   background-image: none;
   padding: 2px 2px 0 0;
   text-align: center;
-  font: 600 11px/1 ui-monospace, Menlo, monospace;
+  font: 600 11px/1 var(--font);
   letter-spacing: -0.5px;
 }

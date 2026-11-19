@@ -4,6 +4,8 @@
  * is defined by the width of its input cell alone.
  */
 :root {
+  /* The one typeface for all text. Loaded in index.html. */
+  --font: 'Audiowide', sans-serif;
   --cell-w: 36px;
   --row-h: 34px;
   /* How thick a string is drawn, whether as one line across a row or as a
