@@ -2,10 +2,12 @@
 /* The shell every anchored panel shares: fixed, so no scroll container can
    clip it. Placement is set inline — see utils/popover.js, which keeps it
    inside the window rather than centred half off the edge on a narrow screen.
-   The max-width is the last resort for a window narrower than the panel. */
+   The max-width is the last resort for a window narrower than the panel.
+   Layered over the pinned editing panel (30), since an open panel is what the
+   reader is using, and under the full-screen player (50). */
 .popover {
   position: fixed;
-  z-index: 20;
+  z-index: 40;
   max-width: calc(100vw - 16px);
   border: 1px solid var(--bar);
   border-radius: 10px;
