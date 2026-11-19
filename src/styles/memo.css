@@ -59,12 +59,13 @@
   text-overflow: ellipsis;
 }
 
-/* Indented past the string labels, so the note starts where the bars and the
-   group slots start. Grows downwards by hand when a few lines are not enough,
-   and never sideways: the sheet's own width is the line length. */
+/* Flush left under its heading, the sheet's full width. The top margin
+   doubles the few pixels the heading's own line leaves above the box. Grows
+   downwards by hand when a few lines are not enough, and never sideways: the
+   sheet's own width is the line length. */
 .memo-input {
-  width: calc(100% - var(--label-w));
-  margin-left: var(--label-w);
+  width: 100%;
+  margin-top: 4px;
   padding: 6px 8px;
   border: 1px solid var(--bar);
   border-radius: 8px;
