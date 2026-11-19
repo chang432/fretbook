@@ -10,8 +10,9 @@ body {
   background: var(--page);
   color: var(--ink);
   font: 16px/1.5 var(--font);
-  /* Only the 400 weight of each typeface is loaded. Rules that ask for 600
-     get that face as it is, rather than a bold the browser fakes by thickening it. */
+  /* One weight of each typeface is loaded: Anta 400, Fira Sans 500. Rules
+     that ask for more get that face as it is, rather than a bold the browser
+     fakes by thickening it. */
   font-synthesis: none;
 }
 

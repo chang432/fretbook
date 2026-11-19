@@ -84,7 +84,7 @@
   border: 0;
   background: transparent;
   color: var(--ink);
-  font: 600 17px/1 var(--staff-font);
+  font: 500 17px/1 var(--staff-font);
   text-align: center;
   caret-color: var(--accent);
 }

@@ -153,7 +153,7 @@ export function renderTabToCanvas({ rows, ties, marks }, tuning, title, scale = 
       ctx.stroke()
 
       ctx.fillStyle = COLORS.label
-      ctx.font = '600 14px "Fira Sans", sans-serif'
+      ctx.font = '500 14px "Fira Sans", sans-serif'
       ctx.textAlign = 'right'
       ctx.textBaseline = 'middle'
       ctx.fillText(tuning[stringIndex], gridLeft - 10, y)
@@ -174,7 +174,7 @@ export function renderTabToCanvas({ rows, ties, marks }, tuning, title, scale = 
         ctx.fill()
 
         ctx.fillStyle = COLORS.ink
-        ctx.font = '600 17px "Fira Sans", sans-serif'
+        ctx.font = '500 17px "Fira Sans", sans-serif'
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillText(value, cx, y + 1)
