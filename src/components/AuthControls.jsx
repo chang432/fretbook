@@ -1,16 +1,16 @@
-import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/react'
+import { Show, SignInButton, UserButton } from '@clerk/react'
 
-/** Sign in and sign up while signed out; the account menu once signed in. */
+/**
+ * Login while signed out; the account menu once signed in. There is no
+ * separate sign-up button: Clerk's login modal links to sign-up itself.
+ */
 export default function AuthControls() {
   return (
     <div className="auth-controls">
       <Show when="signed-out">
         <SignInButton mode="modal">
-          <button type="button">Sign in</button>
+          <button type="button">Login</button>
         </SignInButton>
-        <SignUpButton mode="modal">
-          <button type="button">Sign up</button>
-        </SignUpButton>
       </Show>
       <Show when="signed-in">
         <UserButton />
