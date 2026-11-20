@@ -10,7 +10,7 @@
   /* The same 4px inset as .note-list-link, so the heading starts on the
      sheet names' left edge. */
   padding: 0 4px;
-  font: 600 32px var(--font);
+  font: 600 25.6px var(--font);
 }
 
 .note-shell-text {
