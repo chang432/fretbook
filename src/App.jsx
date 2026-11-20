@@ -757,7 +757,9 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
               type="button"
               className="icon-button"
               onClick={(event) => (isSignedIn ? openWrite('publish', event.currentTarget) : openSignIn())}
-              disabled={isSignedIn && (empty || !named)}
+              // An empty sheet has nothing to save, logged in or not; a title is
+              // only needed once the save itself is offered.
+              disabled={empty || (isSignedIn && !named)}
               aria-haspopup="dialog"
               aria-expanded={!!writeMenu}
               aria-label="Save"
