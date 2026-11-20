@@ -43,4 +43,9 @@
 }
 
 .note-list-link:hover { background: var(--paper); }
+/* Under the list, whatever it holds — even none, or signed out. */
+.note-list-new {
+  margin-top: 16px;
+}
+
 .note-list-slug { font: 400 17px var(--font); }

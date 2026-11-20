@@ -4,8 +4,8 @@ import Popover from './Popover.jsx'
 import { fetchManifest } from '../utils/notes.js'
 import { followSheetLink, sheetPath } from '../utils/route.js'
 
-/** Browse saved sheets from the editor. */
-export default function NoteIndex({ anchor, onClose, onOpen }) {
+/** Browse saved sheets from the editor, or leave them for a blank one. */
+export default function NoteIndex({ anchor, onClose, onOpen, onNew }) {
   const { isSignedIn, getToken } = useAuth()
   const [notes, setNotes] = useState(null)
   const [error, setError] = useState('')
@@ -37,6 +37,9 @@ export default function NoteIndex({ anchor, onClose, onOpen }) {
           ))}
         </ul>
       )}
+      <button type="button" className="note-list-new" onClick={onNew}>
+        + New sheet
+      </button>
     </Popover>
   )
 }

@@ -842,7 +842,13 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
       )}
 
       {sheetPicker && (
-        <NoteIndex anchor={sheetPicker} onClose={() => setSheetPicker(null)} onOpen={(slug) => { setSheetPicker(null); onOpenSheet(slug) }} />
+        <NoteIndex
+          anchor={sheetPicker}
+          onClose={() => setSheetPicker(null)}
+          onOpen={(slug) => { setSheetPicker(null); onOpenSheet(slug) }}
+          // The same blank sheet the Fretbook wordmark starts.
+          onNew={() => { setSheetPicker(null); onNewSheet() }}
+        />
       )}
 
       {writeMenu && (
