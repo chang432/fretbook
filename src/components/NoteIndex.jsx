@@ -24,7 +24,6 @@ export default function NoteIndex({ anchor, onClose, onOpen, onNew }) {
       <h2>Saved sheets</h2>
       {isSignedIn && !error && notes === null && <p className="note-shell-text">Loading…</p>}
       {error && <p role="alert">{error}</p>}
-      {!isSignedIn && <p className="note-shell-text">Sign in to see your saved sheets.</p>}
       {notes?.length === 0 && <p className="note-shell-text">No saved sheets yet.</p>}
       {notes?.length > 0 && (
         <ul className="note-list">

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useAuth } from '@clerk/react'
+import { useAuth, useClerk } from '@clerk/react'
 import AuthControls from './components/AuthControls.jsx'
 import LiveMode from './components/LiveMode.jsx'
 import MemoSection from './components/MemoSection.jsx'
@@ -78,6 +78,9 @@ function loadSaved(storageKey) {
  */
 export default function App({ published = null, fresh = false, onOpenSheet, onNewSheet }) {
   const { isSignedIn, userId, getToken } = useAuth()
+  // Save and the sheet list both need an account, so signed out they open the
+  // same login modal as the Login button rather than their own panels.
+  const { openSignIn } = useClerk()
   const storageKey = userId ? `${STORAGE_KEY}:${userId}` : null
   // Read the note, or localStorage, once and lazily, and seed the state below
   // from whichever it was. Nothing published and nothing saved means a blank
@@ -753,14 +756,14 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
             <button
               type="button"
               className="icon-button"
-              onClick={(event) => openWrite('publish', event.currentTarget)}
-              disabled={empty || !isSignedIn || !named}
+              onClick={(event) => (isSignedIn ? openWrite('publish', event.currentTarget) : openSignIn())}
+              disabled={isSignedIn && (empty || !named)}
               aria-haspopup="dialog"
               aria-expanded={!!writeMenu}
               aria-label="Save"
               title={
                 !isSignedIn
-                  ? 'Sign in to save sheets'
+                  ? 'Log in to save sheets'
                   : !named
                     ? 'Give the sheet a title to save it'
                     : 'Save this sheet to your library'
@@ -769,7 +772,15 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
               <SaveIcon />
             </button>
           )}
-          <button type="button" className="icon-button" onClick={(event) => setSheetPicker(sheetPicker ? null : event.currentTarget)} aria-haspopup="dialog" aria-expanded={!!sheetPicker} aria-label="Sheets" title="Your saved sheets">
+          <button
+            type="button"
+            className="icon-button"
+            onClick={(event) => (isSignedIn ? setSheetPicker(sheetPicker ? null : event.currentTarget) : openSignIn())}
+            aria-haspopup="dialog"
+            aria-expanded={!!sheetPicker}
+            aria-label="Sheets"
+            title={isSignedIn ? 'Your saved sheets' : 'Log in to see your saved sheets'}
+          >
             <ListIcon />
           </button>
         </div>
