@@ -12,7 +12,7 @@ body {
   /* Medium is the app's default weight; 400 is kept for the few places that
      ask for it by name. */
   font: 500 16px/1.5 var(--font);
-  /* Loaded weights: Anta 400, Fira Sans 400 and 500. Rules that ask for more
+  /* Loaded weights: Fira Sans 400 and 500, Mukta 200–800. Rules that ask for more
      get the heaviest of those as it is, rather than a bold the browser fakes
      by thickening it. */
   font-synthesis: none;
@@ -63,9 +63,11 @@ h1 {
   background: transparent;
   color: inherit;
   font: inherit;
-  /* The wordmark: the one place Anta is used, at 1.5× the heading's size. */
+  /* The wordmark: the one place Mukta is used, extra bold, at 1.5× the
+     heading's size. */
   font-family: var(--logo-font);
   font-size: 1.5em;
+  font-weight: 800;
   letter-spacing: inherit;
   cursor: pointer;
 }

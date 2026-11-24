@@ -6,9 +6,9 @@
 :root {
   /* Two typefaces, both loaded in index.html: Fira Sans for all text —
      medium (500) by default, regular (400) where a rule asks for it — and
-     Anta for the Fretbook wordmark alone. */
+     Mukta (800, extra bold) for the Fretbook wordmark alone. */
   --font: 'Fira Sans', sans-serif;
-  --logo-font: 'Anta', sans-serif;
+  --logo-font: 'Mukta', sans-serif;
   --cell-w: 36px;
   --row-h: 34px;
   /* How thick a string is drawn, whether as one line across a row or as a
