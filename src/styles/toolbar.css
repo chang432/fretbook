@@ -58,6 +58,13 @@
   color: var(--ink);
 }
 
+/* The flex row centres the boxes, but a lowercase title's letters sit a
+   little below its box's middle. 1px down puts the pencil level with the
+   middle of the lowercase letters (measured: 0.7px off without it). */
+.sheet-title-edit .icon {
+  transform: translateY(1px);
+}
+
 .toolbar-group {
   display: flex;
   gap: 8px;
@@ -79,8 +86,9 @@
 .editing-panel .icon-button {
   width: 40px;
   height: 40px;
-  /* Twice the usual button's border, so the pinned pair stands off the page. */
-  border-width: 2px;
+  /* The only buttons with an edge: a 2px black one, so the pinned pair
+     stands off the page. */
+  border: 2px solid #000;
   border-radius: 0;
 }
 
@@ -112,8 +120,9 @@
 button,
 .button-link {
   padding: 7px 12px;
-  /* Black, the one edge colour for every button that has an edge. */
-  border: 1px solid #000;
+  /* No edge: the fill alone marks a button. The bottom-left pair is the one
+     exception — see .editing-panel. */
+  border: 0;
   border-radius: 8px;
   background: var(--button);
   color: var(--ink);
