@@ -49,9 +49,14 @@ export default function Tutorial({ onClose }) {
 
   return (
     // The backdrop catches every click, so the page under the cut-out is shown
-    // but can't be used mid-tour. When there is a cut-out, its huge shadow does
-    // the dimming instead of the backdrop.
-    <div className={`tutorial-backdrop${placement ? ` has-spotlight popup-${placement.side}` : ''}`}>
+    // but can't be used mid-tour; a click anywhere on it, cut-out included,
+    // ends the tutorial. Clicks inside the popup don't reach it as the target.
+    // When there is a cut-out, its huge shadow does the dimming instead of the
+    // backdrop.
+    <div
+      className={`tutorial-backdrop${placement ? ` has-spotlight popup-${placement.side}` : ''}`}
+      onClick={(event) => { if (event.target === event.currentTarget) onClose() }}
+    >
       {spotlight && <div className="tutorial-spotlight" style={spotlight} aria-hidden="true" />}
       <section
         className={`tutorial-popup${step.images ? ' tutorial-popup--wide' : ''}`}
