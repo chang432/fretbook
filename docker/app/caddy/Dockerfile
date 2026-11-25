@@ -9,10 +9,17 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Nothing environment-specific is baked in: the app reads its published notes
-# from its own origin, through the backend, so this image is the same for dev
-# and for production. Which bucket it serves is the backend's runtime setting
+# The app reads its published notes from its own origin, through the backend,
+# so which bucket it serves is the backend's runtime setting
 # (FRETBOOK_NOTES_BUCKET), not a build arg. See docs/notes-via-s3-client.md.
+#
+# The one thing baked in is the Clerk publishable key: Vite inlines VITE_*
+# variables at build time, and .env.local never reaches this stage because
+# .dockerignore drops *.local. It is a public key, so a build arg is fine.
+# Failing here beats shipping a bundle that throws on load.
+ARG VITE_CLERK_PUBLISHABLE_KEY
+ENV VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY}
+RUN test -n "$VITE_CLERK_PUBLISHABLE_KEY" || { echo 'VITE_CLERK_PUBLISHABLE_KEY build arg is empty; set it in docker/app/.env' >&2; exit 1; }
 
 COPY . .
 RUN npm run build

@@ -1,0 +1,73 @@
+/*
+ * Layout note: the staff is built on a fixed 36px column pitch. The strings
+ * are drawn as horizontal rules and nothing is ruled vertically, so a column
+ * is defined by the width of its input cell alone.
+ */
+:root {
+  /* Two typefaces, both loaded in index.html: Fira Sans for all text,
+     at medium (500) throughout, and
+     Mukta (800, extra bold) for the Fretbook wordmark alone. */
+  --font: 'Fira Sans', sans-serif;
+  --logo-font: 'Mukta', sans-serif;
+  --cell-w: 36px;
+  --row-h: 34px;
+  /* How thick a string is drawn, whether as one line across a row or as a
+     segment per cell. */
+  --string-w: 2px;
+
+  /* The column of string letters down the left of a row. Everything written
+     on the sheet starts after it — the bars, and the group strip above them —
+     so both read it from here rather than each keeping its own copy. */
+  --label-w: 30px;
+
+  /* Space above and below a staff inside its section. Has to clear the symbols
+     that sit over the top string, which the row's scroll container would
+     otherwise cut off. */
+  --staff-air: 14px;
+
+  /* One strip of per-position controls above a staff — the shift anchors, or
+     the range copy's circles and paste buttons. Each one standing pushes the
+     strings down by exactly this much. */
+  --strip-h: 22px;
+
+  --paper: #fbf8f1;
+  /* The fill of every button that has one; inputs and panels stay paper. */
+  --button: #FFE9D8;
+  --page: #fff7ed;
+  --ink: #16202b;
+  --string: #2f3a45;
+  --bar: #b9c2cc;
+  /* The rules that divide one section from the next. */
+  --separator: #857e74;
+  --barline: #a3aeb9;
+  --muted: #7d8894;
+  --accent: #a8492f;
+
+  /* One tone per group, taken in turn as groups are made — see `groupTone`
+     in TabEditor. Each is dark enough to carry paper-coloured text on a
+     group's bar, and distinct enough from its neighbours to tell two groups
+     apart at a glance down the spines. */
+  --group-1: #a8492f;
+  --group-2: #3f6d5a;
+  --group-3: #3c5b85;
+  --group-4: #8a6a2f;
+
+  /* The spine down the left of a group's rows, and how far past it those rows
+     are indented. The bar above and the spine below share the width, so the
+     two meet as one bracket. */
+  --spine-w: 6px;
+  --group-indent: 14px;
+
+  /* Edit mode's marking. Only what the mode can act on carries these — the
+     rows it picks up, the places it drops them, the strips it copies with,
+     and the bin — so what is doable while the mode is on is told from what
+     is merely still on the page by the wash and the dashed line, with no
+     need to try a press to find out. Three weights: at rest, under the
+     pointer, and held. */
+  --edit-wash: rgb(168 73 47 / 5%);
+  --edit-wash-hover: rgb(168 73 47 / 10%);
+  --edit-wash-held: rgb(168 73 47 / 16%);
+  --edit-line: rgb(168 73 47 / 45%);
+
+  color-scheme: light;
+}

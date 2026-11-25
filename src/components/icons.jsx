@@ -99,6 +99,63 @@ export function RewindIcon({ width = 16, height = 16 }) {
 }
 
 /**
+ * A caret and a plus: one more position, on the side the caret points to.
+ * The caret is on the outside and the plus beside it — `<+` for the one
+ * that goes in before, `+>` for the one that goes in after — so each
+ * points away from the position the button came up over, which is the way
+ * the row opens.
+ */
+export function AddColumnIcon({ before = true, width = 20, height = 16 }) {
+  // One drawing mirrored about the middle, so the pair cannot drift apart.
+  const tip = before ? 4 : 16
+  const shoulder = before ? 8 : 12
+  const plus = before ? 14 : 6
+
+  return (
+    <svg className="icon" width={width} height={height} viewBox="0 0 20 16" aria-hidden="true">
+      <path d={`M ${shoulder} 4 L ${tip} 8 L ${shoulder} 12`} />
+      <path d={`M ${plus - 3} 8 H ${plus + 3}`} />
+      <path d={`M ${plus} 5 V 11`} />
+    </svg>
+  )
+}
+
+/** A cross: the position under it taken off the row altogether. */
+export function CrossIcon({ width = 16, height = 16 }) {
+  return (
+    <svg className="icon" width={width} height={height} viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M 3.8 3.8 L 12.2 12.2" />
+      <path d="M 12.2 3.8 L 3.8 12.2" />
+    </svg>
+  )
+}
+
+/**
+ * The mark that opens a group, drawn small: the bar, and the two
+ * half-arrows that come off it pointing in over what the group holds. The
+ * button wears the thing it makes, so what it does needs no explaining.
+ */
+export function GroupStartIcon({ width = 16, height = 16 }) {
+  return (
+    <svg className="icon" width={width} height={height} viewBox="0 0 16 16" aria-hidden="true">
+      <path className="solid" d="M 2.2 2 H 4.6 V 14 H 2.2 Z" />
+      <path className="solid" d="M 4.6 2 H 11 L 4.6 6.6 Z" />
+      <path className="solid" d="M 4.6 14 H 11 L 4.6 9.4 Z" />
+    </svg>
+  )
+}
+
+/** Both group ends facing inward, as on a group reference in the staff. */
+export function GroupReferenceIcon({ width = 16, height = 16 }) {
+  return (
+    <svg className="icon" width={width} height={height} viewBox="0 0 16 16" aria-hidden="true">
+      <path className="solid" d="M 1.5 2 H 3.5 V 14 H 1.5 Z M 12.5 2 H 14.5 V 14 H 12.5 Z" />
+      <path className="solid" d="M 3.5 2 H 7 L 3.5 5.5 Z M 12.5 2 H 9 L 12.5 5.5 Z M 3.5 14 H 7 L 3.5 10.5 Z M 12.5 14 H 9 L 12.5 10.5 Z" />
+    </svg>
+  )
+}
+
+/**
  * A waste bin: the button in edit mode that takes a whole row off the sheet.
  * Drawn rather than written as a ×, which already closes the shift arrows one
  * column over, and a row going is not the same as a panel closing.
@@ -125,6 +182,31 @@ export function UndoIcon() {
     <svg className="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
       <path d="M 2.8 5.6 H 9.2 A 3.7 3.7 0 0 1 9.2 13 H 5.2" />
       <path d="M 5.8 2.6 L 2.8 5.6 L 5.8 8.6" />
+    </svg>
+  )
+}
+
+/** A bulleted list: the library of saved sheets to pick from. */
+export function ListIcon() {
+  return (
+    <svg className="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M 6 4 H 13.5" />
+      <path d="M 6 8 H 13.5" />
+      <path d="M 6 12 H 13.5" />
+      <path className="solid" d="M 2.4 4 A 0.9 0.9 0 1 0 4.2 4 A 0.9 0.9 0 1 0 2.4 4 Z" />
+      <path className="solid" d="M 2.4 8 A 0.9 0.9 0 1 0 4.2 8 A 0.9 0.9 0 1 0 2.4 8 Z" />
+      <path className="solid" d="M 2.4 12 A 0.9 0.9 0 1 0 4.2 12 A 0.9 0.9 0 1 0 2.4 12 Z" />
+    </svg>
+  )
+}
+
+/** A floppy disk: the sheet kept in the library. */
+export function SaveIcon() {
+  return (
+    <svg className="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M 2.5 3.5 A 1 1 0 0 1 3.5 2.5 H 11 L 13.5 5 V 12.5 A 1 1 0 0 1 12.5 13.5 H 3.5 A 1 1 0 0 1 2.5 12.5 Z" />
+      <path d="M 5 2.5 V 5.5 H 10 V 2.5" />
+      <rect x="4.8" y="8.6" width="6.4" height="4.9" rx="0.6" />
     </svg>
   )
 }

@@ -60,7 +60,8 @@ import { fileURLToPath } from 'node:url'
 
 // The parser the app itself imports notes with, so what passes here is exactly
 // what will open in the editor.
-import { NOTE_NAME, fromJson } from '../src/utils/tab.js'
+import { NOTE_NAME, SAVED_NOTE_NAME } from '../src/utils/files.js'
+import { fromJson } from '../src/utils/sheet.js'
 
 /** Prefix the notes sit under, leaving the manifest's name free for a note. */
 const PREFIX = 'notes'
@@ -166,8 +167,8 @@ function slugOf(file) {
     // separators rather than about a character set.
     return {
       error:
-        `${file}: a note's name is its URL — lowercase letters and digits, ` +
-        `joined by single dashes or underscores (${NOTE_NAME.source})`,
+        `${file}: a note's name is its URL — letters and digits, ` +
+        `joined by single underscores (${NOTE_NAME.source})`,
     }
   }
 
@@ -239,7 +240,7 @@ function putObject(bucket, key, file, cacheControl) {
 /** The slug a note's key stands for, or null if that key is not a note's. */
 function slugOfKey(key) {
   const slug = key.slice(`${PREFIX}/`.length, -'.json'.length)
-  return NOTE_NAME.test(slug) ? slug : null
+  return SAVED_NOTE_NAME.test(slug) ? slug : null
 }
 
 /**
@@ -367,7 +368,7 @@ function publish(bucket, files) {
     }
 
     if (!fromJson(text)) {
-      errors.push(`${file}: not a Fretboard Notebook export the editor can open`)
+      errors.push(`${file}: not a Fretbook export the editor can open`)
       continue
     }
 
@@ -413,7 +414,7 @@ function unpublish(bucket, slugs) {
   for (const slug of slugs) {
     // Names, not paths: a note is named by its slug everywhere else, and
     // accepting notes/x.json here would invite notes/notes/x.json.
-    if (!NOTE_NAME.test(slug)) die(`${slug} is not a note name (${NOTE_NAME.source})`)
+    if (!SAVED_NOTE_NAME.test(slug)) die(`${slug} is not a note name (${NOTE_NAME.source})`)
   }
 
   for (const slug of slugs) {

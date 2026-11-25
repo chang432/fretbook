@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { MAX_MEMO } from '../utils/tab.js'
+import { MAX_MEMO } from '../utils/sheet.js'
 
 /**
  * The sheet's written note, above the running order: a paragraph for what the

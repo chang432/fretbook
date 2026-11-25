@@ -1,0 +1,194 @@
+/* The controls a row carries: the buttons past the end of it — shift, add
+   and remove a bar, and edit mode's bin — and the strips of per-position
+   circles and paste buttons that stand above its strings. */
+
+/* One column of controls at the end of the staff — shift the row's notes, then
+   add and remove a bar, or edit mode's single bin in place of all three. It
+   stands inside the scroller, past the end of the strings, so it travels
+   with the row it acts on: a row too long for the sheet carries it off the
+   right, and the scroll that reaches the last bar reaches it.
+
+   The staff's own air is given back either side, so the buttons neither sit
+   flush against the strings nor end flush with the scroll. */
+.row-bars {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 0 var(--staff-air);
+}
+
+.bar-button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  font: 500 20px/1 var(--font);
+}
+
+.bar-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Puts the shift arrows away. Ringed in the accent so the way out of the
+   errand is obvious among the arrows it sits beside, rather than reading as a
+   third thing to press inside it. */
+.bar-button--close {
+  font-size: 15px;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.bar-button--close:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* The same column while the order is being edited, holding the one button it
+   has then. The press-sheet over the row is laid at z-index 5 and would
+   otherwise swallow it, so this stands above it — the only part of the row
+   that is still its own thing to press while the order is being edited. */
+.row-bars--edit {
+  position: relative;
+  z-index: 6;
+}
+
+/* Takes the whole row off the sheet. The only bar button holding a drawn
+   symbol rather than a typed one: `.icon` is a block, which a button centres
+   no more than it would a paragraph, so this one is laid out like the
+   toolbar's icon buttons instead. */
+.bar-button--delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The mode's marking, in the same dashed line as the row it stands at the end
+   of — and only there, because this button exists only in edit mode. */
+.row-bars--edit .bar-button--delete:not(:disabled) {
+  border-style: dashed;
+  border-color: var(--edit-line);
+  background: var(--edit-wash);
+  color: var(--accent);
+}
+
+/* Filled only under the pointer: the bin stands at the end of every row at
+   once, and a column of red buttons would read as a warning about the sheet
+   rather than as something to press — which is why its resting state is the
+   mode's quiet marking above and not this. */
+.bar-button--delete:hover:not(:disabled) {
+  /* Solid, over the dashed line it carries at rest: the dashes are the offer,
+     the fill is the press about to happen. */
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Armed: the next press deletes written notes, so it says so in the toolbar's
+   status line and looks like the Clear button while it waits. */
+.bar-button.is-armed,
+.bar-button.is-armed:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+/* One control per position, on the same column pitch as the staff below it, so
+   each sits over the position it acts on. Shared by the shift anchors and by
+   edit mode's range circles and paste buttons.
+
+   Above the press-sheet that edit mode lays over the row: the band a strip
+   stands in is the strip's, and only what is actually drawn in it takes a
+   press — the strip is as wide as its own staff, so the rest of the line
+   falls through to the row underneath, which picks the row up. */
+.position-strip {
+  position: relative;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  width: max-content;
+  height: var(--strip-h);
+}
+
+/* Edit mode's two strips, washed as a band so the row of circles and the row
+   of paste buttons read as the mode's own controls sitting over the staff
+   rather than as part of it. The shift anchors use the same geometry and are
+   deliberately left plain: they belong to the sheet, not to this mode. */
+.range-strip,
+.paste-strip {
+  background: var(--edit-wash);
+  border-radius: 3px;
+}
+
+.position-cell {
+  position: relative;
+  width: var(--cell-w);
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+/* The circle glyph, drawn on the cells that mark a position rather than act on
+   it — the shift anchors, and the range copy's two ends. */
+.position-dot::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 11px;
+  height: 11px;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--barline);
+  border-radius: 50%;
+  background: var(--paper);
+}
+
+.position-dot:hover::before {
+  border-color: var(--accent);
+}
+
+/* The one chosen: a shift's anchor, or either end of a copied stretch. */
+.position-dot.is-selected::before {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+/* The positions carried along with it — everything right of a shift anchor, or
+   everything between the two ends of a stretch. The same colour, weaker, so
+   the chosen ones still read as the ones that were pressed. */
+.position-dot.is-span::before {
+  border-color: var(--accent);
+  background: rgb(168 73 47 / 28%);
+}
+
+/* One paste button per position, under the circles. Quiet until the stretch it
+   would write is ready, so the strip does not read as a row of live buttons
+   before there is anything to paste. */
+.paste-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  border-radius: 4px;
+}
+
+.paste-button:disabled {
+  opacity: 0.25;
+}
+
+.paste-button:not(:disabled):hover {
+  color: var(--accent);
+  background: rgb(168 73 47 / 12%);
+}
+
+/* Armed: the stretch would write over notes, and the next press goes through. */
+.paste-button.is-armed {
+  color: var(--paper);
+  background: var(--accent);
+}

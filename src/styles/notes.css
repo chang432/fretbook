@@ -1,0 +1,51 @@
+/* The saved-sheet picker stays usable even when the list is long. */
+.sheet-picker {
+  box-sizing: border-box;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.sheet-picker h2 {
+  margin: 0 0 12px;
+  /* The same 4px inset as .note-list-link, so the heading starts on the
+     sheet names' left edge. */
+  padding: 0 4px;
+  font: 600 25.6px var(--font);
+}
+
+.note-shell-text {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.note-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--separator);
+}
+
+.note-list-link {
+  display: flex;
+  width: 100%;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 12px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--separator);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+}
+
+.note-list-link:hover { background: var(--paper); }
+/* Under the list, whatever it holds — even none, or signed out. */
+.note-list-new {
+  margin-top: 16px;
+}
+
+.note-list-slug { font: 500 17px var(--font); }

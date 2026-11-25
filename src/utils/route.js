@@ -1,67 +1,16 @@
-/**
- * The three addresses the site answers on. Small enough to do by hand: there
- * is no nesting, no parameters beyond a note's name, and nothing to match
- * against that a regex does not already say.
- *
- *   /                 the editor — one sheet, kept in this browser
- *   /notes            the published notes, listed
- *   /notes/<name>     one published note, fetched from the bucket
- *
- * These are addresses in the app, not files: the server serves index.html for
- * all three (see docker/app/caddy/Caddyfile), so a deep link and a press
- * inside the app arrive at the same place. Where a note is actually read from
- * is utils/notes.js's business.
- */
-import { useEffect, useState } from 'react'
-import { NOTE_NAME } from './tab.js'
+import { SAVED_NOTE_NAME } from './files.js'
 
-/** Where the published notes are listed. */
-export const NOTES_PATH = '/notes'
+export const sheetPath = (slug) => `/sheets/${slug}`
 
-/** The address one note is read at, and the link that opens it. */
-export const notePath = (slug) => `${NOTES_PATH}/${slug}`
-
-/**
- * What a path asks for. Anything unrecognised is the editor rather than a
- * not-found page: the editor is the site, and a stale or mistyped link is
- * better answered with it than with an apology.
- */
-export function readRoute(pathname = window.location.pathname) {
-  // Trailing slashes are the same address; '/notes/' lists, it does not ask
-  // for a note called ''.
-  const path = pathname.replace(/\/+$/, '') || '/'
-  if (path === NOTES_PATH) return { name: 'index' }
-
-  if (path.startsWith(`${NOTES_PATH}/`)) {
-    const slug = decodeURIComponent(path.slice(NOTES_PATH.length + 1))
-    // Checked before it is ever put back into a URL, so a name cannot climb
-    // out of the folder it is meant to name.
-    if (NOTE_NAME.test(slug)) return { name: 'note', slug }
-  }
-
-  return { name: 'editor' }
+/** Match only valid saved-sheet names; all other paths open the draft. */
+export function sheetSlug(pathname) {
+  const match = /^\/sheets\/([^/]+)\/?$/.exec(pathname)
+  return match && SAVED_NOTE_NAME.test(match[1]) ? match[1] : null
 }
 
-/**
- * Go somewhere without reloading. pushState does not tell anyone, so the
- * event the back button would have raised is raised here too and the one
- * listener below covers both.
- */
-export function navigate(path) {
-  if (path === window.location.pathname) return
-  window.history.pushState(null, '', path)
-  window.dispatchEvent(new PopStateEvent('popstate'))
-}
-
-/** The current route, kept up to date through the back and forward buttons. */
-export function useRoute() {
-  const [route, setRoute] = useState(() => readRoute())
-
-  useEffect(() => {
-    const onPopState = () => setRoute(readRoute())
-    window.addEventListener('popstate', onPopState)
-    return () => window.removeEventListener('popstate', onPopState)
-  }, [])
-
-  return route
+/** Leave modified and non-primary clicks to the browser. */
+export function followSheetLink(event, navigate, slug) {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+  event.preventDefault()
+  navigate(slug)
 }

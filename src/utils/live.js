@@ -1,39 +1,36 @@
 /**
  * The song as a flat run of beats, which is what live mode plays.
  *
- * One grid column is one beat, so a bar (COLS_PER_BAR columns) is one bar of
- * 4/4 — the playhead crosses a column every `secondsPerBeat`.
+ * One position is one beat, so the playhead crosses a position every
+ * `secondsPerBeat`. There is no arrangement any more: the song is the sheet,
+ * read top to bottom and left to right, and the only thing that changes that
+ * order is a group.
  *
- * What is played is the **arrangement**: the running order the sheet's groups
- * have been laid out in, read left to right. Each block in it is expanded here
- * rather than in the view, into one run per row that block's group holds — so
- * a chorus standing twice in the order is two separate stretches of the
- * timeline that both point back at the same columns of the grid. The player
- * then walks a flat list of stretches and never has to work out where a row,
- * or a block, begins.
- *
- * A sheet with nothing arranged has no song: the staves say what the music is
- * and the arrangement says what order it is played in, and there is no
- * sensible guess to make about the second from the first.
+ * A group marked in a staff is played as many times as its count says, and a
+ * column standing in for a group written elsewhere plays that group's
+ * positions here, its own count times. Both come out as ordinary stretches
+ * of the timeline pointing back at the positions they sound — so a passage
+ * played three times is three stretches over the one stretch of staff, and
+ * the player never has to know why it is being asked for twice.
  */
 
-import { COLS_PER_BAR, rowStarts, rowWidth, rowsInGroup } from './tab.js'
+import { groupsByName } from './sheet.js'
+import { GROUP_START } from './tabV2.js'
 
-/** Beats in a bar. One column is one beat, so this is the bar width. */
-export const BEATS_PER_BAR = COLS_PER_BAR
+/** Beats in a bar. Nothing divides a row, so this is only for the readout. */
+export const BEATS_PER_BAR = 4
 
 /**
  * Silent bar before the first note. Playback starts here rather than on beat
  * one, so there is a bar's worth of tempo to pick up before anything is due.
  */
-export const LEAD_IN_BEATS = COLS_PER_BAR
+export const LEAD_IN_BEATS = BEATS_PER_BAR
 
 /* Tempo ------------------------------------------------------------------
  *
- * The speed the song is played back at, in beats per minute. One column is one
- * beat, so this is what the player turns into a scroll rate. It belongs to the
- * session rather than to the sheet: nothing in the saved file records it, so
- * the prompt asks each time the player is opened.
+ * The speed the song is played back at, in beats per minute. It belongs to
+ * the session rather than to the sheet: nothing in the saved file records it,
+ * so the prompt asks each time the player is opened.
  */
 
 export const DEFAULT_BPM = 90
@@ -53,55 +50,103 @@ export const clampBpm = (bpm) => {
 export const secondsPerBeat = (bpm) => 60 / bpm
 
 /**
- * The arrangement as the list of runs to play, in order. One run is one row of
- * one block: which row it is, where that row's columns start in the grid, and
- * the beat of the song it begins on.
- *
- * A block is kept as both `at` — where it stands in the arrangement, which is
- * what addresses it — and `block`, its place among the blocks that have
- * anything to play. The readout counts in the second: a block with nothing
- * under it is not a bar of silence the player should count through.
+ * Everything a stretch of the timeline says: which row's positions it
+ * sounds, where in that row they begin and end, and the beat of the song it
+ * starts on. `pass` and `passes` are which time round it is, for a stretch
+ * that is one of several over the same positions; `label` is what to call it
+ * over the strip, and `opens` marks the stretch a readout should count as a
+ * new section.
  */
-export function songRuns({
-  rows,
-  rowIds,
-  structure,
-  arrangement,
-}) {
-  const starts = rowStarts(rows)
+const stretch = ({
+  row,
+  from,
+  to,
+  beat,
+  label = '',
+  pass = 1,
+  passes = 1,
+  opens = false,
+  section = 0,
+}) => ({ row, from, to, cols: to - from + 1, beat, label, pass, passes, opens, section })
 
+/**
+ * The sheet as the list of stretches to play, in order.
+ *
+ * Walking a row: plain positions gather into a straight run, and a group
+ * interrupts it — the run so far is emitted, then the group's own positions
+ * once per time it is played, then the walk goes on past it. The columns
+ * that mark a group are not positions and are never sounded.
+ */
+export function songRuns(rows) {
+  if (!Array.isArray(rows)) return []
+
+  const written = groupsByName(rows)
   const runs = []
   let beat = 0
-  let block = 0
 
-  arrangement.forEach((groupId, at) => {
-    const held = rowsInGroup(structure, rowIds, groupId)
-    // A block whose group has lost its last row plays nothing. The block
-    // itself stays in the arrangement — emptying a group is not a way of
-    // rewriting the song's shape — but there is no tab under it to sound.
-    if (held.length === 0) return
+  rows.forEach((row, at) => {
+    // Whether this row has put anything on the timeline yet: the first
+    // stretch of a row is where its name is written over the strip.
+    let opened = false
 
-    held.forEach((row, place) => {
-      const cols = rowWidth(rows[row])
-      runs.push({
-        at,
-        block,
-        groupId,
-        row,
-        // Carried along so the player can name what it is playing without
-        // having to hold on to `rowIds` itself.
-        rowId: rowIds[row],
-        // The first row of a block is where the group's name is written over
-        // the strip, and where the heavier divider between blocks is drawn.
-        opens: place === 0,
-        gridStart: starts[row],
-        cols,
-        beat,
-      })
-      beat += cols
-    })
+    /** One stretch of positions, played `times` times over. */
+    const play = (which, from, to, label, times = 1) => {
+      if (to < from) return
+      for (let pass = 1; pass <= times; pass += 1) {
+        runs.push(
+          stretch({
+            row: which,
+            from,
+            to,
+            beat,
+            label,
+            pass,
+            passes: times,
+            opens: !opened,
+            section: at,
+          }),
+        )
+        beat += to - from + 1
+        opened = true
+      }
+    }
 
-    block += 1
+    // Where the straight run being gathered began.
+    let from = 0
+
+    for (let col = 0; col < row.columns.length; col += 1) {
+      const column = row.columns[col]
+      if (!column.isGroupMark) continue
+
+      // Whatever was gathered up to this mark is played as it stands.
+      play(at, from, col - 1, row.name)
+
+      if (column.cssMode === GROUP_START) {
+        const marked = row.groups.find((each) => each.start === col)
+        if (marked) {
+          // The positions the group holds are the ones between its two
+          // ends: the ends themselves are marks, not positions.
+          play(at, marked.start + 1, marked.end - 1, marked.name, marked.repeat ?? 1)
+          col = marked.end
+        }
+      } else if (column.isGroupRef) {
+        // A group played here, sounded from wherever it is written.
+        const elsewhere = written.get(column.name)
+        if (elsewhere) {
+          play(
+            elsewhere.row,
+            elsewhere.start + 1,
+            elsewhere.end - 1,
+            column.name,
+            column.repeat ?? 1,
+          )
+        }
+      }
+
+      from = col + 1
+    }
+
+    play(at, from, row.columns.length - 1, row.name)
   })
 
   return runs
@@ -111,21 +156,18 @@ export function songRuns({
 export const songBeats = (runs) =>
   runs.length ? runs[runs.length - 1].beat + runs[runs.length - 1].cols : 0
 
-/** How many blocks of the arrangement have anything to play. */
-export const songBlocks = (runs) => (runs.length ? runs[runs.length - 1].block + 1 : 0)
-
-/** Whether this sheet's arrangement asks for anything that can be played. */
-export const hasSong = (sheet) => songRuns(sheet).length > 0
+/** Whether this sheet has anything that can be played. */
+export const hasSong = (rows) => songRuns(rows).some((run) => run.cols > 0)
 
 /** The run a beat falls in, or null before the first or past the last. */
 export function runAt(runs, beat) {
   return runs.find((run) => beat >= run.beat && beat < run.beat + run.cols) ?? null
 }
 
-/** Grid column sounding on a beat, or null when the beat is outside the song. */
+/** The position sounding on a beat, as row and column, or null. */
 export function columnAt(runs, beat) {
   const run = runAt(runs, beat)
-  return run ? run.gridStart + (beat - run.beat) : null
+  return run ? { row: run.row, col: run.from + (beat - run.beat) } : null
 }
 
 /** Which bar of its own run a beat sits in, counting from one. */

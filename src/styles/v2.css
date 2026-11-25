@@ -1,0 +1,191 @@
+/* The second editor's own look, over the staff parts it still shares with
+   the first.
+
+   Scoped to the one root V2 draws inside, so nothing here reaches the
+   editor the app itself renders — the two will go on diverging until V2
+   replaces it, and this is where that divergence lives.
+
+   Everything the staff is drawn *with* is the one ink: the strings, and the
+   letters down the side of them. Only what is drawn *under* it keeps its
+   own colour — the paper, and the chip punched out of a string behind a
+   written fret.
+
+   It is done by redefining the tokens rather than by restating the rules,
+   so anything drawn in either of them follows without having to be named
+   here, and a rule that moves between stylesheets cannot leave its colour
+   behind. */
+.editor--v2 {
+  --string: var(--ink);
+  --muted: var(--ink);
+
+  /* The gutter the row's name is written in, down the side of the staff. */
+  --rowname-w: 20px;
+}
+
+/* A third column in the staff's grid, between the string letters and the
+   staff itself, for the name written down the row's side. The first editor
+   draws no such thing, which is why the grid is restated here rather than
+   changed where it is set. */
+.editor--v2 .staff {
+  grid-template-columns: max-content var(--rowname-w) minmax(0, 1fr);
+}
+
+/* The name itself, standing against the strings: as tall as the staff is
+   ruled, from the top line to the bottom one, and no taller. The top line
+   is half a row below the staff's own top, and the scroller's air above
+   that, which is what the margin makes up.
+
+   `vertical-rl` turns the text on its side and `rotate(180deg)` turns it
+   the rest of the way, so it runs up the box and is read from the bottom —
+   a quarter turn anticlockwise, which the two together are the way to ask
+   for that and keep it the same in every browser. */
+.editor--v2 .staff-group-name {
+  margin: calc(var(--staff-air) + var(--row-h)/2 - 1px) 0 var(--staff-air);
+  /* margin: 80px 0; */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Held whether or not there is a name, so every staff starts level. */
+  width: var(--rowname-w);
+  /* height: auto; */
+  height: calc(var(--row-h) * 5 + 2px);
+  /* margin-top: calc(var(--staff-air)); */
+  overflow: hidden;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  color: var(--ink);
+  font: 600 13px/1 var(--font);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  border: var(--string-w) solid var(--ink);
+  background: transparent;
+  text-align: center;
+}
+
+.editor--v2 .staff-group-name:focus {
+  background: #fff;
+  border-color: var(--ink);
+  outline: none;
+}
+
+.range-copy-choice {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--cell-w);
+  z-index: 6;
+  border: 0;
+  background: rgb(168 73 47 / 16%);
+  cursor: pointer;
+}
+
+.range-copy-choice:hover, .range-copy-choice:focus-visible {
+  background: rgb(168 73 47 / 32%);
+}
+
+.range-copy-choice--paste {
+  background: rgb(60 91 133 / 18%);
+}
+
+.range-copy-choice--paste:hover, .range-copy-choice--paste:focus-visible {
+  background: rgb(60 91 133 / 34%);
+}
+
+/* The buttons over whatever is being worked on — a position being written
+   in, a group held open, a column where one is played — and the groups one
+   of them opens. All hang off what opened them, positioned from its own
+   rect, so a row scrolling inside itself cannot clip them. */
+.action-bar {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--bar);
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 2px 8px rgb(22 32 43 / 14%);
+}
+
+.action-bar-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.action-bar-button:hover,
+.action-bar-button.is-open {
+  color: var(--accent);
+  background: rgb(168 73 47 / 12%);
+}
+
+/* The sheet's groups, to choose which is played here: their letters and
+   nothing else, so the list is a row of them rather than a column of lines.
+   It wraps at a width that holds a good few before it has to. */
+.group-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 212px;
+  padding: 5px;
+}
+
+.group-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink);
+  font: 600 16px/1 var(--font);
+  cursor: pointer;
+}
+
+.group-list-item:hover {
+  background: rgb(168 73 47 / 10%);
+  color: var(--accent);
+}
+
+.group-list-empty {
+  max-width: 190px;
+  margin: 0;
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.row-move-select {
+  position: absolute;
+  inset: 2px;
+  z-index: 8;
+  border: 1px dashed var(--edit-line);
+  border-radius: 3px;
+  background: var(--edit-wash);
+}
+
+.row-move-select:hover, .row-move-select:focus-visible {
+  background: var(--edit-wash-hover);
+}
+
+.row-move-select.is-selected {
+  border-color: var(--accent);
+  background: var(--edit-wash-held);
+}
+
+.row-move-gap { height: 12px; position: relative; }
+.row-move-drop { width: 100%; height: 100%; padding: 0; border: 0; background: transparent; display: flex; align-items: center; }
+.row-move-drop span { width: 100%; height: 2px; background: repeating-linear-gradient(to right, var(--edit-line) 0 7px, transparent 7px 13px); }
+.row-move-drop:hover span, .row-move-drop:focus-visible span { background: var(--accent); }
+

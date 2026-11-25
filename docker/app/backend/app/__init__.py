@@ -1,4 +1,4 @@
-"""Flask application factory for the Fretboard Notebook backend."""
+"""Flask application factory for the Fretbook backend."""
 
 from flask import Flask, jsonify
 

@@ -1,0 +1,89 @@
+/* Base: the reset, the page itself, and the frame the sheet sits in —
+   everything that is not one part of the sheet in particular. */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  /* Medium is the app's one text weight. */
+  font: 500 16px/1.5 var(--font);
+  /* Loaded weights: Fira Sans 500, Mukta 200–800. Rules that ask for more
+     get the heaviest of those as it is, rather than a bold the browser fakes
+     by thickening it. */
+  font-synthesis: none;
+}
+
+/* Form controls take the system font and weight unless told otherwise. */
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-weight: inherit;
+}
+
+.app {
+  /* Wide enough for a long staff; rows narrower than this sit flush left, and
+     rows wider than it scroll within themselves. */
+  max-width: 1300px;
+  margin: 0 auto;
+  /* The foot is deep enough for the pinned edit switch to stand over nothing
+     — see .edit-fab. */
+  padding: 32px 10px 110px;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.auth-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+h1 {
+  margin: 0;
+  font: 600 26px/1.2 var(--font);
+  letter-spacing: 0.01em;
+}
+
+.home-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  /* The wordmark: the one place Mukta is used, extra bold, at 1.5× the
+     heading's size. */
+  font-family: var(--logo-font);
+  font-size: 1.5em;
+  font-weight: 800;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.title-input {
+  width: 220px;
+  padding: 8px 10px;
+  border: 1px solid var(--bar);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 600 16px var(--font);
+}
+
+.title-input:focus-visible,
+.cell:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

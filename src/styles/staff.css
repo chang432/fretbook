@@ -1,0 +1,94 @@
+/* Staff: the frame one row is drawn in — the grid of labels and scroller,
+   the box the strings are laid out in, and what folding a row away does to
+   all of it. What stands inside the frame is in the four parts after this
+   one, which are imported in the order they used to appear here. */
+
+.staff {
+  position: relative;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: start;
+  /* border-top: 1px solid var(--bar); */
+}
+
+/**
+ * Each row scrolls by itself, so reading the end of a long row leaves every
+ * other row where it was.
+ *
+ * Its width comes from .staff's second column, which takes whatever room the
+ * sheet has left once the string labels have theirs: the staff is drawn from
+ * the left of it, and only a row too long for that room scrolls.
+ * `min-width: 0` is what allows the track to shrink that far at all.
+ */
+.staff-scroll {
+  min-width: 0;
+  padding: var(--staff-air) 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* Reaching the end of a row must not start scrolling the page behind it. */
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+/* A row folded away is its name line and nothing else: the strings go, and
+   with them the labels beside them, the strips standing over them and the
+   controls past their end. The row is still a row — it can be picked up and
+   swapped while it is folded, and the bin edit mode gives it comes back with
+   the staff when the number is pressed again. */
+.staff--folded {
+  padding-bottom: 8px;
+}
+
+.staff--folded .staff-labels,
+.staff--folded .staff-scroll {
+  display: none;
+}
+
+.staff-labels {
+  display: flex;
+  flex-direction: column;
+  /* Matches the scroller's padding so labels line up with their strings, plus
+     one strip's worth for every strip standing inside the scroller — the shift
+     anchors, and the range copy's two. TabEditor counts them onto `--strips`. */
+  margin-top: calc(var(--staff-air) + var(--strip-h) * var(--strips, 0));
+}
+
+.string-label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: var(--label-w);
+  height: var(--row-h);
+  padding-right: 10px;
+  color: var(--muted);
+  font: 500 13px var(--font);
+}
+
+/* The staff and the bar buttons at the end of it, side by side inside the
+   scroller so the two scroll as one thing. `max-content` is what keeps the
+   staff its full width: a flex item shrinks to its container by default, and
+   this box is as wide as the sheet, so the staff would be squeezed rather than
+   scrolled. */
+.staff-run {
+  display: flex;
+  align-items: center;
+  width: max-content;
+}
+
+.staff-body {
+  position: relative;
+  /* Never shrink to the scroller: the staff keeps its full width and scrolls. */
+  width: max-content;
+}
+
+/* Close the staff at the last position, between the outer strings. */
+.editor--v2 .staff-body::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: calc(var(--row-h) / 2);
+  bottom: calc(var(--row-h) / 2);
+  width: var(--string-w);
+  background: var(--string);
+  pointer-events: none;
+}

@@ -1,0 +1,130 @@
+/* Popovers: the menus that hang off the toolbar's buttons. */
+/* The shell every anchored panel shares: fixed, so no scroll container can
+   clip it. Placement is set inline — see utils/popover.js, which keeps it
+   inside the window rather than centred half off the edge on a narrow screen.
+   The max-width is the last resort for a window narrower than the panel.
+   Layered over the pinned editing panel (30), since an open panel is what the
+   reader is using, and under the full-screen player (50). */
+.popover {
+  position: fixed;
+  z-index: 40;
+  max-width: calc(100vw - 16px);
+  border: 1px solid var(--bar);
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 2px 8px rgb(22 32 43 / 14%);
+}
+
+.export-menu {
+  display: flex;
+  flex-direction: column;
+  width: 200px;
+  max-width: 100%;
+  padding: 5px;
+}
+
+.export-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  text-align: left;
+}
+
+.export-option:hover:not(:disabled) {
+  background: var(--page);
+}
+
+.export-name {
+  font-size: 14px;
+}
+
+.export-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* The Publish panel. Wider than the export menu because it holds a field
+   rather than a list, and the field holds a URL. */
+.publish-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 260px;
+  max-width: 100%;
+  padding: 12px;
+}
+
+.publish-menu form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.publish-confirm {
+  margin: 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.publish-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.publish-error {
+  margin: 0;
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.publish-done {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Pricing remains below Clerk's own checkout drawer and scrolls on small screens. */
+.pricing-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  background: rgb(22 32 43 / 50%);
+}
+
+.pricing-popup {
+  width: min(100%, 1000px);
+  max-height: 90dvh;
+  overflow: auto;
+  padding: 20px;
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 8px 32px rgb(22 32 43 / 24%);
+}
+
+.pricing-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.pricing-heading h2 { margin: 0; }
+
+.pricing-heading button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}

@@ -1,56 +1,44 @@
 import { useEffect, useState } from 'react'
-import NoteLink from './NoteLink.jsx'
-import { notePath } from '../utils/route.js'
+import { useAuth } from '@clerk/react'
+import Popover from './Popover.jsx'
 import { fetchManifest } from '../utils/notes.js'
+import { followSheetLink, sheetPath } from '../utils/route.js'
 
-/**
- * The published notes, listed. The list is notes.json in this environment's
- * bucket, served through /api/notes and rewritten whenever a note is published
- * — so the page is current without the site being rebuilt.
- */
-export default function NoteIndex() {
+/** Browse saved sheets from the editor, or leave them for a blank one. */
+export default function NoteIndex({ anchor, onClose, onOpen, onNew }) {
+  const { isSignedIn, getToken } = useAuth()
   const [notes, setNotes] = useState(null)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    let ignore = false
-    fetchManifest().then((list) => {
-      if (!ignore) setNotes(list)
-    })
-    return () => {
-      ignore = true
-    }
-  }, [])
+    let active = true
+    if (!isSignedIn) return undefined
+    fetchManifest(getToken).then((list) => {
+      if (active) setNotes(list)
+    }).catch(() => { if (active) setError('Could not load your saved sheets.') })
+    return () => { active = false }
+  }, [isSignedIn, getToken])
 
   return (
-    <div className="app note-shell">
-      <header className="header">
-        <h1>Published notes</h1>
-        <NoteLink to="/" className="link-inline">
-          Open my sheet
-        </NoteLink>
-      </header>
-
-      {notes === null && <p className="note-shell-text">Loading…</p>}
-
-      {/* An unreachable backend lands here too, as an empty shelf. There is no
-          longer a build that does not know where the notes are: the app asks
-          its own origin, so the question is whether anything answers. */}
-      {notes?.length === 0 && (
-        <p className="note-shell-text">Nothing has been published yet.</p>
-      )}
-
+    <Popover anchor={anchor} className="sheet-picker" label="Saved sheets" onClose={onClose} centered>
+      <h2>Saved sheets</h2>
+      {isSignedIn && !error && notes === null && <p className="note-shell-text">Loading…</p>}
+      {error && <p role="alert">{error}</p>}
+      {notes?.length === 0 && <p className="note-shell-text">No saved sheets yet.</p>}
       {notes?.length > 0 && (
         <ul className="note-list">
-          {notes.map(({ slug, title }) => (
+          {notes.map(({ slug }) => (
             <li key={slug}>
-              <NoteLink to={notePath(slug)} className="note-list-link">
-                <span className="note-list-title">{title || slug}</span>
-                <span className="note-list-slug">/notes/{slug}</span>
-              </NoteLink>
+              <a href={sheetPath(slug)} className="note-list-link" onClick={(event) => followSheetLink(event, onOpen, slug)}>
+                <span className="note-list-slug">{slug}</span>
+              </a>
             </li>
           ))}
         </ul>
       )}
-    </div>
+      <button type="button" className="note-list-new" onClick={onNew}>
+        + New sheet
+      </button>
+    </Popover>
   )
 }

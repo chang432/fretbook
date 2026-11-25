@@ -1,0 +1,152 @@
+import { STRING_COUNT, emptyCell } from './cell.js'
+
+/**
+ * What a column can be drawn as, past a plain position.
+ *
+ * A group is marked inside the staff rather than around it: its first and
+ * last positions are columns of the row like any other, given over to
+ * saying where the group begins and ends. These are what `cssMode` holds.
+ *
+ * How many times the group is played is written on the column that closes
+ * it, as that column's `repeat` — the closing bar and the count are the one
+ * statement, so they are drawn in the one place.
+ */
+export const GROUP_START = 'group-start'
+export const GROUP_END = 'group-end'
+
+/**
+ * A group played somewhere else: not where a group is written, but where
+ * one already written is played again. A whole group in one column, since
+ * what is played is written elsewhere and there is nothing to put between
+ * its two ends.
+ *
+ * That one column carries both of the things a group's two ends carry
+ * between them — its name and its count — and holds no notes.
+ */
+export const GROUP_REF = 'group-ref'
+
+/** What a group is called before anyone says otherwise. */
+export const DEFAULT_GROUP_NAME = 'A'
+
+/**
+ * A group's name is one capital letter and nothing else. The last letter
+ * typed is the one kept, so typing over a name replaces it rather than
+ * being refused, and anything that leaves no letter at all leaves the name
+ * as it was.
+ */
+export function normalizeGroupName(raw, fallback = DEFAULT_GROUP_NAME) {
+  const letters = String(raw).toUpperCase().replace(/[^A-Z]/g, '')
+  return letters === '' ? fallback : letters.slice(-1)
+}
+
+/**
+ * How many times a group is played: a whole number, one or more. Counted
+ * the way a fret is — the last two digits typed — so a miscount can be
+ * corrected without clearing the box first.
+ */
+export function normalizeRepeat(raw, fallback = 1) {
+  const digits = String(raw).replace(/\D/g, '').slice(-2)
+  if (digits === '') return fallback
+  return Math.max(1, Number(digits))
+}
+
+/**
+ * One position of one row: the six strings sounding at once.
+ *
+ * A column knows where it stands in its row and what is written across it.
+ * It does not know which row that is — the row knows that — so a column can
+ * be read and reasoned about on its own.
+ *
+ * Writing goes through `withCell`, which builds the column that results
+ * rather than editing this one, and hands back `this` when the write
+ * changes nothing. The sheet is rebuilt the same way all the way up, so an
+ * edit that came to nothing can be recognised by identity at any level.
+ */
+export class Column {
+  /**
+   * @param {number}  rowPosition where this stands in its row, counted from 0
+   * @param {Cell[]}  [cells]     the six strings; empty ones when not given
+   * @param {string|false} [cssMode] one of the four above, or false for a
+   *   plain position — how the column is drawn, and nothing more. A column
+   *   marking a group is still a column: it holds its six cells and takes
+   *   up its position like any other.
+   * @param {object} [marks] what a group column says beyond being one:
+   *   `repeat`, how many times the group is played, on the column that
+   *   closes it; and `name`, what the group is called, on the column that
+   *   opens it. Both are null on every other column.
+   */
+  constructor(rowPosition, cells = null, cssMode = false, { repeat = null, name = null } = {}) {
+    this.rowPosition = rowPosition
+    this.cssMode = cssMode
+    this.repeat = repeat
+    this.name = name
+    this.cells = cells ?? Array.from({ length: STRING_COUNT }, (_, string) => emptyCell(string))
+  }
+
+  /** What this column says past its mode, for handing to a new one. */
+  get marks() {
+    return { repeat: this.repeat, name: this.name }
+  }
+
+  /** What is written on one string here. */
+  cell(string) {
+    return this.cells[string]
+  }
+
+  /** True when nothing is written across this position at all. */
+  get isEmpty() {
+    return this.cells.every((cell) => cell.isEmpty)
+  }
+
+  /** True when this column is one end of a group rather than a plain position. */
+  get isGroupEdge() {
+    return this.cssMode === GROUP_START || this.cssMode === GROUP_END
+  }
+
+  /** True when this column stands in for a group played here from elsewhere. */
+  get isGroupRef() {
+    return this.cssMode === GROUP_REF
+  }
+
+  /** True when this column belongs to a group rather than standing on its own. */
+  get isGroupMark() {
+    return this.cssMode !== false
+  }
+
+  /** This column standing somewhere else in the row, carrying all it says. */
+  at(rowPosition) {
+    return rowPosition === this.rowPosition
+      ? this
+      : new Column(rowPosition, this.cells, this.cssMode, this.marks)
+  }
+
+  /**
+   * This column drawn another way, or `this` when it is drawn that way
+   * already. What the column says rides along with the mode, since none of
+   * it means anything on a column that is not a group's.
+   */
+  withMode(cssMode, { repeat = null, name = null } = {}) {
+    if (cssMode === this.cssMode && repeat === this.repeat && name === this.name) return this
+    return new Column(this.rowPosition, this.cells, cssMode, { repeat, name })
+  }
+
+  /**
+   * This column with something else written on one of its strings, or
+   * `this` when that comes to nothing new. A string that does not exist is
+   * no write at all.
+   */
+  withCell(string, value) {
+    if (string < 0 || string >= STRING_COUNT) return this
+
+    const cell = this.cells[string]
+    const written = cell.with(value)
+    if (written === cell) return this
+
+    return new Column(
+      this.rowPosition,
+      this.cells.map((each, s) => (s === string ? written : each)),
+      this.cssMode,
+      this.marks,
+    )
+  }
+}
