@@ -38,6 +38,44 @@
   box-shadow: 0 8px 32px rgb(22 32 43 / 24%);
 }
 
+/* Room for a screenshot; scrolls rather than running off a short screen. */
+.tutorial-popup--wide {
+  width: min(100%, 900px);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+}
+
+.tutorial-slide-image {
+  display: block;
+  width: 100%;
+  margin-bottom: 16px;
+  border: 1px solid var(--bar);
+  border-radius: 6px;
+}
+
+.tutorial-slide-nav {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin: -8px 0 16px;
+}
+
+.tutorial-slide-arrow {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--separator);
+  border-radius: 50%;
+  background: var(--button);
+  color: inherit;
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tutorial-slide-arrow:disabled { opacity: 0.4; cursor: default; }
+
 .tutorial-body {
   margin: 0 0 24px;
   font-weight: 400;

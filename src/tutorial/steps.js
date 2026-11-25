@@ -1,3 +1,4 @@
+import groupsReuse from './images/groups-reuse.png'
 import { selectMiddleCell } from './spotlight.js'
 
 /*
@@ -10,6 +11,9 @@ import { selectMiddleCell } from './spotlight.js'
  *
  * `prepare`, if a step has one, runs as the step opens to put the page in the
  * state the step talks about, and returns how to undo that as it closes.
+ *
+ * `slides`, in place of `body`, shows a slideshow of screenshots (in
+ * ./images), each with its own caption.
  */
 export const TUTORIAL_STEPS = [
   {
@@ -33,7 +37,16 @@ export const TUTORIAL_STEPS = [
     prepare: () => selectMiddleCell('e'),
     body: "This is a single row of your sheet. Click inside to specify values 1-24 or 'x'. when editing a note, you will notice a menu tab of additional buttons above the row. The first two are group related buttons that we will get to in the next step. The third button allows you to copy/paste a chunk of notes. The fourth button deletes the column currently selected. The fifth button inserts a new column to the right of the current one.",
   },
+  {
+    id: 'groups',
+    slides: [
+      {
+        image: groupsReuse,
+        alt: "Two rows: group 'A' is written in the first row and played twice at the start of the second.",
+        caption: "Groups allow you to re-use previously written tabs to avoid duplicates! In the example, you can see group 'A' from the first row was used at the start of the second row twice.",
+      },
+    ],
+  },
   // Placeholders until the rest of the tour is written.
-  { id: 'step-5', body: 'Step 5 — coming soon.' },
   { id: 'step-6', body: 'Step 6 — coming soon.' },
 ]
