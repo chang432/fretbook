@@ -1,17 +1,41 @@
 import { useEffect, useRef, useState } from 'react'
+import { measureSpotlight } from './spotlight.js'
 import { TUTORIAL_STEPS } from './steps.js'
 import './tutorial.css'
 
+/** Track the current step's cut-out, re-measuring as the page resizes or scrolls. */
+function useSpotlight(key) {
+  // Tagged with its key, so a box measured for an earlier step is never shown.
+  const [measured, setMeasured] = useState(null)
+  useEffect(() => {
+    if (!key) return undefined
+    const update = () => setMeasured({ key, box: measureSpotlight(key) })
+    // First measure on the next frame, once the page under the overlay has laid out.
+    const frame = requestAnimationFrame(update)
+    window.addEventListener('resize', update)
+    // Capture, so a scroll inside any container moves the cut-out too.
+    window.addEventListener('scroll', update, true)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [key])
+  return key && measured?.key === key ? measured.box : null
+}
+
 /**
- * A walkthrough laid over the site: a dimmed backdrop with one step's popup in
- * the middle. "Next" advances through TUTORIAL_STEPS and, on the last step,
- * closes the tutorial.
+ * A walkthrough laid over the site: the page is dimmed, apart from a rounded
+ * cut-out around whatever the current step is about, with that step's popup
+ * in the middle. "Next" on the last step closes the tutorial.
  */
 export default function Tutorial({ onClose }) {
   const [index, setIndex] = useState(0)
   const nextButton = useRef(null)
   const step = TUTORIAL_STEPS[index]
+  const isFirst = index === 0
   const isLast = index === TUTORIAL_STEPS.length - 1
+  const spotlight = useSpotlight(step.spotlight)
 
   // Focus "next" whenever the step changes, so Enter walks through the tour.
   useEffect(() => { nextButton.current?.focus() }, [index])
@@ -19,12 +43,21 @@ export default function Tutorial({ onClose }) {
   const next = () => (isLast ? onClose() : setIndex(index + 1))
 
   return (
-    <div className="tutorial-backdrop">
+    // The backdrop catches every click, so the page under the cut-out is shown
+    // but can't be used mid-tour. When there is a cut-out, its huge shadow does
+    // the dimming instead of the backdrop.
+    <div className={`tutorial-backdrop${spotlight ? ' has-spotlight' : ''}`}>
+      {spotlight && <div className="tutorial-spotlight" style={spotlight} aria-hidden="true" />}
       <section className="tutorial-popup" role="dialog" aria-modal="true" aria-label="Fretbook tutorial">
         <p className="tutorial-body">{step.body}</p>
         <div className="tutorial-footer">
+          {!isFirst && (
+            <button type="button" className="tutorial-button tutorial-previous" onClick={() => setIndex(index - 1)}>
+              previous
+            </button>
+          )}
           <span className="tutorial-progress">step {index + 1}/{TUTORIAL_STEPS.length}</span>
-          <button ref={nextButton} type="button" className="tutorial-next" onClick={next}>next</button>
+          <button ref={nextButton} type="button" className="tutorial-button tutorial-next" onClick={next}>next</button>
         </div>
       </section>
     </div>

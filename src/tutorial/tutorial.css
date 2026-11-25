@@ -1,6 +1,7 @@
 /* The tutorial overlay sits above everything else on the page, Clerk's
    modals aside, and centres its popup the way the pricing popup does. */
 .tutorial-backdrop {
+  --tutorial-dim: rgb(22 32 43 / 50%);
   position: fixed;
   inset: 0;
   z-index: 40;
@@ -8,10 +9,22 @@
   justify-content: center;
   align-items: center;
   padding: 16px;
-  background: rgb(22 32 43 / 50%);
+  background: var(--tutorial-dim);
+}
+
+/* With a cut-out, the backdrop goes clear and the cut-out's shadow, spread
+   far past every edge of the screen, dims everything around it. */
+.tutorial-backdrop.has-spotlight { background: transparent; }
+
+.tutorial-spotlight {
+  position: fixed;
+  border-radius: 14px;
+  box-shadow: 0 0 0 100vmax var(--tutorial-dim);
+  pointer-events: none;
 }
 
 .tutorial-popup {
+  position: relative;
   width: min(100%, 440px);
   padding: 24px;
   border-radius: 10px;
@@ -26,19 +39,22 @@
   line-height: 1.5;
 }
 
+/* previous | progress | next — the outer columns share the spare width
+   equally, so the progress stays centred whether or not "previous" shows. */
 .tutorial-footer {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: flex-end;
   gap: 12px;
 }
 
 .tutorial-progress {
+  grid-column: 2;
   color: var(--muted);
   font-size: 14px;
 }
 
-.tutorial-next {
+.tutorial-button {
   padding: 6px 16px;
   border: 1px solid var(--separator);
   border-radius: 6px;
@@ -47,3 +63,6 @@
   font: inherit;
   cursor: pointer;
 }
+
+.tutorial-previous { grid-column: 1; justify-self: start; }
+.tutorial-next { grid-column: 3; justify-self: end; }

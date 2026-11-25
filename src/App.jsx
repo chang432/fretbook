@@ -660,12 +660,12 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
   return (
     <div className="app">
       <header className="header">
-        <h1><button type="button" className="home-button" onClick={onNewSheet} title="Start a new sheet">Fretbook</button></h1>
+        <h1 data-tutorial="file-controls"><button type="button" className="home-button" onClick={onNewSheet} title="Start a new sheet">Fretbook</button></h1>
         <AuthControls />
       </header>
       <div className="toolbar">
         <div className="toolbar-start">
-          <div className="toolbar-group">
+          <div className="toolbar-group" data-tutorial="file-controls">
             <button type="button" className="file-button" onClick={() => fileInputRef.current?.click()} aria-label="Import JSON" title="Import JSON">
               Import
             </button>
