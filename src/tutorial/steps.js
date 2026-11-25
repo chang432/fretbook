@@ -38,7 +38,12 @@ export const TUTORIAL_STEPS = [
     // The first two keys' menu is only up while a position is being edited.
     spotlight: ['first-row', 'cell-menu'],
     prepare: () => selectMiddleCell('e'),
-    body: "This is a single row of your sheet. Click inside to specify values 1-24 or 'x'. when editing a note, you will notice a menu tab of additional buttons above the row. The first two are group related buttons that we will get to in the next step. The third button allows you to copy/paste a chunk of notes. The fourth button deletes the column currently selected. The fifth button inserts a new column to the right of the current one.",
+    body: "This is a single row of your sheet. Click inside to specify values 1-24 or 'x'. when editing a note, you will notice a menu tab of additional buttons above the row. The first two are group related buttons that we will get to in a future step. The third button allows you to copy/paste a chunk of notes. The fourth button deletes the column currently selected. The fifth button inserts a new column to the right of the current one.",
+  },
+  {
+    id: 'editing-panel',
+    spotlight: ['editing-panel'],
+    body: 'The left button allows you to undo any recent editing action taken on the sheet. The right button puts the sheet in edit mode, which allows you to re-arrange row ordering.',
   },
   {
     id: 'groups-reuse',

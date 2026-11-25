@@ -5,6 +5,20 @@
  */
 export const SPOTLIGHT_PADDING = 12
 
+/** Space between the cut-out and the popup beside it. */
+export const POPUP_GAP = 16
+
+/**
+ * Where the popup goes around a cut-out: below it, unless the cut-out sits in
+ * the lower half of the screen, where there's more room above it. The margin
+ * is from the screen edge the popup is lined up against.
+ */
+export function popupPlacement(box, viewportHeight, gap = POPUP_GAP) {
+  const bottom = box.top + box.height
+  if (box.top + box.height / 2 > viewportHeight / 2) return { side: 'above', margin: viewportHeight - box.top + gap }
+  return { side: 'below', margin: bottom + gap }
+}
+
 /** The smallest box around every rect, grown by `padding` on each side; null for none. */
 export function spotlightBox(rects, padding = SPOTLIGHT_PADDING) {
   if (!rects.length) return null

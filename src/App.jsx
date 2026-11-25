@@ -788,7 +788,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
         </div>
       </div>
 
-      <div className="editing-panel" role="group" aria-label="Editing controls">
+      <div className="editing-panel" role="group" aria-label="Editing controls" data-tutorial="editing-panel">
           <button
             type="button"
             className="icon-button"

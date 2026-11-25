@@ -15,11 +15,14 @@
 /* With a cut-out, the backdrop goes clear and the cut-out's shadow, spread
    far past every edge of the screen, dims everything around it. */
 .tutorial-backdrop.has-spotlight {
-  align-items: flex-start;
   overflow: auto;
-  padding-top: 0;
   background: transparent;
 }
+
+/* The popup is lined up against the screen edge on its side of the cut-out;
+   its margin, set inline, is the distance from that edge. */
+.tutorial-backdrop.popup-below { align-items: flex-start; padding-top: 0; }
+.tutorial-backdrop.popup-above { align-items: flex-end; padding-bottom: 0; }
 
 .tutorial-spotlight {
   position: fixed;

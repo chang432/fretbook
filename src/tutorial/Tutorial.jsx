@@ -1,10 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { measureSpotlight } from './spotlight.js'
+import { measureSpotlight, popupPlacement } from './spotlight.js'
 import { TUTORIAL_STEPS } from './steps.js'
 import './tutorial.css'
-
-/** Space between the cut-out and the popup hung below it. */
-const POPUP_GAP = 16
 
 /** Track the current step's cut-out, re-measuring as the page resizes or scrolls. */
 function useSpotlight(keys) {
@@ -43,6 +40,7 @@ export default function Tutorial({ onClose }) {
   // Before the spotlight hook, so the page is set up by the time it measures.
   useLayoutEffect(() => step.prepare?.(), [step])
   const spotlight = useSpotlight(step.spotlight)
+  const placement = spotlight && popupPlacement(spotlight, window.innerHeight)
 
   // Focus "next" whenever the step changes, so Enter walks through the tour.
   useEffect(() => { nextButton.current?.focus() }, [index])
@@ -53,12 +51,12 @@ export default function Tutorial({ onClose }) {
     // The backdrop catches every click, so the page under the cut-out is shown
     // but can't be used mid-tour. When there is a cut-out, its huge shadow does
     // the dimming instead of the backdrop.
-    <div className={`tutorial-backdrop${spotlight ? ' has-spotlight' : ''}`}>
+    <div className={`tutorial-backdrop${placement ? ` has-spotlight popup-${placement.side}` : ''}`}>
       {spotlight && <div className="tutorial-spotlight" style={spotlight} aria-hidden="true" />}
       <section
         className={`tutorial-popup${step.images ? ' tutorial-popup--wide' : ''}`}
-        // Just below the cut-out, so the popup never covers what it's describing.
-        style={spotlight ? { marginTop: spotlight.top + spotlight.height + POPUP_GAP } : undefined}
+        // Beside the cut-out, so the popup never covers what it's describing.
+        style={placement && { [placement.side === 'below' ? 'marginTop' : 'marginBottom']: placement.margin }}
         role="dialog" aria-modal="true" aria-label="Fretbook tutorial">
         {step.images && (
           <div className="tutorial-images">
