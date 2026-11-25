@@ -211,13 +211,12 @@ export function SaveIcon() {
   )
 }
 
-/** A question mark in a ring: help, which opens the tutorial. */
+/** A bare question mark: help, which opens the tutorial. */
 export function QuestionIcon() {
   return (
     <svg className="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-      <circle cx="8" cy="8" r="6.5" />
-      <path d="M 6 6.2 A 2 2 0 1 1 8.6 8.1 C 8.1 8.3 8 8.6 8 9.2" />
-      <circle className="solid" cx="8" cy="11.4" r="0.6" stroke="none" />
+      <path d="M 4.8 5.2 A 3.2 3.2 0 1 1 9.4 8.1 C 8.4 8.6 8 9.2 8 10.4" />
+      <circle className="solid" cx="8" cy="13.4" r="0.9" stroke="none" />
     </svg>
   )
 }
