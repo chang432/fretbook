@@ -186,6 +186,15 @@ button.is-on {
   padding: 0;
 }
 
+/* A symbol with no fill behind it: the help button, which stands apart from
+   the controls that change the sheet. It darkens on hover instead. */
+.icon-button--bare {
+  background: transparent;
+  color: var(--muted);
+}
+
+.icon-button--bare:hover { color: var(--ink); }
+
 /* The symbol fills all but 4.5px either side of its button. */
 .icon-button .icon {
   width: 16px;

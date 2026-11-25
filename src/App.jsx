@@ -8,7 +8,7 @@ import Popover from './components/Popover.jsx'
 import PublishMenu from './components/PublishMenu.jsx'
 import SheetTitle from './components/SheetTitle.jsx'
 import TabEditorV2 from './components/TabEditorV2.jsx'
-import { ListIcon, PencilIcon, PresentIcon, SaveIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
+import { ListIcon, PencilIcon, PresentIcon, QuestionIcon, SaveIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
 import {
   MARK_ZIGZAG,
   addTie,
@@ -76,7 +76,7 @@ function loadSaved(storageKey) {
  * inside a staff, which the player reads straight off the row — see
  * utils/live.js.
  */
-export default function App({ published = null, fresh = false, onOpenSheet, onNewSheet }) {
+export default function App({ published = null, fresh = false, onOpenSheet, onNewSheet, onOpenTutorial }) {
   const { isSignedIn, userId, getToken } = useAuth()
   // Save and the sheet list both need an account, so signed out they open the
   // same login modal as the Login button rather than their own panels.
@@ -706,6 +706,9 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
               }
             >
               <PresentIcon />
+            </button>
+            <button type="button" className="icon-button icon-button--bare" onClick={onOpenTutorial} aria-label="Open the tutorial" title="How Fretbook works">
+              <QuestionIcon />
             </button>
           </div>
 
