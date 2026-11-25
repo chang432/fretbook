@@ -45,6 +45,12 @@ name: Build, verify and deploy to the VPS
 #                 https://<account id>.r2.cloudflarestorage.com. Required. The
 #                 backend reads the published notes through it; the bucket name
 #                 is derived from the environment, not configured.
+#   DEV_CLERK_PUBLISHABLE_KEY
+#   PROD_CLERK_PUBLISHABLE_KEY  The Clerk publishable key each environment's
+#                 web image is built with (pk_test_… for dev, pk_live_… for
+#                 prod). Public, so a variable rather than a secret. Vite
+#                 inlines it, so without it the image build fails; the
+#                 preflight checks for it. Required.
 #
 # Both domains are needed on every run, including a dev-only deploy, because
 # the edge Caddyfile describes the whole box: writing it with one hostname
@@ -62,10 +68,6 @@ name: Build, verify and deploy to the VPS
 #                      (docs/notes-upload-from-app.md). It can be the same
 #                      token a laptop publishes with, or its own — either can
 #                      then be rolled without the other.
-#   DEV_CLERK_PUBLISHABLE_KEY   (variables, not secrets: they are public)
-#   PROD_CLERK_PUBLISHABLE_KEY  The Clerk publishable key each environment's
-#                      web image is built with. Vite inlines it, so without it
-#                      the image build fails; the preflight checks for it.
 #
 # Nothing is needed to read the code: the repo is public, so the VPS clones it
 # anonymously.
