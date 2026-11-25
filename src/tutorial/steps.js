@@ -1,3 +1,4 @@
+import groupsCreate from './images/groups-create.png'
 import groupsReuse from './images/groups-reuse.png'
 import { selectMiddleCell } from './spotlight.js'
 
@@ -44,6 +45,11 @@ export const TUTORIAL_STEPS = [
         image: groupsReuse,
         alt: "Two rows: group 'A' is written in the first row and played twice at the start of the second.",
         caption: "Groups allow you to re-use previously written tabs to avoid duplicates! In the example, you can see group 'A' from the first row was used at the start of the second row twice.",
+      },
+      {
+        image: groupsCreate,
+        alt: "The note menu with its 'start a new group' button circled, above a row whose notes have been made into a group.",
+        caption: 'A group is created by clicking this button on the notes menu tab and then clicking the end column of the desired section of notes you want to make a group.',
       },
     ],
   },
