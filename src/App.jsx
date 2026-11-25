@@ -8,7 +8,7 @@ import Popover from './components/Popover.jsx'
 import PublishMenu from './components/PublishMenu.jsx'
 import SheetTitle from './components/SheetTitle.jsx'
 import TabEditorV2 from './components/TabEditorV2.jsx'
-import { ListIcon, PencilIcon, PresentIcon, QuestionIcon, SaveIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
+import { ListIcon, PencilIcon, PresentIcon, SaveIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
 import {
   MARK_ZIGZAG,
   addTie,
@@ -708,7 +708,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
               <PresentIcon />
             </button>
             <button type="button" className="icon-button icon-button--bare" onClick={onOpenTutorial} aria-label="Open the tutorial" title="How Fretbook works">
-              <QuestionIcon />
+              ?
             </button>
           </div>
 

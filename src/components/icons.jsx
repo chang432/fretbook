@@ -210,13 +210,3 @@ export function SaveIcon() {
     </svg>
   )
 }
-
-/** A bare question mark: help, which opens the tutorial. */
-export function QuestionIcon() {
-  return (
-    <svg className="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M 4.8 5.2 A 3.2 3.2 0 1 1 9.4 8.1 C 8.4 8.6 8 9.2 8 10.4" />
-      <circle className="solid" cx="8" cy="13.4" r="0.9" stroke="none" />
-    </svg>
-  )
-}

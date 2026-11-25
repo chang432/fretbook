@@ -187,10 +187,12 @@ button.is-on {
 }
 
 /* A symbol with no fill behind it: the help button, which stands apart from
-   the controls that change the sheet. */
+   the controls that change the sheet. Its ? is typed, not drawn, so it is
+   set larger than the toolbar's words to sit level with the icons. */
 .icon-button--bare {
   background: transparent;
   color: var(--ink);
+  font-size: 18px;
 }
 
 /* The symbol fills all but 4.5px either side of its button. */
