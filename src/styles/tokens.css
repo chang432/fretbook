@@ -4,8 +4,8 @@
  * is defined by the width of its input cell alone.
  */
 :root {
-  /* Two typefaces, both loaded in index.html: Fira Sans for all text —
-     medium (500) by default, regular (400) where a rule asks for it — and
+  /* Two typefaces, both loaded in index.html: Fira Sans for all text,
+     at medium (500) throughout, and
      Mukta (800, extra bold) for the Fretbook wordmark alone. */
   --font: 'Fira Sans', sans-serif;
   --logo-font: 'Mukta', sans-serif;

@@ -9,10 +9,9 @@ body {
   margin: 0;
   background: var(--page);
   color: var(--ink);
-  /* Medium is the app's default weight; 400 is kept for the few places that
-     ask for it by name. */
+  /* Medium is the app's one text weight. */
   font: 500 16px/1.5 var(--font);
-  /* Loaded weights: Fira Sans 400 and 500, Mukta 200–800. Rules that ask for more
+  /* Loaded weights: Fira Sans 500, Mukta 200–800. Rules that ask for more
      get the heaviest of those as it is, rather than a bold the browser fakes
      by thickening it. */
   font-synthesis: none;
