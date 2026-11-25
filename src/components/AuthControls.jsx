@@ -6,7 +6,7 @@ import { Show, SignInButton, UserButton } from '@clerk/react'
  */
 export default function AuthControls() {
   return (
-    <div className="auth-controls">
+    <div className="auth-controls" data-tutorial="account-controls">
       <Show when="signed-out">
         <SignInButton mode="modal">
           <button type="button">Login</button>

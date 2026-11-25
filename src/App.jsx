@@ -716,7 +716,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
 
         <SheetTitle title={title} onChange={setTitle} />
 
-        <div className="toolbar-group toolbar-group--end">
+        <div className="toolbar-group toolbar-group--end" data-tutorial="account-controls">
           {published ? (
             <>
               <button

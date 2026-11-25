@@ -16,8 +16,12 @@ export const TUTORIAL_STEPS = [
     spotlight: 'file-controls',
     body: "Clicking the title creates a new sheet. The 'Import' button allows you to import previously exported sheets. The 'Export' button allows you to export the current sheet into a json file. Enabling the volume icon allows you to hear any note you write/click on. The presentation mode plays the current sheet arrangement in a close-up view.",
   },
+  {
+    id: 'account-controls',
+    spotlight: 'account-controls',
+    body: 'Login to be able to save sheets on our servers. The list icon will display a list of currently saved sheets.',
+  },
   // Placeholders until the rest of the tour is written.
-  { id: 'step-3', body: 'Step 3 — coming soon.' },
   { id: 'step-4', body: 'Step 4 — coming soon.' },
   { id: 'step-5', body: 'Step 5 — coming soon.' },
   { id: 'step-6', body: 'Step 6 — coming soon.' },
