@@ -45,13 +45,26 @@
   overflow: auto;
 }
 
+/* Screenshots sit side by side at one height, wrapping onto new lines on a
+   narrow screen; a single wide one fills the popup instead. */
+.tutorial-images {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
 .tutorial-image {
   display: block;
-  width: 100%;
-  margin-bottom: 16px;
+  max-width: 100%;
+  /* Keeps its shape if a narrow screen caps a fixed-height one's width. */
+  object-fit: contain;
   border: 1px solid var(--bar);
   border-radius: 6px;
 }
+
+.tutorial-images:has(.tutorial-image + .tutorial-image) .tutorial-image { height: 240px; }
 
 .tutorial-body {
   margin: 0 0 24px;

@@ -56,11 +56,15 @@ export default function Tutorial({ onClose }) {
     <div className={`tutorial-backdrop${spotlight ? ' has-spotlight' : ''}`}>
       {spotlight && <div className="tutorial-spotlight" style={spotlight} aria-hidden="true" />}
       <section
-        className={`tutorial-popup${step.image ? ' tutorial-popup--wide' : ''}`}
+        className={`tutorial-popup${step.images ? ' tutorial-popup--wide' : ''}`}
         // Just below the cut-out, so the popup never covers what it's describing.
         style={spotlight ? { marginTop: spotlight.top + spotlight.height + POPUP_GAP } : undefined}
         role="dialog" aria-modal="true" aria-label="Fretbook tutorial">
-        {step.image && <img className="tutorial-image" src={step.image} alt={step.alt} />}
+        {step.images && (
+          <div className="tutorial-images">
+            {step.images.map(({ src, alt }) => <img key={src} className="tutorial-image" src={src} alt={alt} />)}
+          </div>
+        )}
         <p className="tutorial-body">{step.body}</p>
         <div className="tutorial-footer">
           {!isFirst && (
