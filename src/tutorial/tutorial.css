@@ -1,0 +1,49 @@
+/* The tutorial overlay sits above everything else on the page, Clerk's
+   modals aside, and centres its popup the way the pricing popup does. */
+.tutorial-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  background: rgb(22 32 43 / 50%);
+}
+
+.tutorial-popup {
+  width: min(100%, 440px);
+  padding: 24px;
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 8px 32px rgb(22 32 43 / 24%);
+}
+
+.tutorial-body {
+  margin: 0 0 24px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.tutorial-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.tutorial-progress {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.tutorial-next {
+  padding: 6px 16px;
+  border: 1px solid var(--separator);
+  border-radius: 6px;
+  background: var(--button);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}

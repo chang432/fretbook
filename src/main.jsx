@@ -2,6 +2,7 @@ import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ClerkProvider, useAuth } from '@clerk/react'
 import App from './App.jsx'
+import Tutorial from './tutorial/Tutorial.jsx'
 import { fetchNote } from './utils/notes.js'
 import { sheetPath, sheetSlug } from './utils/route.js'
 import './styles.css'
@@ -34,6 +35,8 @@ function Site() {
   const [path, setPath] = useState(() => window.location.pathname)
   const [fresh, setFresh] = useState(false)
   const [sheetKey, setSheetKey] = useState(0)
+  // Held here, above App, so opening or starting a sheet doesn't reopen it.
+  const [showTutorial, setShowTutorial] = useState(true)
   useEffect(() => {
     const onPopState = () => { setFresh(false); setPath(window.location.pathname) }
     window.addEventListener('popstate', onPopState)
@@ -56,7 +59,12 @@ function Site() {
   }
   const slug = sheetSlug(path)
   if (!isLoaded) return <div className="app">Loading…</div>
-  return slug ? <SheetPage key={`${userId}:${slug}`} slug={slug} onOpenSheet={openSheet} onNewSheet={newSheet} /> : <App key={`${userId}:${sheetKey}`} fresh={fresh} onOpenSheet={openSheet} onNewSheet={newSheet} />
+  return (
+    <>
+      {slug ? <SheetPage key={`${userId}:${slug}`} slug={slug} onOpenSheet={openSheet} onNewSheet={newSheet} /> : <App key={`${userId}:${sheetKey}`} fresh={fresh} onOpenSheet={openSheet} onNewSheet={newSheet} />}
+      {showTutorial && <Tutorial onClose={() => setShowTutorial(false)} />}
+    </>
+  )
 }
 
 createRoot(document.getElementById('root')).render(
