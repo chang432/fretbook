@@ -21,8 +21,12 @@ export const TUTORIAL_STEPS = [
     spotlight: 'account-controls',
     body: 'Login to be able to save sheets on our servers. The list icon will display a list of currently saved sheets.',
   },
+  {
+    id: 'row',
+    spotlight: 'first-row',
+    body: "This is a single row of your sheet. Click inside to specify values 1-24 or 'x'. when editing a note, you will notice a menu tab of additional buttons above the row. The first two are group related buttons that we will get to in the next step. The third button allows you to copy/paste a chunk of notes. The fourth button deletes the column currently selected. The fifth button inserts a new column to the right of the current one.",
+  },
   // Placeholders until the rest of the tour is written.
-  { id: 'step-4', body: 'Step 4 — coming soon.' },
   { id: 'step-5', body: 'Step 5 — coming soon.' },
   { id: 'step-6', body: 'Step 6 — coming soon.' },
 ]

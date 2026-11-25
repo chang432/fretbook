@@ -337,7 +337,8 @@ export default function TabEditorV2({
         return (
           <Fragment key={staff}>
           {rowGap(staff)}
-          <div className="staff" role="group" aria-label={`Row ${staff + 1}`}>
+          {/* The tutorial spotlights the first row as an example of every row. */}
+          <div className="staff" role="group" aria-label={`Row ${staff + 1}`} data-tutorial={staff === 0 ? 'first-row' : undefined}>
             {editingRows && <button type="button" className={`row-move-select${heldRow === staff ? ' is-selected' : ''}`} aria-label={heldRow === null ? `Pick up row ${staff + 1}` : heldRow === staff ? `Put down row ${staff + 1}` : `Swap row ${heldRow + 1} with row ${staff + 1}`} aria-pressed={heldRow === staff} onClick={() => chooseRow(staff)} />}
             <div className="staff-labels">
               {tuning.map((label, stringIndex) => (
