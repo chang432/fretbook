@@ -2,10 +2,12 @@
 /* The shell every anchored panel shares: fixed, so no scroll container can
    clip it. Placement is set inline — see utils/popover.js, which keeps it
    inside the window rather than centred half off the edge on a narrow screen.
-   The max-width is the last resort for a window narrower than the panel. */
+   The max-width is the last resort for a window narrower than the panel.
+   Layered over the pinned editing panel (30), since an open panel is what the
+   reader is using, and under the full-screen player (50). */
 .popover {
   position: fixed;
-  z-index: 20;
+  z-index: 40;
   max-width: calc(100vw - 16px);
   border: 1px solid var(--bar);
   border-radius: 10px;
@@ -63,45 +65,10 @@
   gap: 8px;
 }
 
-.publish-label {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-/* The prefix and the field read as one address, so they share a border and
-   only the whole of it takes the focus ring. */
-.publish-field {
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-  border: 1px solid var(--bar);
-  border-radius: 8px;
-  background: var(--paper);
-}
-
-.publish-field:focus-within {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-.publish-prefix {
-  padding: 7px 0 7px 10px;
-  color: var(--muted);
+.publish-confirm {
+  margin: 0;
   font-size: 14px;
-}
-
-.publish-input {
-  flex: 1;
-  min-width: 0;
-  padding: 7px 10px 7px 2px;
-  border: 0;
-  background: none;
-  color: var(--ink);
-  font-size: 14px;
-}
-
-.publish-input:focus-visible {
-  outline: none;
+  overflow-wrap: anywhere;
 }
 
 .publish-hint {
@@ -119,4 +86,45 @@
 .publish-done {
   margin: 0;
   font-size: 14px;
+}
+
+/* Pricing remains below Clerk's own checkout drawer and scrolls on small screens. */
+.pricing-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  background: rgb(22 32 43 / 50%);
+}
+
+.pricing-popup {
+  width: min(100%, 1000px);
+  max-height: 90dvh;
+  overflow: auto;
+  padding: 20px;
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 8px 32px rgb(22 32 43 / 24%);
+}
+
+.pricing-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.pricing-heading h2 { margin: 0; }
+
+.pricing-heading button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
 }

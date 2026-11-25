@@ -185,3 +185,28 @@ export function UndoIcon() {
     </svg>
   )
 }
+
+/** A bulleted list: the library of saved sheets to pick from. */
+export function ListIcon() {
+  return (
+    <svg className="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M 6 4 H 13.5" />
+      <path d="M 6 8 H 13.5" />
+      <path d="M 6 12 H 13.5" />
+      <path className="solid" d="M 2.4 4 A 0.9 0.9 0 1 0 4.2 4 A 0.9 0.9 0 1 0 2.4 4 Z" />
+      <path className="solid" d="M 2.4 8 A 0.9 0.9 0 1 0 4.2 8 A 0.9 0.9 0 1 0 2.4 8 Z" />
+      <path className="solid" d="M 2.4 12 A 0.9 0.9 0 1 0 4.2 12 A 0.9 0.9 0 1 0 2.4 12 Z" />
+    </svg>
+  )
+}
+
+/** A floppy disk: the sheet kept in the library. */
+export function SaveIcon() {
+  return (
+    <svg className="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M 2.5 3.5 A 1 1 0 0 1 3.5 2.5 H 11 L 13.5 5 V 12.5 A 1 1 0 0 1 12.5 13.5 H 3.5 A 1 1 0 0 1 2.5 12.5 Z" />
+      <path d="M 5 2.5 V 5.5 H 10 V 2.5" />
+      <rect x="4.8" y="8.6" width="6.4" height="4.9" rx="0.6" />
+    </svg>
+  )
+}

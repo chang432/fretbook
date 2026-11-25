@@ -1,0 +1,103 @@
+/* The tutorial overlay sits above everything else on the page, Clerk's
+   modals aside, and centres its popup the way the pricing popup does. */
+.tutorial-backdrop {
+  --tutorial-dim: rgb(22 32 43 / 50%);
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  background: var(--tutorial-dim);
+}
+
+/* With a cut-out, the backdrop goes clear and the cut-out's shadow, spread
+   far past every edge of the screen, dims everything around it. */
+.tutorial-backdrop.has-spotlight {
+  overflow: auto;
+  background: transparent;
+}
+
+/* The popup is lined up against the screen edge on its side of the cut-out;
+   its margin, set inline, is the distance from that edge. */
+.tutorial-backdrop.popup-below { align-items: flex-start; padding-top: 0; }
+.tutorial-backdrop.popup-above { align-items: flex-end; padding-bottom: 0; }
+
+.tutorial-spotlight {
+  position: fixed;
+  border-radius: 14px;
+  box-shadow: 0 0 0 100vmax var(--tutorial-dim);
+  pointer-events: none;
+}
+
+.tutorial-popup {
+  position: relative;
+  width: min(100%, 440px);
+  padding: 24px;
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 8px 32px rgb(22 32 43 / 24%);
+}
+
+/* Room for a screenshot; scrolls rather than running off a short screen. */
+.tutorial-popup--wide {
+  width: min(100%, 900px);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+}
+
+/* Screenshots sit side by side at one height, wrapping onto new lines on a
+   narrow screen; a single wide one fills the popup instead. */
+.tutorial-images {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.tutorial-image {
+  display: block;
+  max-width: 100%;
+  /* Keeps its shape if a narrow screen caps a fixed-height one's width. */
+  object-fit: contain;
+  border: 1px solid var(--bar);
+  border-radius: 6px;
+}
+
+.tutorial-images:has(.tutorial-image + .tutorial-image) .tutorial-image { height: 240px; }
+
+.tutorial-body {
+  margin: 0 0 24px;
+  line-height: 1.5;
+}
+
+/* previous | progress | next — the outer columns share the spare width
+   equally, so the progress stays centred whether or not "previous" shows. */
+.tutorial-footer {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.tutorial-progress {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.tutorial-button {
+  padding: 6px 16px;
+  border: 1px solid var(--separator);
+  border-radius: 6px;
+  background: var(--button);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tutorial-previous { grid-column: 1; justify-self: start; }
+.tutorial-next { grid-column: 3; justify-self: end; }

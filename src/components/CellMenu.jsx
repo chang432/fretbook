@@ -44,7 +44,7 @@ export default function CellMenu({
   const [listing, setListing] = useState(null)
 
   return (
-    <ActionBar anchor={anchor} label="This position">
+    <ActionBar anchor={anchor} label="This position" tutorialKey="cell-menu">
       {children}
       {canCopy && <button type="button" className="action-bar-button" title="Copy previous position" aria-label="Copy previous position" onMouseDown={(event) => event.preventDefault()} onClick={onCopy}><RewindIcon width={20} height="14" /></button>}
       {/* Opening a group here. The button wears the mark it makes: the

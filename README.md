@@ -29,9 +29,8 @@ a banner whenever a container restarts or a healthcheck turns. Ctrl-C leaves
 the stack running. `--no-verify` skips the first phase, `--all` keeps the
 probes, `--down-on-exit` tears it down when you stop watching.
 
-The published notes come from a private R2 bucket rather than from the repo,
-read by the backend over the S3 API — so the saved-sheet list is empty under a bare
-`npm run dev` until something is serving `/api`. `npm run stack` brings that up
+Saved sheets live in a private R2 bucket and are read by the backend over the
+S3 API. The saved-sheet list needs a signed-in user and a backend serving `/api`. `npm run stack` brings that up
 in Docker on :8080 and the dev server proxies to it; the script checks the
 credentials first and tells you how many notes came back, since a stack without
 them comes up perfectly well and simply shows nothing. Those credentials live
@@ -403,127 +402,45 @@ Text and image exports stop at the last row you wrote in, so trailing blank
 staves are never included. A JSON export keeps every row, blank ones and all —
 rows are yours to add, so a file records the sheet exactly as you left it.
 
-**Publish**, beside it, is the same JSON sent somewhere instead of saved: it
-puts the sheet in the published notes, at a URL anyone can open — and a
-published note carries **Update** and **Delete** there instead, both of which
-want the password. See below.
-
 ## Saving sheets
 
-The **Sheets** button opens a list of saved sheets in a popup. Selecting one
-loads it into the editor at `/sheets/<name>`, which can be shared or bookmarked.
-Click **Fretbook** in the header to start a new blank sheet. They live in a **private Cloudflare R2 bucket, one per environment**,
-and the app reads them from its own origin through the backend, which is the
-one thing holding a credential for that bucket.
+Sign in with Clerk to save and open your own sheets. The sheet's title sits
+centred in the toolbar; the pencil beside it makes it editable. Titles are
+lowercase letters, digits and spaces, up to 40 characters, and the spaces
+become underscores whenever the sheet is written out (export, save, browser
+draft) and turn back into spaces when it is read in. **Save** (the disk icon)
+asks to confirm saving under that name, and needs a title; **Sheets** (the
+list icon) lists the signed-in user's library. Open a sheet to update or delete
+it. Free users can save up to three sheets; Pro users can save more. Existing
+sheets remain readable, editable, and deletable after a downgrade. Sheet URLs
+are private to their owner, even when bookmarked or shared.
+Signed-out users can use the editor and export JSON, but have no saved-sheet
+list or persistent browser draft. Signed-in drafts are kept separately per user
+in the browser; saved sheets live in R2 and can be opened on other devices.
 
-**Publish** in the toolbar is the short way: it asks for a name — prefilled
-from the title, which is already a publishable name — and uploads the sheet to
-this environment's bucket. It appears in the Sheets popup as soon as the press
-finishes. Nothing is rebuilt, nothing is merged, and
-there is no file in between.
+The browser sends a Clerk session token to Flask for every sheet request. Flask
+verifies the token and uses its stable user ID (`sub`) to access only
+`sheets/<user_id>/<name>.json` in the private R2 bucket. It lists objects by
+prefix and sends sheet JSON to the browser. The R2 token needs Object Read &
+Write access, including list access. Responses are private and not cached. The limit uses the verified Clerk
+session token’s user-plan claim; plan changes can take until the token refreshes.
+Concurrent saves are serialized between the workers in the single backend
+container. Multiple backend replicas would need a shared lock.
 
-**It cannot publish over a note**, deliberately: a name that is taken is
-refused and you are asked for another. R2 keeps no versions, so a write over a
-note destroys it, and that refusal is the one guard that matters on a route
-anyone can reach.
+Local Docker setup requires `VITE_CLERK_PUBLISHABLE_KEY` and
+`CLERK_AUTHORIZED_PARTIES` in `docker/app/.env`; the latter is a comma-separated
+list of the browser origins allowed to authenticate, such as
+`http://localhost:5173,http://localhost:8080`. The deployment workflow uses
+the selected site's HTTPS domain. The publishable key must belong to the same
+Clerk instance as the frontend.
 
-Changing a note, and taking one down, are the two buttons a **published note**
-carries instead — and the two that ask for a password:
+Existing shared objects under `notes/` and `notes.json` are left untouched but
+are not shown in private libraries. The legacy `notes:*` CLI commands operate
+on those old shared objects; they do not manage private sheets. Import an
+exported JSON sheet and save it while signed in to add it to a private library.
 
-| On an opened saved sheet | What it does |
-| --- | --- |
-| **Update** | Writes the sheet in front of you over that note, title and all. Dead until something has actually changed |
-| **Delete** | Takes the note down: the object and its line in the index. It disappears from the list |
-
-Both are final — nothing else holds a copy — so each panel says what it is
-about to do before it asks for anything. The only way back from a delete is
-**Export → JSON file** and `notes:publish` again.
-
-The password is one secret per environment, `FRETBOOK_PUBLISH_PASSWORD` on the
-backend, sent in a header and stored nowhere in the browser. Without it set,
-both buttons answer 503 and the rest of the site is unaffected — so an
-environment opts into being editable.
-
-[docs/notes-upload-from-app.md](docs/notes-upload-from-app.md) is what these
-routes give up, and who can reach them: publishing is open to **anyone who can
-open the site**, changing and removing are not.
-
-The commands are the other way in, and still the only one that can replace or
-remove:
-
-```bash
-cp .env.example .env.local      # once: the R2 endpoint and the token's profile
-
-npm run notes:publish   -- notes/tie_that_binds_by_drake.json
-npm run notes:unpublish -- tie_that_binds_by_drake
-npm run notes:manifest                               # rebuild the index only
-npm run notes:pull                                   # refresh the local cache
-```
-
-**A bare command means the dev bucket.** Local work is dev work, so that is the
-default; production has to be named, either for one command or for a shell:
-
-```bash
-npm run notes:publish -- --bucket fretbook-notes-prod notes/*.json
-export FRETBOOK_NOTES_BUCKET=fretbook-notes-prod
-```
-
-Every command prints the bucket it acted on as its first line, with `(default)`
-when nothing asked for one — so a forgotten override shows up in the output
-rather than in the consequences.
-
-```
-notes/tie_that_binds_by_drake.json   →   saved sheet tie_that_binds_by_drake
-```
-
-To publish from a file: **Export → JSON file**, then publish the file. An
-export is named after its title with underscores between the words, which is
-already a publishable name — rename it only if you want a different saved-sheet name, using letters and numbers separated by single underscores.
-
-**The bucket is the only place a note lives.** A reader can open one and play
-with it, but nothing they do is saved anywhere, and publishing — the button or
-the command — is the only thing that changes what everyone sees. Nothing in
-this repo is authoritative about a note: `notes/` is git-ignored, and nothing
-under it is tracked.
-
-`notes:pull` is how you get the notes onto a machine. It **mirrors** the
-bucket: it fetches what you do not have and deletes what the bucket no longer
-has, because a file the bucket does not have is not a note. A second pull in a
-row fetches nothing, so it costs nothing to run before reaching for anything
-else. An export you have not published yet does not belong in `notes/` —
-publish it from wherever the browser saved it, since `notes:publish` takes any
-path.
-
-That leaves no second copy anywhere, and **R2 has no object versioning**, so
-republishing over a note or unpublishing one is final. That is the deliberate
-cost of one source of truth; [docs/notes-pull-from-r2.md](docs/notes-pull-from-r2.md)
-is where it is argued, and what to do if it ever bites.
-
-`scripts/notes.mjs` is the whole of publishing from a terminal. It refuses a
-file the editor could not open, so a broken note never reaches a reader, and
-afterwards it rebuilds `notes.json` — the manifest the popup lists — from what
-is actually in the bucket, so there is no list to keep in step. The button
-takes the same two cares at the other end: the backend checks the export's
-envelope before it writes, and adds the note's own line to the manifest rather
-than leaving it unlisted. `npm run notes:manifest` remains the repair for a
-manifest that has drifted either way.
-
-**Nothing about a note is baked into the build.** The browser asks
-`/api/sheets` and `/api/sheets/<name>` on its own origin — and `PUT`s to the
-second of those to publish; Caddy hands them to Flask, and
-`docker/app/backend/app/notes.py` fetches the object from R2 with boto3, or
-writes it. Which bucket that means is the backend's runtime setting, so the dev and
-prod web images are identical — see
-[docs/notes-via-s3-client.md](docs/notes-via-s3-client.md).
-
-Everything speaks the S3 API, in other words: publishing is the ordinary `aws`
-CLI pointed at the account's R2 endpoint, and reading is boto3 pointed at the
-same place. Nothing reads the bucket over HTTP, and the bucket is not public.
-
-**The buckets themselves are not created by this repo.** The API tokens — one
-for your laptop and one for the server, both **Object Read & Write** now that
-the server publishes too — and the costs are in
-[docs/notes-r2-storage.md](docs/notes-r2-storage.md).
+R2 has no object versioning here, so updating or deleting a saved sheet is
+final. Export JSON if you need a separate copy.
 
 ## Layout
 
@@ -538,7 +455,8 @@ src/
   components/ArrangementSection.jsx the running order: the groups as blocks, left to right
   components/LiveMode.jsx   the full-screen player: playhead, scrolling tab, transport
   components/Popover.jsx    the anchored panel behind the export, publish and tempo menus
-  components/PublishMenu.jsx the name a sheet is published under or the password it is changed with, and the press that writes it
+  components/PublishMenu.jsx the confirmation for saving or changing a sheet
+  components/SheetTitle.jsx the toolbar's title: text with a pencil, a box while edited
   components/icons.jsx      the drawn symbols on the buttons that carry no words
   utils/tab.js              grid, tie and mark model; ASCII/JSON; downloads
   utils/notes.js            the published notes: the /api calls that fetch them, and the three that change one

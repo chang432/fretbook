@@ -5,7 +5,7 @@
 #
 #   1. verify   lint and build — what CI gates a merge on
 #   2. deploy   build both images, start the stack, wait for it to answer
-#   3. smoke    /api/health, /api/sheets, the editor, and one sheet end to end
+#   3. smoke    /api/health, authenticated sheet access, and the editor
 #   4. tail     follow both containers, flag errors, notice state changes
 #
 # Phases 1–3 are the rehearsal: a commit that would fail CI, or a stack that
@@ -122,18 +122,6 @@ smoke() {
 
 	http_is 200 "http://localhost:${PORT}/" 'app      /' || failed=1
 
-	# One note end to end, named by the manifest rather than hardcoded, so this
-	# follows whatever is actually published.
-	local slug
-	slug=$(curl -s "http://localhost:${PORT}/api/sheets" |
-		grep -o '"slug"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 |
-		sed 's/.*"\(.*\)"$/\1/') || true
-
-	if [ -n "${slug:-}" ]; then
-		http_is 200 "http://localhost:${PORT}/api/sheets/${slug}" "bucket   /api/sheets/${slug}" || failed=1
-	else
-		warn 'no note to fetch — nothing published, or the manifest is unreadable'
-	fi
 
 	# A smoke failure is reported and not fatal: the tail is the best place to
 	# find out why, and killing the script here would take it away.

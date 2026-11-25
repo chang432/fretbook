@@ -10,6 +10,34 @@
 /** New sheet names use lowercase letters and digits separated by underscores. */
 export const NOTE_NAME = /^[a-z0-9]+(?:_[a-z0-9]+)*$/
 
+/** The most characters a sheet's title can hold. */
+export const TITLE_LIMIT = 40
+
+/**
+ * A sheet's title has two forms. On screen, while it is typed and read, it is
+ * lowercase letters, digits and spaces. Written out — exported, saved, kept
+ * in the browser — the spaces become underscores. These three convert between
+ * them, so nothing else has to.
+ */
+
+/**
+ * A title as it is typed: lowercased, accents taken off letters (é → e), and
+ * anything but letters, digits and spaces dropped.
+ */
+export const typeSheetName = (text) =>
+  String(text ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, '')
+
+/** A title read back from a file, a save or the browser, for the screen. */
+export const readSheetName = (stored) =>
+  typeSheetName(String(stored ?? '').replace(/_/g, ' ')).slice(0, TITLE_LIMIT)
+
+/** A title as it is written out: trimmed, each run of spaces one underscore. */
+export const writeSheetName = (title) => title.trim().replace(/ +/g, '_')
+
 /** Existing saved sheets may have been published with hyphens. */
 export const SAVED_NOTE_NAME = /^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$/
 

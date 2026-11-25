@@ -6,7 +6,7 @@
   flex-direction: column;
   align-items: flex-start;
   padding: 10px 0;
-  border-top: 1px solid var(--bar);
+  border-top: 1px solid var(--separator);
 }
 
 /* The heading is the control: the whole line folds the note away and brings
@@ -33,7 +33,7 @@
    is open, which is the one place the state is drawn. */
 .memo-caret {
   display: inline-block;
-  font: 400 12px/1 ui-monospace, Menlo, monospace;
+  font: 500 12px/1 var(--font);
   transition: transform 0.12s ease-out;
 }
 
@@ -44,7 +44,7 @@
 /* Set like the Groups label beside it, so the two read as one pair of
    headings rather than as two different kinds of thing. */
 .memo-heading {
-  font: 600 10px/1 ui-monospace, Menlo, monospace;
+  font: 600 10px/1 var(--font);
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }
@@ -59,12 +59,13 @@
   text-overflow: ellipsis;
 }
 
-/* Indented past the string labels, so the note starts where the bars and the
-   group slots start. Grows downwards by hand when a few lines are not enough,
-   and never sideways: the sheet's own width is the line length. */
+/* Flush left under its heading, the sheet's full width. The top margin
+   doubles the few pixels the heading's own line leaves above the box. Grows
+   downwards by hand when a few lines are not enough, and never sideways: the
+   sheet's own width is the line length. */
 .memo-input {
-  width: calc(100% - var(--label-w));
-  margin-left: var(--label-w);
+  width: 100%;
+  margin-top: 4px;
   padding: 6px 8px;
   border: 1px solid var(--bar);
   border-radius: 8px;

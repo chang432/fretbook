@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAuth, useClerk } from '@clerk/react'
+import AuthControls from './components/AuthControls.jsx'
 import LiveMode from './components/LiveMode.jsx'
 import MemoSection from './components/MemoSection.jsx'
 import NoteIndex from './components/NoteIndex.jsx'
 import Popover from './components/Popover.jsx'
 import PublishMenu from './components/PublishMenu.jsx'
+import SheetTitle from './components/SheetTitle.jsx'
 import TabEditorV2 from './components/TabEditorV2.jsx'
-import { PencilIcon, PresentIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
+import { ListIcon, PencilIcon, PresentIcon, SaveIcon, SoundIcon, UndoIcon } from './components/icons.jsx'
 import {
   MARK_ZIGZAG,
   addTie,
@@ -32,7 +35,7 @@ import {
   startGroup,
   writeCell,
 } from './utils/tabV2.js'
-import { downloadFile, slugify } from './utils/files.js'
+import { downloadFile, readSheetName, slugify, writeSheetName } from './utils/files.js'
 import { HISTORY_LIMIT, nextUndoLabel, popHistory, pushHistory } from './utils/history.js'
 import { DEFAULT_BPM, MAX_BPM, MIN_BPM, clampBpm, hasSong } from './utils/live.js'
 import { deleteNote, publishNote, updateNote } from './utils/notes.js'
@@ -50,9 +53,9 @@ const STORAGE_KEY = 'fretboard-notebook:v1'
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024
 
 /** Load the last session so a page refresh never loses written-down fingerings. */
-function loadSaved() {
+function loadSaved(storageKey) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(storageKey)
     return raw ? fromJson(raw) : null
   } catch {
     return null
@@ -63,8 +66,7 @@ function loadSaved() {
  * The editor. Normally it holds the one sheet this browser keeps, read from
  * and written back to localStorage as it is worked on.
  *
- * `published` puts it over a note that came from the bucket instead — the
- * object there is the note, and nothing here can change it. Two things follow
+ * `published` opens a saved sheet from the user’s bucket prefix. Two things follow
  * from that: the sheet is seeded from the note rather than from storage, and
  * the autosave below is off, so reading a published note leaves the reader's
  * own sheet exactly where it was.
@@ -74,21 +76,26 @@ function loadSaved() {
  * inside a staff, which the player reads straight off the row — see
  * utils/live.js.
  */
-export default function App({ published = null, fresh = false, onOpenSheet, onNewSheet }) {
+export default function App({ published = null, fresh = false, onOpenSheet, onNewSheet, onOpenTutorial }) {
+  const { isSignedIn, userId, getToken } = useAuth()
+  // Save and the sheet list both need an account, so signed out they open the
+  // same login modal as the Login button rather than their own panels.
+  const { openSignIn } = useClerk()
+  const storageKey = userId ? `${STORAGE_KEY}:${userId}` : null
   // Read the note, or localStorage, once and lazily, and seed the state below
   // from whichever it was. Nothing published and nothing saved means a blank
   // page, which is a sheet of its own rather than an absence.
   const [unreadableSave] = useState(() => {
-    if (published) return false
+    if (published || !storageKey) return false
     try {
-      const raw = localStorage.getItem(STORAGE_KEY)
+      const raw = localStorage.getItem(storageKey)
       return !!raw && !fromJson(raw)
     } catch {
       return false
     }
   })
-  const [saved] = useState(() => published?.sheet ?? (fresh ? createSheet() : loadSaved() ?? createSheet()))
-  const [title, setTitle] = useState(saved.title ?? '')
+  const [saved] = useState(() => published?.sheet ?? (fresh ? createSheet() : (storageKey && loadSaved(storageKey)) || createSheet()))
+  const [title, setTitle] = useState(() => readSheetName(saved.title))
   // The note written above the staves: prose about the sheet — a tuning, a
   // capo, what to listen for. Called a memo here because "note" already means
   // a fret on a string, and a published sheet besides.
@@ -135,7 +142,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
   // The sheet as the bucket would hold it. One memo serves both the writes
   // below and the test of whether a published note has been changed at all.
   const json = useMemo(
-    () => toJson({ ...sheet, memo }, STANDARD_TUNING, title),
+    () => toJson({ ...sheet, memo }, STANDARD_TUNING, writeSheetName(title)),
     [sheet, memo, title],
   )
   const empty = useMemo(() => isEmpty(rows), [rows])
@@ -144,8 +151,10 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
   const playable = useMemo(() => hasSong(rows) && !empty, [rows, empty])
   // The published note as this page opened it, taken once and through the
   // same `toJson` an upload goes through, so the two compare byte for byte.
+  // Its title is cleaned the way the editor's is, so an old title being made
+  // to fit the naming rule does not on its own count as a change.
   const [openedAs] = useState(() =>
-    published ? toJson({ ...saved, memo: saved.memo ?? '' }, STANDARD_TUNING, saved.title ?? '') : null,
+    published ? toJson({ ...saved, memo: saved.memo ?? '' }, STANDARD_TUNING, writeSheetName(readSheetName(saved.title))) : null,
   )
   const [sentAs, setSentAs] = useState(null)
   const changed = openedAs !== null && json !== (sentAs ?? openedAs)
@@ -182,7 +191,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
     if (next.rows) setRows(next.rows)
     if (next.ties) setTies(next.ties)
     if (next.marks) setMarks(next.marks)
-    if (next.title !== undefined) setTitle(next.title)
+    if (next.title !== undefined) setTitle(readSheetName(next.title))
     if (next.memo !== undefined) setMemo(next.memo)
   }, [])
 
@@ -513,13 +522,13 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
   useEffect(() => {
     // A published note is the server's, and the reader has a sheet of their
     // own that this one is only being read in front of.
-    if (published || unreadableSave) return
+    if (published || unreadableSave || !storageKey) return
     try {
-      localStorage.setItem(STORAGE_KEY, toJson({ ...sheet, memo }, STANDARD_TUNING, title))
+      localStorage.setItem(storageKey, json)
     } catch {
       // Private-mode / quota failures are not worth interrupting the user for.
     }
-  }, [published, unreadableSave, sheet, memo, title])
+  }, [published, unreadableSave, json, storageKey])
 
   useEffect(() => {
     if (!status) return undefined
@@ -583,6 +592,8 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
   }
 
   const fileStem = slugify(title)
+  // Saving names the sheet after its title, so there has to be one.
+  const named = title.trim() !== ''
 
   /** What the Undo button would take back, or null when it would do nothing. */
   const undoing = nextUndoLabel(history)
@@ -599,28 +610,27 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
 
   /** What each of the three presses does, and what it leaves behind. */
   const writes = {
-    publish: { send: (slug) => publishNote(slug, json), said: 'Published' },
+    publish: { send: (slug) => publishNote(slug, json, getToken), said: 'Saved' },
     update: {
-      send: (slug, password) => updateNote(slug, json, password),
+      send: (slug) => updateNote(slug, json, getToken),
       said: 'Updated',
       // What was sent is what the note holds now, so it becomes the thing a
       // further change is measured against.
       then: () => setSentAs(json),
     },
     delete: {
-      send: (slug, password) => deleteNote(slug, password),
+      send: (slug) => deleteNote(slug, getToken),
       said: 'Deleted',
       then: () => setDeleted(true),
     },
   }
 
   /**
-   * Write to this environment's bucket: a new note at /notes/<slug>, this
-   * sheet over the published note the page is showing, or that note gone.
+   * Write to the signed-in user's library: create, update or delete a sheet.
    */
-  const writeSheet = async (slug, password) => {
+  const writeSheet = async (slug) => {
     const write = writes[writeMenu?.mode ?? 'publish']
-    const result = await write.send(slug, password)
+    const result = await write.send(slug)
     if (!result.ok) return result
 
     setStatus(`${write.said} ${slug}`)
@@ -650,66 +660,65 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
   return (
     <div className="app">
       <header className="header">
-        <h1><button type="button" className="home-button" onClick={onNewSheet} title="Start a new sheet">Fretbook</button></h1>
-        <input
-          className="title-input"
-          value={title}
-          onChange={(event) => setTitle(event.target.value.toLowerCase().replace(/ /g, '_'))}
-          autoCapitalize="off"
-          placeholder="Untitled"
-          aria-label="Title"
-        />
+        <h1 data-tutorial="file-controls"><button type="button" className="home-button" onClick={onNewSheet} title="Start a new sheet">Fretbook</button></h1>
+        <AuthControls />
       </header>
-
       <div className="toolbar">
-        <div className="toolbar-group">
-          <button
-            type="button"
-            onClick={exportJson}
-            disabled={empty}
-            aria-label="Export JSON"
-            title="Export JSON"
-          >
-            Export
-          </button>
-          <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Import JSON" title="Import JSON">
-            Import
-          </button>
-          <input ref={fileInputRef} type="file" accept="application/json,.json" className="visually-hidden" onChange={importJson} />
+        <div className="toolbar-start">
+          <div className="toolbar-group" data-tutorial="file-controls">
+            <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Import JSON" title="Import JSON">
+              Import
+            </button>
+            <button
+              type="button"
+              onClick={exportJson}
+              disabled={empty}
+              aria-label="Export JSON"
+              title="Export JSON"
+            >
+              Export
+            </button>
+            <input ref={fileInputRef} type="file" accept="application/json,.json" className="visually-hidden" onChange={importJson} />
 
-          <button
-            type="button"
-            className={`icon-button${audioOn ? ' is-on' : ''}`}
-            aria-pressed={audioOn}
-            aria-label={audioOn ? 'Sound on' : 'Sound off'}
-            onClick={toggleAudio}
-            title={audioOn ? 'Sound is on — hear each note as you press it' : 'Sound is off'}
-          >
-            <SoundIcon muted={!audioOn} />
-          </button>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={openLive}
-            disabled={!playable}
-            aria-haspopup="dialog"
-            aria-expanded={!!liveMenu}
-            aria-label="Play the sheet full screen"
-            title={
-              playable
-                ? 'Play the sheet full screen at a tempo'
-                : 'Write something on a staff to play it'
-            }
-          >
-            <PresentIcon />
-          </button>
+            <button
+              type="button"
+              className={`icon-button${audioOn ? ' is-on' : ''}`}
+              aria-pressed={audioOn}
+              aria-label={audioOn ? 'Sound on' : 'Sound off'}
+              onClick={toggleAudio}
+              title={audioOn ? 'Sound is on — hear each note as you press it' : 'Sound is off'}
+            >
+              <SoundIcon muted={!audioOn} />
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              onClick={openLive}
+              disabled={!playable}
+              aria-haspopup="dialog"
+              aria-expanded={!!liveMenu}
+              aria-label="Play the sheet full screen"
+              title={
+                playable
+                  ? 'Play the sheet full screen at a tempo'
+                  : 'Write something on a staff to play it'
+              }
+            >
+              <PresentIcon />
+            </button>
+            <button type="button" className="icon-button icon-button--bare" onClick={onOpenTutorial} aria-label="Open the tutorial" title="How Fretbook works">
+              ?
+            </button>
+          </div>
+
+          <span className="status" role="status">
+            {status}
+          </span>
         </div>
 
-        <span className="status" role="status">
-          {status}
-        </span>
+        <SheetTitle title={title} onChange={setTitle} />
 
-        <div className="toolbar-group toolbar-group--end">
+        <div className="toolbar-group toolbar-group--end" data-tutorial="account-controls">
           {published ? (
             <>
               <button
@@ -723,7 +732,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
                   deleted
                     ? 'This note has been taken down'
                     : changed
-                      ? `Write this sheet over ${published.slug} — needs the password`
+                      ? `Write this sheet over ${published.slug}`
                       : 'Nothing has been changed on this note yet'
                 }
               >
@@ -739,7 +748,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
                 title={
                   deleted
                     ? 'This note has been taken down'
-                    : `Take ${published.slug} down for good — needs the password`
+                    : `Take ${published.slug} down for good`
                 }
               >
                 Delete
@@ -748,22 +757,40 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
           ) : (
             <button
               type="button"
-              onClick={(event) => openWrite('publish', event.currentTarget)}
-              disabled={empty}
+              className="icon-button"
+              onClick={(event) => (isSignedIn ? openWrite('publish', event.currentTarget) : openSignIn())}
+              // An empty sheet has nothing to save, logged in or not; a title is
+              // only needed once the save itself is offered.
+              disabled={empty || (isSignedIn && !named)}
               aria-haspopup="dialog"
               aria-expanded={!!writeMenu}
-              title="Save this sheet so it can be opened from the sheet list"
+              aria-label="Save"
+              title={
+                !isSignedIn
+                  ? 'Log in to save sheets'
+                  : !named
+                    ? 'Give the sheet a title to save it'
+                    : 'Save this sheet to your library'
+              }
             >
-              Publish
+              <SaveIcon />
             </button>
           )}
-          <button type="button" onClick={(event) => setSheetPicker(sheetPicker ? null : event.currentTarget)} aria-haspopup="dialog" aria-expanded={!!sheetPicker}>
-            Sheets
+          <button
+            type="button"
+            className="icon-button"
+            onClick={(event) => (isSignedIn ? setSheetPicker(sheetPicker ? null : event.currentTarget) : openSignIn())}
+            aria-haspopup="dialog"
+            aria-expanded={!!sheetPicker}
+            aria-label="Sheets"
+            title={isSignedIn ? 'Your saved sheets' : 'Log in to see your saved sheets'}
+          >
+            <ListIcon />
           </button>
         </div>
       </div>
 
-      <div className="editing-panel" role="group" aria-label="Editing controls">
+      <div className="editing-panel" role="group" aria-label="Editing controls" data-tutorial="editing-panel">
           <button
             type="button"
             className="icon-button"
@@ -830,7 +857,13 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
       )}
 
       {sheetPicker && (
-        <NoteIndex anchor={sheetPicker} onClose={() => setSheetPicker(null)} onOpen={(slug) => { setSheetPicker(null); onOpenSheet(slug) }} />
+        <NoteIndex
+          anchor={sheetPicker}
+          onClose={() => setSheetPicker(null)}
+          onOpen={(slug) => { setSheetPicker(null); onOpenSheet(slug) }}
+          // The same blank sheet the Fretbook wordmark starts.
+          onNew={() => { setSheetPicker(null); onNewSheet() }}
+        />
       )}
 
       {writeMenu && (
@@ -838,7 +871,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
           anchor={writeMenu.anchor}
           mode={writeMenu.mode}
           note={published?.slug ?? null}
-          defaultSlug={fileStem}
+          slug={fileStem}
           onClose={() => setWriteMenu(null)}
           onWrite={writeSheet}
           onOpen={onOpenSheet}

@@ -61,7 +61,7 @@
   height: var(--row-h);
   padding-right: 10px;
   color: var(--muted);
-  font: 600 13px ui-monospace, Menlo, monospace;
+  font: 500 13px var(--font);
 }
 
 /* The staff and the bar buttons at the end of it, side by side inside the

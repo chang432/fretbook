@@ -24,7 +24,7 @@ const CLEARANCE = 52
  * ground that anything `fixed` inside it is measured from. Such a panel has
  * to be sent to the end of the document instead — see CellMenu.
  */
-export default function ActionBar({ anchor, label, children }) {
+export default function ActionBar({ anchor, label, tutorialKey, children }) {
   const [place, setPlace] = useState(null)
 
   useLayoutEffect(() => {
@@ -61,6 +61,7 @@ export default function ActionBar({ anchor, label, children }) {
       }}
       role="group"
       aria-label={label}
+      data-tutorial={tutorialKey}
     >
       {children}
     </div>
