@@ -45,36 +45,13 @@
   overflow: auto;
 }
 
-.tutorial-slide-image {
+.tutorial-image {
   display: block;
   width: 100%;
   margin-bottom: 16px;
   border: 1px solid var(--bar);
   border-radius: 6px;
 }
-
-.tutorial-slide-nav {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 12px;
-  margin: -8px 0 16px;
-}
-
-.tutorial-slide-arrow {
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--separator);
-  border-radius: 50%;
-  background: var(--button);
-  color: inherit;
-  font: inherit;
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.tutorial-slide-arrow:disabled { opacity: 0.4; cursor: default; }
 
 .tutorial-body {
   margin: 0 0 24px;

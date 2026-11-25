@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import Slideshow from './Slideshow.jsx'
 import { measureSpotlight } from './spotlight.js'
 import { TUTORIAL_STEPS } from './steps.js'
 import './tutorial.css'
@@ -57,12 +56,12 @@ export default function Tutorial({ onClose }) {
     <div className={`tutorial-backdrop${spotlight ? ' has-spotlight' : ''}`}>
       {spotlight && <div className="tutorial-spotlight" style={spotlight} aria-hidden="true" />}
       <section
-        className={`tutorial-popup${step.slides ? ' tutorial-popup--wide' : ''}`}
+        className={`tutorial-popup${step.image ? ' tutorial-popup--wide' : ''}`}
         // Just below the cut-out, so the popup never covers what it's describing.
         style={spotlight ? { marginTop: spotlight.top + spotlight.height + POPUP_GAP } : undefined}
         role="dialog" aria-modal="true" aria-label="Fretbook tutorial">
-        {/* Keyed by step, so every slideshow starts again at its first slide. */}
-        {step.slides ? <Slideshow key={step.id} slides={step.slides} /> : <p className="tutorial-body">{step.body}</p>}
+        {step.image && <img className="tutorial-image" src={step.image} alt={step.alt} />}
+        <p className="tutorial-body">{step.body}</p>
         <div className="tutorial-footer">
           {!isFirst && (
             <button type="button" className="tutorial-button tutorial-previous" onClick={() => setIndex(index - 1)}>
