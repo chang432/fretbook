@@ -1,10 +1,15 @@
+import { selectMiddleCell } from './spotlight.js'
+
 /*
  * The tutorial's steps, in order. The overlay shows one at a time and counts
  * them from this list, so adding a step here is all it takes to extend it.
  *
- * `spotlight` names a `data-tutorial` key on the page: the overlay cuts a
- * rounded window around every element carrying it. A step without one dims
- * the whole page.
+ * `spotlight` names the `data-tutorial` keys on the page: the overlay cuts a
+ * rounded window around every element carrying any of them. A step without
+ * one dims the whole page.
+ *
+ * `prepare`, if a step has one, runs as the step opens to put the page in the
+ * state the step talks about, and returns how to undo that as it closes.
  */
 export const TUTORIAL_STEPS = [
   {
@@ -13,17 +18,19 @@ export const TUTORIAL_STEPS = [
   },
   {
     id: 'file-controls',
-    spotlight: 'file-controls',
+    spotlight: ['file-controls'],
     body: "Clicking the title creates a new sheet. The 'Import' button allows you to import previously exported sheets. The 'Export' button allows you to export the current sheet into a json file. Enabling the volume icon allows you to hear any note you write/click on. The presentation mode plays the current sheet arrangement in a close-up view.",
   },
   {
     id: 'account-controls',
-    spotlight: 'account-controls',
+    spotlight: ['account-controls'],
     body: 'Login to be able to save sheets on our servers. The list icon will display a list of currently saved sheets.',
   },
   {
     id: 'row',
-    spotlight: 'first-row',
+    // The first two keys' menu is only up while a position is being edited.
+    spotlight: ['first-row', 'cell-menu'],
+    prepare: () => selectMiddleCell('e'),
     body: "This is a single row of your sheet. Click inside to specify values 1-24 or 'x'. when editing a note, you will notice a menu tab of additional buttons above the row. The first two are group related buttons that we will get to in the next step. The third button allows you to copy/paste a chunk of notes. The fourth button deletes the column currently selected. The fifth button inserts a new column to the right of the current one.",
   },
   // Placeholders until the rest of the tour is written.

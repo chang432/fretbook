@@ -1,15 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { measureSpotlight } from './spotlight.js'
 import { TUTORIAL_STEPS } from './steps.js'
 import './tutorial.css'
 
+/** Space between the cut-out and the popup hung below it. */
+const POPUP_GAP = 16
+
 /** Track the current step's cut-out, re-measuring as the page resizes or scrolls. */
-function useSpotlight(key) {
+function useSpotlight(keys) {
+  // Keyed by the joined names, so a fresh array each render doesn't re-run the effect.
+  const key = keys?.join(' ')
   // Tagged with its key, so a box measured for an earlier step is never shown.
   const [measured, setMeasured] = useState(null)
   useEffect(() => {
     if (!key) return undefined
-    const update = () => setMeasured({ key, box: measureSpotlight(key) })
+    const update = () => setMeasured({ key, box: measureSpotlight(key.split(' ')) })
     // First measure on the next frame, once the page under the overlay has laid out.
     const frame = requestAnimationFrame(update)
     window.addEventListener('resize', update)
@@ -35,6 +40,8 @@ export default function Tutorial({ onClose }) {
   const step = TUTORIAL_STEPS[index]
   const isFirst = index === 0
   const isLast = index === TUTORIAL_STEPS.length - 1
+  // Before the spotlight hook, so the page is set up by the time it measures.
+  useLayoutEffect(() => step.prepare?.(), [step])
   const spotlight = useSpotlight(step.spotlight)
 
   // Focus "next" whenever the step changes, so Enter walks through the tour.
@@ -48,7 +55,11 @@ export default function Tutorial({ onClose }) {
     // the dimming instead of the backdrop.
     <div className={`tutorial-backdrop${spotlight ? ' has-spotlight' : ''}`}>
       {spotlight && <div className="tutorial-spotlight" style={spotlight} aria-hidden="true" />}
-      <section className="tutorial-popup" role="dialog" aria-modal="true" aria-label="Fretbook tutorial">
+      <section
+        className="tutorial-popup"
+        // Just below the cut-out, so the popup never covers what it's describing.
+        style={spotlight ? { marginTop: spotlight.top + spotlight.height + POPUP_GAP } : undefined}
+        role="dialog" aria-modal="true" aria-label="Fretbook tutorial">
         <p className="tutorial-body">{step.body}</p>
         <div className="tutorial-footer">
           {!isFirst && (

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { spotlightBox } from '../src/tutorial/spotlight.js'
+import { nearestToMiddle, spotlightBox } from '../src/tutorial/spotlight.js'
 
 test('the spotlight covers every marked element, padded on each side', () => {
   const title = { left: 30, top: 20, right: 350, bottom: 100 }
@@ -10,4 +10,10 @@ test('the spotlight covers every marked element, padded on each side', () => {
 
 test('no marked elements means no spotlight', () => {
   assert.equal(spotlightBox([]), null)
+})
+
+test('the selected position is the usable one nearest the middle', () => {
+  assert.equal(nearestToMiddle(16, () => true), 7)
+  assert.equal(nearestToMiddle(16, (at) => at !== 7 && at !== 8), 6)
+  assert.equal(nearestToMiddle(16, () => false), -1)
 })

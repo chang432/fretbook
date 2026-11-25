@@ -14,7 +14,12 @@
 
 /* With a cut-out, the backdrop goes clear and the cut-out's shadow, spread
    far past every edge of the screen, dims everything around it. */
-.tutorial-backdrop.has-spotlight { background: transparent; }
+.tutorial-backdrop.has-spotlight {
+  align-items: flex-start;
+  overflow: auto;
+  padding-top: 0;
+  background: transparent;
+}
 
 .tutorial-spotlight {
   position: fixed;
