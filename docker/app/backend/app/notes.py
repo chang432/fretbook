@@ -1,4 +1,6 @@
-"""Private sheets stored in R2 under sheets/<verified Clerk user ID>/."""
+"""Sheets stored in R2: private ones under sheets/<verified Clerk user ID>/,
+and read-only public ones under sheets/public/. Clerk user IDs always start
+with user_, so no account's prefix can ever be sheets/public/."""
 
 import fcntl
 import hashlib
@@ -20,6 +22,7 @@ notes = Blueprint('notes', __name__)
 MAX_UPLOAD_BYTES = 512 * 1024
 FREE_SHEET_LIMIT = 3
 PRO_PLAN = 'u:donor'
+PUBLIC_PREFIX = 'sheets/public/'
 NAME = re.compile(r'[a-z0-9]+(?:_[a-z0-9]+)*')
 _client = None
 
@@ -38,7 +41,7 @@ def private(f):
         claims, error = authenticated_user()
         if error:
             return error
-        if not os.environ.get('FRETBOOK_NOTES_BUCKET') or not os.environ.get('FRETBOOK_R2_ENDPOINT'):
+        if not _configured():
             return jsonify(error='the sheets bucket is not configured'), 503
         g.sheet_prefix = f"sheets/{claims['sub']}/"
         plans = claims.get('pla')
@@ -76,6 +79,10 @@ def _sheet_count_at_limit():
 
 def _key(slug):
     return f'{g.sheet_prefix}{slug}.json'
+
+
+def _configured():
+    return bool(os.environ.get('FRETBOOK_NOTES_BUCKET') and os.environ.get('FRETBOOK_R2_ENDPOINT'))
 
 
 def _bucket():
@@ -116,13 +123,10 @@ def index():
         return jsonify(error='the sheets bucket cannot be reached'), 503
 
 
-@notes.get('/sheets/<slug>')
-@private
-def get_sheet(slug):
-    if not NAME.fullmatch(slug):
-        return jsonify(error='no such sheet'), 404
+def _read_sheet(key):
+    """Serve one stored sheet, or the error a reader should see instead."""
     try:
-        body = _s3().get_object(Bucket=_bucket(), Key=_key(slug))['Body'].read()
+        body = _s3().get_object(Bucket=_bucket(), Key=key)['Body'].read()
         json.loads(body)
         return Response(body, mimetype='application/json')
     except ClientError as error:
@@ -131,6 +135,25 @@ def get_sheet(slug):
         return jsonify(error='the sheets bucket cannot be reached'), 503
     except (BotoCoreError, ValueError, UnicodeDecodeError):
         return jsonify(error='the sheet could not be read'), 503
+
+
+@notes.get('/sheets/<slug>')
+@private
+def get_sheet(slug):
+    if not NAME.fullmatch(slug):
+        return jsonify(error='no such sheet'), 404
+    return _read_sheet(_key(slug))
+
+
+# Public sheets need no sign-in: anyone with the link can read one. They are
+# placed in the bucket by hand, so there is no route that writes them.
+@notes.get('/sheets/public/<slug>')
+def get_public_sheet(slug):
+    if not NAME.fullmatch(slug):
+        return jsonify(error='no such sheet'), 404
+    if not _configured():
+        return jsonify(error='the sheets bucket is not configured'), 503
+    return _read_sheet(f'{PUBLIC_PREFIX}{slug}.json')
 
 
 @notes.route('/sheets/<slug>', methods=['PUT', 'POST', 'DELETE'])

@@ -107,6 +107,18 @@ class SheetsTest(unittest.TestCase):
         self.assertEqual(self.request('POST', url, user='user_bob', data=self.sheet).status_code, 200)
 
 
+    def test_public_sheets_are_readable_without_signing_in(self):
+        self.store.objects['sheets/public/song.json'] = self.sheet.encode()
+        response = self.client.get('/api/sheets/public/song')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json['title'], 'Song')
+        self.assertEqual(self.client.get('/api/sheets/public/missing').status_code, 404)
+        self.assertEqual(self.client.get('/api/sheets/public/Bad-Name').status_code, 404)
+        # Public sheets are read-only, and a user's sheet named "public" stays theirs.
+        self.assertEqual(self.client.put('/api/sheets/public/song', data=self.sheet).status_code, 405)
+        self.assertEqual(self.request('PUT', '/api/sheets/public', data=self.sheet).status_code, 201)
+        self.assertIn('sheets/user_alice/public.json', self.store.objects)
+
     def test_free_limit_pro_access_and_downgrade(self):
         for name in ('one', 'two', 'three'):
             self.assertEqual(self.request('PUT', f'/api/sheets/{name}', data=self.sheet).status_code, 201)
