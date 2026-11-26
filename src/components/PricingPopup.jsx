@@ -20,7 +20,7 @@ export default function PricingPopup({ onClose }) {
         onKeyDown={(event) => { if (event.key === 'Escape' && event.currentTarget.contains(event.target)) { event.stopPropagation(); onClose() } }}
       >
         <div className="pricing-heading">
-          <h2 id="pricing-title">Subscriptions</h2>
+          <h2 id="pricing-title">Support Us!</h2>
           <button ref={closeButton} type="button" onClick={onClose} aria-label="Close subscriptions">×</button>
         </div>
         <PricingTable for="user" fallback={<p>Loading plans…</p>} />
