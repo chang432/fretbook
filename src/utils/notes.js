@@ -43,11 +43,14 @@ async function write(method, slug, json, getToken) {
     return { ok: false, error: 'Could not reach the server' }
   }
   if (response.ok) return { ok: true, note: await response.json() }
-  let error = ''
-  try { error = (await response.json())?.error ?? '' } catch { /* Use the fallback below. */ }
+  let body = null
+  try { body = await response.json() } catch { /* Use the fallback below. */ }
+  const error = body?.error ?? ''
   return {
     ok: false,
     taken: response.status === 409,
+    // A free account already holds as many sheets as its plan allows.
+    limit: body?.code === 'sheet_limit',
     error: error ? `${error[0].toUpperCase()}${error.slice(1)}` : 'That did not go through',
   }
 }

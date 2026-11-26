@@ -5,6 +5,7 @@ import LiveMode from './components/LiveMode.jsx'
 import MemoSection from './components/MemoSection.jsx'
 import NoteIndex from './components/NoteIndex.jsx'
 import Popover from './components/Popover.jsx'
+import PricingPopup from './components/PricingPopup.jsx'
 import PublishMenu from './components/PublishMenu.jsx'
 import SheetTitle from './components/SheetTitle.jsx'
 import TabEditorV2 from './components/TabEditorV2.jsx'
@@ -121,6 +122,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
   // presses it is — they are one panel asking for different things.
   const [writeMenu, setWriteMenu] = useState(null)
   const [sheetPicker, setSheetPicker] = useState(null)
+  const [showPricing, setShowPricing] = useState(false)
   // Set once this page's note has been taken down, which leaves the sheet on
   // screen with nothing behind it: there is no note left to update or delete.
   const [deleted, setDeleted] = useState(false)
@@ -631,6 +633,11 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
   const writeSheet = async (slug) => {
     const write = writes[writeMenu?.mode ?? 'publish']
     const result = await write.send(slug)
+    // Over the free plan's sheet limit: swap the save panel for the plans.
+    if (result.limit) {
+      setWriteMenu(null)
+      setShowPricing(true)
+    }
     if (!result.ok) return result
 
     setStatus(`${write.said} ${slug}`)
@@ -877,6 +884,8 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
           onOpen={onOpenSheet}
         />
       )}
+
+      {showPricing && <PricingPopup onClose={() => setShowPricing(false)} />}
 
       <main className="sheet">
         {unreadableSave && (
