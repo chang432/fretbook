@@ -70,7 +70,9 @@ function loadSaved(storageKey) {
  * `published` opens a saved sheet from the user’s bucket prefix. Two things follow
  * from that: the sheet is seeded from the note rather than from storage, and
  * the autosave below is off, so reading a published note leaves the reader's
- * own sheet exactly where it was.
+ * own sheet exactly where it was. With `published.isPublic` the sheet is one
+ * of the shared public ones rather than the user's own: it can't be updated or
+ * deleted, only saved as a copy into the reader's library.
  *
  * A sheet is its rows, top to bottom. There is no arrangement and no grouping
  * of rows: what says a passage is played more than once is a group marked
@@ -726,7 +728,7 @@ export default function App({ published = null, fresh = false, onOpenSheet, onNe
         <SheetTitle title={title} onChange={setTitle} />
 
         <div className="toolbar-group toolbar-group--end" data-tutorial="account-controls">
-          {published ? (
+          {published && !published.isPublic ? (
             <>
               <button
                 type="button"

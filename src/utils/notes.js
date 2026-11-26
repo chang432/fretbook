@@ -16,9 +16,15 @@ export async function fetchManifest(getToken) {
   return list.filter((note) => note?.slug)
 }
 
-export async function fetchNote(slug, getToken) {
+export const fetchNote = (slug, getToken) => readSheet(noteUrl(slug), () => authHeaders(getToken))
+
+/** Public sheets need no session token. */
+export const fetchPublicNote = (slug) => readSheet(`/api/sheets/public/${slug}`, async () => ({}))
+
+/** The sheet at `url`, or null when it can't be fetched or parsed. */
+async function readSheet(url, headers) {
   try {
-    const response = await fetch(noteUrl(slug), { cache: 'no-store', headers: await authHeaders(getToken) })
+    const response = await fetch(url, { cache: 'no-store', headers: await headers() })
     if (!response.ok) return null
     return fromJson(await response.text())
   } catch {

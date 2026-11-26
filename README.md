@@ -427,6 +427,21 @@ session token’s user-plan claim; plan changes can take until the token refresh
 Concurrent saves are serialized between the workers in the single backend
 container. Multiple backend replicas would need a shared lock.
 
+### Public sheets
+
+`/sheets/public/<name>` opens a sheet anyone can read, signed in or not. Flask
+serves it from `sheets/public/<name>.json` in the same bucket, through
+`GET /api/sheets/public/<name>`, with no session token. Names follow the same
+rule as saved sheets (lowercase letters, digits, single underscores). There is
+no API for writing them: put the JSON into the bucket directly, for example
+
+    aws s3 cp song.json s3://fretbook-notes-prod/sheets/public/song.json \
+      --endpoint-url "$FRETBOOK_R2_ENDPOINT" --profile r2
+
+A public sheet opens without Update or Delete; signed-in readers can **Save** a
+copy into their own library. Clerk user IDs always start with `user_`, so no
+user's private prefix can be `sheets/public/`.
+
 Local Docker setup requires `VITE_CLERK_PUBLISHABLE_KEY` and
 `CLERK_AUTHORIZED_PARTIES` in `docker/app/.env`; the latter is a comma-separated
 list of the browser origins allowed to authenticate, such as
