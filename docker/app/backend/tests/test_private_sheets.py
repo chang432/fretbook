@@ -116,10 +116,10 @@ class SheetsTest(unittest.TestCase):
         self.assertIn('Subscribe', denied.json['error'])
         # A different user's sheets and an organization plan cannot grant access.
         self.assertEqual(self.request('PUT', '/api/sheets/other', user='user_bob', data=self.sheet).status_code, 201)
-        self.assertEqual(self.request('PUT', '/api/sheets/four', jwt_token=token(pla='o:premium'), data=self.sheet).status_code, 403)
-        self.assertEqual(self.request('PUT', '/api/sheets/four', jwt_token=token(pla='u:premium', key=OTHER), data=self.sheet).status_code, 401)
-        self.assertEqual(self.request('PUT', '/api/sheets/four', jwt_token=token(pla='u:premium'), data=self.sheet).status_code, 201)
-        self.assertEqual(self.request('PUT', '/api/sheets/five', jwt_token=token(pla='o:other,u:premium'), data=self.sheet).status_code, 201)
+        self.assertEqual(self.request('PUT', '/api/sheets/four', jwt_token=token(pla='o:donor'), data=self.sheet).status_code, 403)
+        self.assertEqual(self.request('PUT', '/api/sheets/four', jwt_token=token(pla='u:donor', key=OTHER), data=self.sheet).status_code, 401)
+        self.assertEqual(self.request('PUT', '/api/sheets/four', jwt_token=token(pla='u:donor'), data=self.sheet).status_code, 201)
+        self.assertEqual(self.request('PUT', '/api/sheets/five', jwt_token=token(pla='o:other,u:donor'), data=self.sheet).status_code, 201)
         # Existing sheets remain accessible and manageable after a downgrade.
         self.assertEqual(self.request('GET', '/api/sheets/four').status_code, 200)
         self.assertEqual(self.request('POST', '/api/sheets/four', data=self.sheet).status_code, 200)
