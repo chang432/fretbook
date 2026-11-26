@@ -19,7 +19,7 @@ from .auth import authenticated_user
 notes = Blueprint('notes', __name__)
 MAX_UPLOAD_BYTES = 512 * 1024
 FREE_SHEET_LIMIT = 3
-PRO_PLAN = 'u:plan_test'
+PRO_PLAN = 'u:premium'
 NAME = re.compile(r'[a-z0-9]+(?:_[a-z0-9]+)*')
 _client = None
 
